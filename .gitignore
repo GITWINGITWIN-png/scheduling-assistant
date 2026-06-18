@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Secrets & local state — NEVER commit these
+.env
+.env.example
+backend/.env
+credentials.json
+token*.json
+backend/credentials.json
+backend/token*.json
+*.db
+
+# uv
+.uv/
+
+# Node / React (added at M2)
+node_modules/
+dist/
+
+# Editor
+.vscode/
+.idea/

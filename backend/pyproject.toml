@@ -1,0 +1,19 @@
+[project]
+name = "my-secretary"
+version = "0.1.0"
+description = "A personal scheduling secretary on top of Google Calendar"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic-settings>=2.0",
+    "sqlalchemy>=2.0",
+    "google-api-python-client>=2.0",
+    "google-auth-oauthlib>=1.2",
+    # LLM via the Claude Agent SDK, driven by the logged-in `claude` CLI on the
+    # user's Pro subscription (no ANTHROPIC_API_KEY = no metered API spend).
+    "claude-agent-sdk>=0.1.0",
+    "apscheduler>=3.10",
+]
+
+# Run with:  uv run uvicorn app.main:app --reload
