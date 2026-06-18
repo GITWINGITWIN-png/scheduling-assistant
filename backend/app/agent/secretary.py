@@ -30,6 +30,8 @@ _calendar_server = create_sdk_mcp_server(
 _ALLOWED_TOOLS = [
     "mcp__calendar__list_events",
     "mcp__calendar__create_event",
+    "mcp__calendar__update_event",
+    "mcp__calendar__delete_event",
 ]
 
 
@@ -40,7 +42,10 @@ def _system_prompt() -> str:
         "You are a personal scheduling secretary. "
         f"Today is {today} (the user's local time). "
         "Help the user manage their daily and academic schedule. "
-        "Use the calendar tools to read and create events. "
+        "Use the calendar tools to read, create, update, and delete events. "
+        "To update or delete an event, first call list_events to find its id, "
+        "then pass that id. When updating, change only the fields the user asked "
+        "about. Deleting is irreversible — confirm with the user before deleting. "
         "When the user gives a relative time like 'tomorrow at 6pm', resolve it "
         "to a concrete ISO 8601 datetime before calling a tool. "
         "Assume an event is one hour long unless the user says otherwise. "

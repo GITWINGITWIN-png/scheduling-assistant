@@ -34,7 +34,8 @@ async def list_events(args: dict) -> dict:
         for e in events:
             # Timed events use dateTime; all-day events use date.
             start = e["start"].get("dateTime", e["start"].get("date", "?"))
-            lines.append(f"- {start}: {e.get('summary', '(no title)')}")
+            # Include the id so the agent can update/delete this event later.
+            lines.append(f"- [{e['id']}] {start}: {e.get('summary', '(no title)')}")
         text = "\n".join(lines)
 
     return {"content": [{"type": "text", "text": text}]}
@@ -63,5 +64,51 @@ async def create_event(args: dict) -> dict:
     }
 
 
+@tool(
+    "update_event",
+    "Update an existing event by its id (get the id from list_events first). "
+    "Pass only the fields you want to change. start/end are ISO 8601 datetimes.",
+    {
+        "type": "object",
+        "properties": {
+            "event_id": {"type": "string", "description": "The event's id"},
+            "summary": {"type": "string"},
+            "start": {"type": "string", "description": "New start, ISO 8601"},
+            "end": {"type": "string", "description": "New end, ISO 8601"},
+            "description": {"type": "string"},
+        },
+        "required": ["event_id"],
+    },
+)
+async def update_event(args: dict) -> dict:
+    fields: dict = {}
+    if args.get("summary"):
+        fields["summary"] = args["summary"]
+    if args.get("description"):
+        fields["description"] = args["description"]
+    if args.get("start"):
+        fields["start"] = datetime.fromisoformat(args["start"])
+    if args.get("end"):
+        fields["end"] = datetime.fromisoformat(args["end"])
+
+    updated = cal.update_event(args["event_id"], **fields)
+    return {
+        "content": [
+            {"type": "text", "text": f"Updated '{updated.get('summary', '(event)')}'."}
+        ]
+    }
+
+
+@tool(
+    "delete_event",
+    "Delete an event by its id (get the id from list_events first). This is "
+    "irreversible, so make sure the user has confirmed before calling it.",
+    {"event_id": str},
+)
+async def delete_event(args: dict) -> dict:
+    cal.delete_event(args["event_id"])
+    return {"content": [{"type": "text", "text": "Event deleted."}]}
+
+
 # Collected for registration in secretary.py
-CALENDAR_TOOLS = [list_events, create_event]
+CALENDAR_TOOLS = [list_events, create_event, update_event, delete_event]

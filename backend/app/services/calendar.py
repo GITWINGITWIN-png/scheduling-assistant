@@ -107,3 +107,36 @@ def create_event(
         .insert(calendarId=settings.calendar_id, body=body)
         .execute()
     )
+
+
+def update_event(
+    event_id: str,
+    *,
+    summary: str | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    description: str | None = None,
+) -> dict:
+    """Update an existing event. Only the provided fields are changed (patch)."""
+    body: dict = {}
+    if summary is not None:
+        body["summary"] = summary
+    if description is not None:
+        body["description"] = description
+    if start is not None:
+        body["start"] = {"dateTime": start.isoformat()}
+    if end is not None:
+        body["end"] = {"dateTime": end.isoformat()}
+    return (
+        _service()
+        .events()
+        .patch(calendarId=settings.calendar_id, eventId=event_id, body=body)
+        .execute()
+    )
+
+
+def delete_event(event_id: str) -> None:
+    """Delete an event by id. Irreversible — callers should confirm first."""
+    _service().events().delete(
+        calendarId=settings.calendar_id, eventId=event_id
+    ).execute()
