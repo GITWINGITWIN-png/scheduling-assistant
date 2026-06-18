@@ -7,14 +7,14 @@ progress.
 
 ## Status
 
-**M0 — Foundation** (in progress): a FastAPI backend that authenticates to
-Google Calendar and can read/write events. This proves the riskiest plumbing
-before we build the chat agent, the React dashboard, and the planner.
+**M2 — Dashboard** (done): a 3-page React app (Home / Academic / Projects) with a
+live calendar + chat, talking to the FastAPI backend. M0 (Google Calendar plumbing)
+and M1 (the Claude chat agent with full calendar CRUD) are complete.
 
 ### Roadmap
-- **M0** Foundation: Google OAuth + read/write a calendar event ← *we are here*
-- **M1** Chat assistant: Claude agent with calendar tools
-- **M2** React dashboard: calendar view + chat + project list
+- **M0** Foundation: Google OAuth + read/write a calendar event ✓
+- **M1** Chat assistant: Claude agent with calendar tools ✓
+- **M2** React dashboard: 3 pages (Home / Academic / Projects), live calendar + chat ✓ ← *we are here*
 - **M3** Academic input: **Google Classroom** (course names, assignments + due dates,
   submission status, announcements — **not** course materials; on a *separate school
   account*) as the primary source; recurring classes + syllabus PDF as fallback.
@@ -40,7 +40,27 @@ before we build the chat agent, the React dashboard, and the planner.
   sync or manual entry.
 - **DB:** SQLite + SQLAlchemy (the "smart layer")
 - **Scheduler:** APScheduler (proactive jobs)
-- **Frontend:** React + Vite + FullCalendar (added at M2)
+- **Frontend:** React + Vite + TypeScript + Tailwind v4 + FullCalendar + React Router
+  (in `frontend/`, added at M2)
+
+## Running the app (M2)
+
+Two servers, side by side.
+
+**Backend** (from `backend/`):
+```bash
+uv run uvicorn app.main:app --reload      # http://localhost:8000
+```
+
+**Frontend** (from `frontend/`):
+```bash
+npm install        # first time only
+npm run dev        # http://localhost:5173
+```
+
+Open **http://localhost:5173**. The Home page shows your live Google Calendar (week
+view) and a working chat box; Academic and Projects are styled placeholders until M3/M4.
+CORS is configured for the Vite dev origin, so the browser can call the backend.
 
 ---
 
