@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchProjects, type Project } from '../api'
 import { Placeholder } from '../components/Placeholder'
-import { FloatingChat } from '../components/Chat'
 
 // Page 3 (Projects): an index of projects (name, last commit, description,
 // status). Reads /projects (empty for now); full data arrives at M4.
@@ -33,8 +32,6 @@ export default function Projects() {
           ))}
         </ul>
       )}
-
-      <FloatingChat />
     </div>
   )
 }

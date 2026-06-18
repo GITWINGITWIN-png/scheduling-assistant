@@ -1,5 +1,4 @@
 import { Placeholder } from '../components/Placeholder'
-import { FloatingChat } from '../components/Chat'
 
 // Page 2 (Academic): suggested to-dos on top, then subjects with assignments
 // + due dates + countdowns. All placeholder until M3 (Google Classroom).
@@ -19,8 +18,6 @@ export default function Academic() {
         title="📚 Subjects & assignments"
         note="Each subject with its assignments, due dates, and live countdowns — pulled from Google Classroom (M3), sorted by deadline."
       />
-
-      <FloatingChat />
     </div>
   )
 }

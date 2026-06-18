@@ -2,6 +2,7 @@ import { NavLink, Route, Routes } from 'react-router-dom'
 import Home from './pages/Home'
 import Academic from './pages/Academic'
 import Projects from './pages/Projects'
+import { FloatingChat } from './components/Chat'
 
 function NavItem({ to, label }: { to: string; label: string }) {
   return (
@@ -38,6 +39,10 @@ export default function App() {
           <Route path="/projects" element={<Projects />} />
         </Routes>
       </main>
+
+      {/* One global chat for the whole app — mounted here so it persists across
+          page navigation and is the same conversation everywhere. */}
+      <FloatingChat />
     </div>
   )
 }

@@ -31,6 +31,19 @@ def upcoming(days: int = 7):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@router.get("/range")
+def events_range(start: datetime, end: datetime):
+    """List events in an explicit [start, end] window (ISO 8601 query params).
+
+    The dashboard calls this for whatever range the calendar is currently
+    showing, so navigating to past/future weeks fetches the right events.
+    """
+    try:
+        return cal.list_events(start, end, max_results=250)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.post("/events")
 def add_event(event: EventIn):
     """Create a single timed event."""
