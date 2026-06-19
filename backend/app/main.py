@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
-from app.routers import calendar, chat, projects
+from app.routers import academic, calendar, chat, projects
 
 
 @asynccontextmanager
@@ -35,8 +35,9 @@ app.add_middleware(
 app.include_router(calendar.router)
 app.include_router(chat.router)
 app.include_router(projects.router)
+app.include_router(academic.router)
 
 
 @app.get("/")
 def health():
-    return {"status": "ok", "service": "my_secretary", "milestone": "M2"}
+    return {"status": "ok", "service": "my_secretary", "milestone": "M3"}

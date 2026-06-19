@@ -12,51 +12,23 @@ this is the simplest thing that works for local development.
 
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from app.config import settings
+from app.services.google_auth import get_credentials
 
 # Full read/write access to calendars. Narrow this later if you only need reads.
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
-
-def _get_credentials() -> Credentials:
-    """Load cached credentials, refresh them, or run the consent flow once."""
-    creds: Credentials | None = None
-
-    if os.path.exists(settings.google_token_file):
-        creds = Credentials.from_authorized_user_file(settings.google_token_file, SCOPES)
-
-    # If there are no (valid) credentials, refresh or ask the user to log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            if not os.path.exists(settings.google_credentials_file):
-                raise FileNotFoundError(
-                    f"Missing {settings.google_credentials_file}. Download your OAuth "
-                    "client file from Google Cloud Console (see README)."
-                )
-            flow = InstalledAppFlow.from_client_secrets_file(
-                settings.google_credentials_file, SCOPES
-            )
-            creds = flow.run_local_server(port=0)
-        # Cache for next time.
-        with open(settings.google_token_file, "w") as token:
-            token.write(creds.to_json())
-
-    return creds
+# The calendar lives on the user's personal Google account.
+ACCOUNT = "personal"
 
 
 def _service():
-    """Build a Google Calendar API client."""
-    return build("calendar", "v3", credentials=_get_credentials())
+    """Build a Google Calendar API client (personal account)."""
+    return build("calendar", "v3", credentials=get_credentials(ACCOUNT, SCOPES))
 
 
 def _rfc3339(dt: datetime) -> str:
