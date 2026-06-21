@@ -1,6 +1,24 @@
 // Tiny client for the FastAPI backend. One place to change the base URL.
 const BASE = 'http://localhost:8000'
 
+// Some reads are served from a DB snapshot for instant skimming. The backend
+// wraps them in this envelope: `data` plus when it was fetched and whether that
+// snapshot is stale (a background refresh was kicked off, so reload soon for fresh).
+export interface Cached<T> {
+  data: T
+  fetched_at: string
+  stale: boolean
+}
+
+// "updated just now / 4m ago / 2h ago" for a snapshot's fetched_at timestamp.
+export function timeAgo(iso: string): string {
+  const secs = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
+  if (secs < 45) return 'just now'
+  if (secs < 3600) return `${Math.round(secs / 60)}m ago`
+  if (secs < 86_400) return `${Math.round(secs / 3600)}h ago`
+  return `${Math.round(secs / 86_400)}d ago`
+}
+
 // --- Chat ---
 export async function sendChat(message: string): Promise<string> {
   const res = await fetch(`${BASE}/chat`, {
@@ -39,12 +57,13 @@ function mapEvent(e: GoogleEvent): CalEvent {
 
 // Fetch events for an explicit time range (ISO 8601). FullCalendar calls this
 // for whatever range is currently visible, and again whenever you navigate.
-export async function fetchEventsRange(start: string, end: string): Promise<CalEvent[]> {
-  const url = `${BASE}/calendar/range?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+// Served from a per-range DB snapshot (instant); pass refresh=true to force-fetch.
+export async function fetchEventsRange(start: string, end: string, refresh = false): Promise<CalEvent[]> {
+  const url = `${BASE}/calendar/range?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}${refresh ? '&refresh=true' : ''}`
   const res = await fetch(url)
   if (!res.ok) throw new Error(`calendar failed: ${res.status}`)
-  const raw: GoogleEvent[] = await res.json()
-  return raw.map(mapEvent)
+  const env: Cached<GoogleEvent[]> = await res.json()
+  return env.data.map(mapEvent)
 }
 
 // --- Projects (M4) ---
@@ -142,8 +161,9 @@ export interface Assignment {
 
 // One fetch gives every assignment (with submitted/overdue/ignored flags), so the
 // Academic page derives both the to-do groups and the per-subject list from it.
-export async function fetchAssignments(): Promise<Assignment[]> {
-  const res = await fetch(`${BASE}/academic/assignments`)
+// Served from a DB snapshot (instant); pass refresh=true to force a Google fetch.
+export async function fetchAssignments(refresh = false): Promise<Cached<Assignment[]>> {
+  const res = await fetch(`${BASE}/academic/assignments${refresh ? '?refresh=true' : ''}`)
   if (!res.ok) throw new Error(`assignments failed: ${res.status}`)
   return res.json()
 }
@@ -216,10 +236,18 @@ export interface Email {
   link: string
 }
 
-// Browse unread inbox (free Google API call — no tokens).
-export async function fetchUnread(limit = 20): Promise<Email[]> {
-  const res = await fetch(`${BASE}/mail/unread?limit=${limit}`)
+// Browse unread inbox (free Google API call). Served from a DB snapshot (instant);
+// pass refresh=true to force a fresh Gmail fetch.
+export async function fetchUnread(refresh = false, limit = 20): Promise<Cached<Email[]>> {
+  const res = await fetch(`${BASE}/mail/unread?limit=${limit}${refresh ? '&refresh=true' : ''}`)
   if (!res.ok) throw new Error(`unread failed: ${res.status}`)
+  return res.json()
+}
+
+// Browse today's inbox, read + unread (free Google API call). Snapshot-served.
+export async function fetchToday(refresh = false, limit = 40): Promise<Cached<Email[]>> {
+  const res = await fetch(`${BASE}/mail/today?limit=${limit}${refresh ? '&refresh=true' : ''}`)
+  if (!res.ok) throw new Error(`today failed: ${res.status}`)
   return res.json()
 }
 
@@ -241,22 +269,77 @@ export interface MailItem {
   email_subject: string
   email_from: string
   link: string
+  pinned?: boolean // auto-pinned by the scan (dated/deadline/meeting/event)
 }
 
 export interface MailScan {
   items: MailItem[]
   scanned: number
-  model: string
+  scope?: string
+  model?: string
+  for_date?: string
+  auto_pinned?: number // how many items the scan auto-pinned
 }
 
-// Run the local model over unread mail to extract deadlines/meetings/events.
-export async function scanMail(limit = 20): Promise<MailScan> {
-  const res = await fetch(`${BASE}/mail/scan?limit=${limit}`, { method: 'POST' })
+export type ScanScope = 'unread' | 'today'
+
+// Run the local model over mail to extract deadlines/meetings/events.
+// 'unread' always runs fresh; 'today' reads the once-a-day cached scan (the
+// scheduler pre-warms it each morning), with `force` to re-run it.
+export async function scanMail(scope: ScanScope = 'unread', force = false): Promise<MailScan> {
+  const url =
+    scope === 'today'
+      ? `${BASE}/mail/scan/today${force ? '?force=true' : ''}`
+      : `${BASE}/mail/scan?scope=unread`
+  const res = await fetch(url, { method: scope === 'today' ? 'GET' : 'POST' })
   if (!res.ok) {
     const detail = await res.json().catch(() => null)
     throw new Error(detail?.detail ?? `scan failed: ${res.status}`)
   }
   return res.json()
+}
+
+// --- Pinned emails (show on the Projects page; dated pins → calendar) ---
+export interface Pin {
+  email_id: string
+  subject: string
+  sender: string
+  link: string
+  note: string
+  date: string | null
+  on_calendar: boolean
+  created_at: string | null
+}
+
+export async function fetchPins(): Promise<Pin[]> {
+  const res = await fetch(`${BASE}/mail/pins`)
+  if (!res.ok) throw new Error(`pins failed: ${res.status}`)
+  return res.json()
+}
+
+export interface PinInput {
+  email_id: string
+  subject?: string
+  sender?: string
+  link?: string
+  date?: string | null
+  note?: string
+}
+
+// Pin an email. If `date` is set, the backend also adds it to your calendar.
+export async function pinEmail(input: PinInput): Promise<Pin> {
+  const res = await fetch(`${BASE}/mail/pins`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw new Error(`pin failed: ${res.status}`)
+  return res.json()
+}
+
+export async function unpinEmail(emailId: string): Promise<void> {
+  const res = await fetch(`${BASE}/mail/pins/${encodeURIComponent(emailId)}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`unpin failed: ${res.status}`)
 }
 
 export interface LocalStatus {

@@ -78,6 +78,63 @@ class IgnoredAssignment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class PinnedEmail(Base):
+    """An email the user "pinned" as interesting (M6).
+
+    Pinned mail shows on the Projects page in a separate "From email" section and
+    is treated like a lightweight project. If the email carried a date, we also
+    create a calendar event for it and remember its id here, so un-pinning can
+    remove that event too. (Gmail itself stays read-only — this is all local.)
+    """
+
+    __tablename__ = "pinned_emails"
+
+    email_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    subject: Mapped[str] = mapped_column(String(500), default="")
+    sender: Mapped[str] = mapped_column(String(300), default="")
+    link: Mapped[str] = mapped_column(String(500), default="")
+    note: Mapped[str] = mapped_column(String(500), default="")
+    # The extracted date (ISO 8601), if any — drives the calendar event + deadline.
+    date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # The calendar event we created for a dated pin (so unpin can delete it).
+    calendar_event_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class DailyMailScan(Base):
+    """Cached result of the daily local-LLM scan over today's mail (M6).
+
+    The scan is free (local model) but still takes a little time, so we cache one
+    result per day — the scheduler pre-warms it each morning and the Mail page
+    reads it lazily, mirroring how `DailyBrief` works. `content` is the JSON scan
+    payload (items + counts) as text.
+    """
+
+    __tablename__ = "daily_mail_scans"
+
+    for_date: Mapped[str] = mapped_column(String(10), primary_key=True)  # "YYYY-MM-DD"
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class Snapshot(Base):
+    """A cached snapshot of an expensive read, so the UI can skim instantly.
+
+    Google reads are slow (Classroom ~2 calls/course; Gmail 1 list + 1 get/msg),
+    so we persist the last fetch here and serve it immediately. Each row is one
+    logical dataset keyed by a string (e.g. "assignments:True", "mail:unread",
+    "calendar:<start>:<end>"); `content` is the JSON payload and `fetched_at`
+    drives the "updated N ago" label + stale-while-revalidate refresh. Surviving
+    restarts is the whole point — unlike the per-process in-memory caches.
+    """
+
+    __tablename__ = "snapshots"
+
+    key: Mapped[str] = mapped_column(String(300), primary_key=True)
+    content: Mapped[str] = mapped_column(Text)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime)
+
+
 class Task(Base):
     """A unit of work inside a Project, with an effort estimate in hours."""
 

@@ -6,12 +6,17 @@ agent or the UI. Try them from the auto-generated docs at /docs.
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
+from app.services import cache
 from app.services import calendar as cal
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
+
+# Calendar can change from other devices, so keep the snapshot short-lived. Writes
+# through the calendar service also clear "calendar:*", so edits show immediately.
+_CALENDAR_TTL = 120
 
 
 class EventIn(BaseModel):
@@ -32,14 +37,21 @@ def upcoming(days: int = 7):
 
 
 @router.get("/range")
-def events_range(start: datetime, end: datetime):
+def events_range(start: datetime, end: datetime, background_tasks: BackgroundTasks, refresh: bool = False):
     """List events in an explicit [start, end] window (ISO 8601 query params).
 
-    The dashboard calls this for whatever range the calendar is currently
-    showing, so navigating to past/future weeks fetches the right events.
+    The dashboard calls this for whatever range the calendar is currently showing.
+    Each range is cached separately (stale-while-revalidate); calendar writes clear
+    the cache so edits appear right away. Returns a {data, fetched_at, stale} envelope.
     """
     try:
-        return cal.list_events(start, end, max_results=250)
+        return cache.serve(
+            f"calendar:{start.isoformat()}:{end.isoformat()}",
+            lambda: cal.list_events(start, end, max_results=250),
+            ttl=_CALENDAR_TTL,
+            refresh=refresh,
+            add_task=background_tasks.add_task,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

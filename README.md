@@ -13,11 +13,16 @@ progress (read automatically from your git repos / TODO, not just manual entry).
 ## Status
 
 **M6 — Email intake (read-only)** is done: a new **Mail** page browses/searches the
-inbox (free Google API), and a **"Scan unread"** button runs a **local LLM via Ollama**
+inbox (free Google API) and **scans** mail with a **local LLM via Ollama**
 (`scb10x/llama3.1-typhoon2-8b-instruct`, Thai/English) to extract deadlines/meetings/events
-as *suggestions only* — no Claude tokens, and mail bodies never leave the machine. The
-secretary can also read mail in chat (`search_email`, `recent_unread_email`). All
-read-only (`gmail.readonly`); sending is M7.
+as *suggestions only* — no Claude tokens, and mail bodies never leave the machine. Scan
+scope is **Unread** or **Today (all read+unread)**; a scheduler job pre-warms today's scan
+each morning. Scans **auto-pin** schedule-worthy items (dated, or deadline/meeting/event) to
+the Projects page ("📧 From email" section), and **dated ones are added to your calendar** —
+you review and **unpin** anything you don't want (unpin also removes the event). Pinning an
+old, never-scanned email triggers a **deeper re-read** to recover its date + a summary. The
+secretary can also read mail in chat (`search_email`, `recent_unread_email`). All read-only
+(`gmail.readonly`); sending is M7.
 
 **M5 — Proactive engine** is done: the Home page shows a **daily brief** (Claude
 writes a short morning summary from your calendar + deadlines, generated once a day
@@ -260,6 +265,55 @@ backend/scripts/      # chat.py (REPL), smoke_agent.py, test_school_classroom.py
     `GET /mail/local-status`. **Mail page** (frontend): scan panel (with offline hint),
     Gmail search box, unread list. Verified: backend imports + all 4 routes mounted; frontend
     builds.
+  - **M6+ scan-by-date + pins (2026-06-21).** Extended the same milestone:
+    - **Scan scope** — `gmail.list_today()` (Gmail `after:today`, read+unread) + `mail_extract.scan(scope)`
+      (`unread` | `today`). **Daily auto-scan**: `services/mail_store.py` caches one scan/day in the
+      new `DailyMailScan` table (like `DailyBrief`); a 07:10 APScheduler job pre-warms it. The scan
+      writes nothing to the calendar — review only (avoids false-positive calendar spam).
+    - **Pins** — `PinnedEmail` table + `services/pins.py` (`pin`/`unpin`/`list_pins`/`pinned_ids`).
+      Pinning shows the email on the **Projects page** ("📧 From email" section, own card). A **dated**
+      pin also creates a calendar event (`calendar.create_all_day_event` for date-only, timed for
+      datetimes), id stored so **unpin deletes it**. Calendar writes happen ONLY on an explicit pin,
+      never from the daily scan. Idempotent (no duplicate event on re-pin); calendar errors don't
+      block the pin.
+    - **API** added: `GET /mail/today`, `GET /mail/scan/today`, `POST /mail/scan?scope=`,
+      `GET/POST /mail/pins`, `DELETE /mail/pins/{id}`. **UI**: scan + browse scope toggles, 📌 pin
+      buttons on suggestions (carry the date → calendar) and on emails (no date), Projects "From
+      email" section with unpin + "✓ on calendar". Verified: pin flow (all-day/timed/no-date,
+      idempotency, unpin-deletes-event) via mocked calendar; both new tables created; frontend builds.
+  - **M6+ DB snapshot cache (2026-06-21) — skim instantly, don't refetch every time.**
+    - **`Snapshot` table + `services/cache.py`**: a generic key→JSON store with `fetched_at`.
+      `serve(key, fetcher, ttl, refresh, add_task)` does **stale-while-revalidate** — returns the
+      cached snapshot immediately, and if older than the TTL schedules a background refresh (FastAPI
+      `BackgroundTasks`) so the next visit is fresh. `refresh=true` forces a live fetch;
+      `clear_prefix()` invalidates a family of keys. Survives restarts (unlike the in-memory caches).
+    - **Applied to** the slow Google reads: `GET /academic/assignments` (TTL 30 min, ignored-flags
+      applied on top of the snapshot each call), `GET /mail/unread` + `GET /mail/today` (TTL 10 min),
+      and `GET /calendar/range` (TTL 2 min, **per-range** key). Search stays live (ad-hoc).
+      All three now return a `{data, fetched_at, stale}` envelope.
+    - **Calendar coherence**: every calendar write (`create_event`, `create_all_day_event`,
+      `update_event`, `delete_event` — incl. chat-driven ones) calls `cache.clear_prefix("calendar:")`,
+      so edits show on the next read instead of waiting out the TTL.
+    - **UI**: Academic + Mail show an "updated Nm ago · Refresh" label (`timeAgo`); the calendar
+      unwraps the envelope transparently. Verified: cold/fresh/forced/stale-revalidate + prefix
+      invalidation unit-tested; backend imports; frontend builds.
+  - **M6+ auto-pin + deep-read + page memory (2026-06-21).**
+    - **Auto-pin on scan** — `pins.auto_pin_items(items)` pins every schedule-worthy item
+      (`_qualifies` = has a date, OR type deadline/meeting/event); dated ones also get a calendar
+      event. One pin per email (dated items sort first so the calendar gets the real date). Runs on
+      **both** the manual `POST /mail/scan` (offloaded via `anyio.to_thread` so calendar I/O doesn't
+      block the loop) **and** the daily `mail_store` scan. The user reviews the "From email" list and
+      unpins junk (which deletes the event). `pins.*` now manage their own DB sessions (no `db` param).
+    - **Deep re-read on manual pin** — `mail_extract.deep_extract(msg)`: a higher-effort single-email
+      read (8k-char body, summary+date prompt). `POST /mail/pins` calls it (via `gmail.get_message`)
+      when a pin arrives without a date — so pinning an old, never-scanned email still recovers its
+      date + a readable note (and calendars it). Verified live on a Thai email: parsed B.E. 2569 →
+      2026-07-15T16:30 with an English summary.
+    - **Mail page memory** — a module-level `saved` snapshot restores the page's browse/search/scan
+      results after navigating away and back (survives unmount, not a full reload); the initial
+      auto-fetch is skipped when state was restored.
+    - Verified: `auto_pin_items` (dated→calendar, undated meeting→pinned no-cal, promo `other`→skipped,
+      dedupe) via mocked calendar; `deep_extract` live; frontend builds.
 
 ---
 

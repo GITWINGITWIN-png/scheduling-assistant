@@ -3,9 +3,12 @@ import {
   commitPlan,
   deleteProject,
   discoverRepos,
+  fetchPins,
   fetchProjects,
   planProject,
+  unpinEmail,
   updateProject,
+  type Pin,
   type PlanPreview,
   type Project,
   type ProjectStatus,
@@ -206,8 +209,46 @@ function ProjectCard({ project, onChanged }: { project: Project; onChanged: () =
   )
 }
 
+// A pinned email, shown like a lightweight project. Its date (if any) is already
+// on the calendar; here we just surface it and allow un-pinning.
+function PinnedEmailCard({ pin, onChanged }: { pin: Pin; onChanged: () => void }) {
+  async function remove() {
+    await unpinEmail(pin.email_id)
+    onChanged()
+  }
+  return (
+    <div className="rounded-lg border bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+              email
+            </span>
+            <span className="truncate font-semibold">{pin.subject || '(no subject)'}</span>
+          </div>
+          <div className="mt-0.5 truncate text-xs text-gray-400">{pin.sender}</div>
+          {pin.note && <p className="mt-1 text-sm text-gray-600">{pin.note}</p>}
+        </div>
+        <div className="flex shrink-0 gap-2 text-sm">
+          <a href={pin.link} target="_blank" rel="noreferrer" className="rounded border px-3 py-1 text-gray-600 hover:bg-gray-50">
+            Open
+          </a>
+          <button onClick={remove} className="rounded border px-3 py-1 text-gray-500 hover:bg-gray-50">
+            Unpin
+          </button>
+        </div>
+      </div>
+      <div className="mt-2 flex gap-4 text-xs text-gray-500">
+        <span>📅 {pin.date ? new Date(pin.date).toLocaleString() : 'no date'}</span>
+        {pin.on_calendar && <span className="text-green-600">✓ on calendar</span>}
+      </div>
+    </div>
+  )
+}
+
 export default function Projects() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [pins, setPins] = useState<Pin[]>([])
   const [root, setRoot] = useState('~/Projects')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -217,8 +258,11 @@ export default function Projects() {
       .then(setProjects)
       .catch((e) => setErr((e as Error).message))
 
+  const loadPins = () => fetchPins().then(setPins).catch(() => {})
+
   useEffect(() => {
     load()
+    loadPins()
   }, [])
 
   async function onDiscover() {
@@ -258,6 +302,18 @@ export default function Projects() {
       </p>
 
       {err && <p className="mb-3 rounded bg-red-50 p-3 text-sm text-red-600">{err}</p>}
+
+      {/* Emails pinned from the Mail page, treated as lightweight projects. */}
+      {pins.length > 0 && (
+        <section className="mb-5">
+          <h3 className="mb-2 text-sm font-semibold text-gray-600">📧 From email</h3>
+          <div className="space-y-3">
+            {pins.map((p) => (
+              <PinnedEmailCard key={p.email_id} pin={p} onChanged={loadPins} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {projects.length === 0 ? (
         <Placeholder

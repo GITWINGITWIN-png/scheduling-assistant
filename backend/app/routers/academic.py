@@ -8,14 +8,17 @@ Classroom is read-only, so "ignore this assignment" is tracked locally (see
 services/dismissed.py) and filtered out of to-dos, nudges, and the brief.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.services import classroom, dismissed
+from app.services import cache, classroom, dismissed
 
 router = APIRouter(prefix="/academic", tags=["academic"])
+
+# Classroom changes slowly; serve the snapshot for 30 min, then refresh in the bg.
+_ASSIGNMENTS_TTL = 1800
 
 
 class IgnoreIn(BaseModel):
@@ -34,20 +37,38 @@ def courses(active_only: bool = True):
 
 
 @router.get("/assignments")
-def assignments(active_only: bool = True, db: Session = Depends(get_db)):
+def assignments(
+    background_tasks: BackgroundTasks,
+    active_only: bool = True,
+    refresh: bool = False,
+    db: Session = Depends(get_db),
+):
     """Every assignment, each tagged submitted/overdue and `ignored`.
 
-    Ignored ones are still returned (so the Academic page can grey them in the
-    subject list) but flagged, so the UI can drop them from the to-do section.
+    Served from a DB snapshot for instant skimming (stale-while-revalidate: a
+    stale snapshot is returned immediately and refreshed in the background;
+    `refresh=true` forces a fresh Google fetch). Ignored flags are applied on top
+    of the cached data each call, so ignoring is instant and never needs a refetch.
     """
+    def fetch():
+        # Bypass the in-memory cache so the DB snapshot is the single source of truth.
+        return classroom.list_assignments(active_only=active_only, use_cache=False)
+
     try:
-        items = classroom.list_assignments(active_only=active_only)
+        env = cache.serve(
+            f"assignments:{active_only}",
+            fetch,
+            ttl=_ASSIGNMENTS_TTL,
+            refresh=refresh,
+            add_task=background_tasks.add_task,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
     excluded = dismissed.ignored_ids(db)
-    for a in items:
+    for a in env["data"]:
         a["ignored"] = a["id"] in excluded
-    return items
+    return env
 
 
 @router.get("/todo")

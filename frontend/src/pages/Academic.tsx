@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchAssignments, ignoreAssignment, unignoreAssignment, type Assignment } from '../api'
+import { fetchAssignments, ignoreAssignment, timeAgo, unignoreAssignment, type Assignment } from '../api'
 import { Placeholder } from '../components/Placeholder'
 
 // Page 2 (Academic): outstanding to-dos on top (overdue / upcoming / no-deadline,
@@ -136,13 +136,22 @@ function TodoGroup({
 
 export default function Academic() {
   const [assignments, setAssignments] = useState<Assignment[] | null>(null)
+  const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [refreshing, setRefreshing] = useState(false)
 
-  const reload = () =>
-    fetchAssignments()
-      .then(setAssignments)
+  // `refresh` forces a fresh Google fetch; otherwise we get the instant snapshot.
+  const reload = (refresh = false) => {
+    if (refresh) setRefreshing(true)
+    return fetchAssignments(refresh)
+      .then((env) => {
+        setAssignments(env.data)
+        setFetchedAt(env.fetched_at)
+      })
       .catch((e) => setErr((e as Error).message))
+      .finally(() => setRefreshing(false))
+  }
 
   useEffect(() => {
     reload()
@@ -185,7 +194,21 @@ export default function Academic() {
 
   return (
     <div className="h-full overflow-y-auto p-4">
-      <h2 className="mb-4 text-xl font-bold">Academic schedule</h2>
+      <div className="mb-4 flex items-center gap-3">
+        <h2 className="text-xl font-bold">Academic schedule</h2>
+        {fetchedAt && (
+          <span className="text-xs text-gray-400">
+            updated {timeAgo(fetchedAt)}
+            <button
+              onClick={() => reload(true)}
+              disabled={refreshing}
+              className="ml-2 text-blue-600 hover:underline disabled:opacity-50"
+            >
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </span>
+        )}
+      </div>
 
       {err && (
         <p className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600">

@@ -146,6 +146,37 @@ def list_messages(query: str, max_results: int = 20, use_cache: bool = True) -> 
     return out
 
 
+def get_message(message_id: str) -> dict:
+    """Fetch one message by id, fully normalized (incl. body).
+
+    Used when pinning an email we never scanned (e.g. an old, already-read one):
+    we pull the full message so the deep re-read has the whole body to work with.
+    """
+    full = (
+        _service()
+        .users()
+        .messages()
+        .get(userId="me", id=message_id, format="full")
+        .execute()
+    )
+    return _normalize(full)
+
+
 def list_unread(max_results: int = 20) -> list[dict]:
-    """The user's unread inbox mail (the scope the M6 scan works over)."""
+    """The user's unread inbox mail."""
     return list_messages("is:unread in:inbox", max_results=max_results)
+
+
+def list_today(max_results: int = 40) -> list[dict]:
+    """Every inbox email from today (read OR unread), newest first.
+
+    Uses Gmail's `after:` date filter at local midnight. This is the source for
+    the "Today (all)" scan and the daily auto-scan — since extraction runs on the
+    free local model, reading already-read mail costs nothing but a little GPU.
+    """
+    from datetime import datetime
+
+    # Gmail's after: takes Y/M/D and is interpreted in the account's timezone;
+    # "after: today" therefore means "everything that arrived today".
+    today = datetime.now().astimezone().strftime("%Y/%m/%d")
+    return list_messages(f"in:inbox after:{today}", max_results=max_results)

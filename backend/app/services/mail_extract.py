@@ -87,19 +87,69 @@ async def _extract_one(msg: dict) -> list[dict]:
     return out
 
 
-async def scan_unread(max_emails: int = 20) -> dict:
-    """Scan unread inbox mail and return extracted schedule suggestions.
+# A more generous body budget for the deep single-email read (vs the batch scan).
+_DEEP_BODY_CHARS = 8000
 
-    Returns {"items": [...], "scanned": N, "model": "..."} — suggestions only,
-    nothing is written anywhere. Emails are processed one at a time (the local
-    model is serialized; see local_llm), which is fine for a background scan.
+
+def _deep_system_prompt() -> str:
+    today = datetime.now().strftime("%A, %Y-%m-%d")
+    return (
+        "You carefully read ONE email and extract its single most important "
+        f"calendar-relevant fact. Today is {today}. The email may be Thai or English. "
+        'Return ONLY a JSON object: {"date": ..., "type": ..., "summary": ...}. '
+        "`date` = ISO 8601 of the main date/deadline/meeting time (resolve relative "
+        "dates against today; a date-only string if no time is given; null if the "
+        "email truly has no date). "
+        '`type` = one of "deadline", "meeting", "event", "activity", "other". '
+        "`summary` = one concise sentence describing what it is and any action needed. "
+        "Read thoroughly and do not invent a date that isn't in the email."
+    )
+
+
+async def deep_extract(msg: dict) -> dict:
+    """A thorough, higher-effort read of a SINGLE email.
+
+    Unlike the batch `scan` (which favors speed across many emails), this spends
+    more on one message: a larger slice of the body and a prompt that asks for a
+    summary plus the primary date. Used when the user pins an email so an old,
+    never-scanned message still gets a date + readable note. Returns
+    {"date": ISO|None, "type": str, "note": str}; {} if nothing usable.
     """
-    emails = gmail.list_unread(max_results=max_emails)
+    body = (msg.get("body") or msg.get("snippet") or "")[:_DEEP_BODY_CHARS]
+    user = (
+        f"From: {msg.get('from', '')}\n"
+        f"Subject: {msg.get('subject', '')}\n"
+        f"Date: {msg.get('date', '')}\n\n"
+        f"{body}"
+    )
+    result = await local_llm.chat_json(_deep_system_prompt(), user)
+    if not isinstance(result, dict):
+        return {}
+    return {
+        "date": result.get("date"),
+        "type": result.get("type", "other"),
+        "note": result.get("summary", ""),
+    }
+
+
+async def scan(scope: str = "unread", max_emails: int = 40) -> dict:
+    """Scan inbox mail and return extracted schedule suggestions.
+
+    `scope` selects the source:
+        "unread" — only unread inbox mail (quick, default for the button)
+        "today"  — every inbox email from today, read or unread (the daily scan)
+
+    Returns {"items": [...], "scanned": N, "scope": ..., "model": ...} —
+    suggestions only, nothing is written anywhere. Emails are processed one at a
+    time (the local model is serialized; see local_llm), fine for a background job.
+    """
+    emails = gmail.list_today(max_results=max_emails) if scope == "today" else gmail.list_unread(max_results=max_emails)
     items: list[dict] = []
     for msg in emails:
         items.extend(await _extract_one(msg))
     return {
         "items": items,
         "scanned": len(emails),
+        "scope": scope,
         "model": settings.ollama_model,
     }
