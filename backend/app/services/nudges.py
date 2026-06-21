@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import Project
-from app.services import classroom
+from app.services import classroom, dismissed
 
 
 def _item(kind: str, label: str, sublabel: str, due: str | None) -> dict:
@@ -33,8 +33,12 @@ def compute_nudges(days: int = 7) -> dict:
     due_soon: list[dict] = []
     suggestions: list[str] = []
 
-    # --- Classroom assignments (cached read) ---
-    grouped = classroom.list_todo_grouped()
+    with SessionLocal() as db:
+        excluded = dismissed.ignored_ids(db)
+        projects = [p for p in db.scalars(select(Project)).all() if p.status == "active"]
+
+    # --- Classroom assignments (cached read), minus anything ignored ---
+    grouped = classroom.list_todo_grouped(exclude_ids=excluded)
     for a in grouped["overdue"]:
         overdue.append(_item("assignment", a["title"], a["course"], a["due"]))
     for a in grouped["upcoming"]:
@@ -42,8 +46,6 @@ def compute_nudges(days: int = 7) -> dict:
             due_soon.append(_item("assignment", a["title"], a["course"], a["due"]))
 
     # --- Project deadlines (database) ---
-    with SessionLocal() as db:
-        projects = [p for p in db.scalars(select(Project)).all() if p.status == "active"]
 
     for p in projects:
         if not p.deadline:

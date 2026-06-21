@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     # Local database
     database_url: str = "sqlite:///./secretary.db"
 
+    # Local LLM (Ollama) — used for the M6 email→schedule extraction so it runs
+    # off-Claude (free, private, on the user's GPU). Swap the model here without
+    # touching code; the extractor falls back gracefully if Ollama is down.
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "scb10x/llama3.1-typhoon2-8b-instruct"
+
 
 @lru_cache
 def get_settings() -> Settings:

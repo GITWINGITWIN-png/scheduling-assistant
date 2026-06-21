@@ -3,13 +3,25 @@
 Feeds the dashboard's Academic page. All reads come from the *school* account
 via the classroom service. Fetches are slowish (many Classroom calls), so the
 service caches results for a few minutes.
+
+Classroom is read-only, so "ignore this assignment" is tracked locally (see
+services/dismissed.py) and filtered out of to-dos, nudges, and the brief.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.services import classroom
+from app.db import get_db
+from app.services import classroom, dismissed
 
 router = APIRouter(prefix="/academic", tags=["academic"])
+
+
+class IgnoreIn(BaseModel):
+    assignment_id: str
+    title: str = ""
+    course: str = ""
 
 
 @router.get("/courses")
@@ -22,18 +34,46 @@ def courses(active_only: bool = True):
 
 
 @router.get("/assignments")
-def assignments(active_only: bool = True):
-    """Every assignment across active courses, each tagged submitted/overdue."""
+def assignments(active_only: bool = True, db: Session = Depends(get_db)):
+    """Every assignment, each tagged submitted/overdue and `ignored`.
+
+    Ignored ones are still returned (so the Academic page can grey them in the
+    subject list) but flagged, so the UI can drop them from the to-do section.
+    """
     try:
-        return classroom.list_assignments(active_only=active_only)
+        items = classroom.list_assignments(active_only=active_only)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+    excluded = dismissed.ignored_ids(db)
+    for a in items:
+        a["ignored"] = a["id"] in excluded
+    return items
 
 
 @router.get("/todo")
-def todo(active_only: bool = True):
-    """Outstanding work only, grouped into overdue / upcoming / no_deadline."""
+def todo(active_only: bool = True, db: Session = Depends(get_db)):
+    """Outstanding work (minus ignored), grouped into overdue/upcoming/no_deadline."""
     try:
-        return classroom.list_todo_grouped(active_only=active_only)
+        return classroom.list_todo_grouped(active_only=active_only, exclude_ids=dismissed.ignored_ids(db))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/ignored")
+def ignored(db: Session = Depends(get_db)):
+    """The assignments the user has ignored (for review / un-ignoring)."""
+    return dismissed.list_ignored(db)
+
+
+@router.post("/ignore")
+def add_ignore(body: IgnoreIn, db: Session = Depends(get_db)):
+    """Ignore an assignment so it stops showing in to-dos, nudges, and the brief."""
+    dismissed.ignore(db, body.assignment_id, body.title, body.course)
+    return {"ignored": body.assignment_id}
+
+
+@router.delete("/ignore/{assignment_id}")
+def remove_ignore(assignment_id: str, db: Session = Depends(get_db)):
+    """Un-ignore an assignment."""
+    dismissed.unignore(db, assignment_id)
+    return {"unignored": assignment_id}

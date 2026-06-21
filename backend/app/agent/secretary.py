@@ -19,10 +19,11 @@ from claude_agent_sdk import (
 )
 
 from app.agent.classroom_tools import CLASSROOM_TOOLS
+from app.agent.gmail_tools import GMAIL_TOOLS
 from app.agent.planner_tools import PLANNER_TOOLS
 from app.agent.tools import CALENDAR_TOOLS
 
-# Register our tools as in-process MCP servers (calendar + classroom + planner).
+# Register our tools as in-process MCP servers (calendar + classroom + planner + gmail).
 _calendar_server = create_sdk_mcp_server(
     name="calendar", version="0.1.0", tools=CALENDAR_TOOLS
 )
@@ -31,6 +32,9 @@ _classroom_server = create_sdk_mcp_server(
 )
 _planner_server = create_sdk_mcp_server(
     name="planner", version="0.1.0", tools=PLANNER_TOOLS
+)
+_gmail_server = create_sdk_mcp_server(
+    name="gmail", version="0.1.0", tools=GMAIL_TOOLS
 )
 
 # SDK MCP tools are namespaced as mcp__<server>__<tool>. Allow-listing them
@@ -44,6 +48,8 @@ _ALLOWED_TOOLS = [
     "mcp__classroom__list_courses",
     "mcp__planner__list_projects",
     "mcp__planner__get_free_slots",
+    "mcp__gmail__search_email",
+    "mcp__gmail__recent_unread_email",
 ]
 
 
@@ -61,6 +67,12 @@ def _system_prompt() -> str:
         "You can also read the user's academic work from Google Classroom "
         "(read-only): use list_courses for their courses and list_todo for "
         "outstanding assignments (overdue, upcoming, and no-deadline/optional). "
+        "You can also read the user's email (read-only): use search_email with "
+        "Gmail query syntax (e.g. 'from:registrar', 'subject:exam newer_than:14d') "
+        "and recent_unread_email for the unread inbox. You can read mail to answer "
+        "questions, but you cannot send or modify it. If the user asks you to add "
+        "something from an email to the calendar, confirm the details first, then "
+        "use create_event. "
         "You can plan work blocks for the user's projects on request (e.g. 'plan "
         "project A for next week', 'schedule my week, mornings only, leave project "
         "B alone'). To plan: (1) call list_projects for deadlines and remaining "
@@ -92,6 +104,7 @@ def _options() -> ClaudeAgentOptions:
             "calendar": _calendar_server,
             "classroom": _classroom_server,
             "planner": _planner_server,
+            "gmail": _gmail_server,
         },
         allowed_tools=_ALLOWED_TOOLS,
         # These are our own in-process tools; run them without interactive

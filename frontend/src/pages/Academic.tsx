@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchAssignments, type Assignment } from '../api'
+import { fetchAssignments, ignoreAssignment, unignoreAssignment, type Assignment } from '../api'
 import { Placeholder } from '../components/Placeholder'
 
 // Page 2 (Academic): outstanding to-dos on top (overdue / upcoming / no-deadline,
@@ -37,25 +37,42 @@ function fmtDue(due: string | null): string {
 
 // Small coloured label for the submission state.
 function StateBadge({ a }: { a: Assignment }) {
-  const label = a.submitted ? a.state.replace('_', ' ').toLowerCase() : a.overdue ? 'overdue' : 'to do'
-  const cls = a.submitted
-    ? 'bg-green-100 text-green-700'
-    : a.overdue
-      ? 'bg-red-100 text-red-700'
-      : 'bg-blue-100 text-blue-700'
+  let label: string
+  let cls: string
+  if (a.submitted) {
+    label = a.state.replace('_', ' ').toLowerCase()
+    cls = 'bg-green-100 text-green-700'
+  } else if (a.ignored) {
+    label = 'ignored'
+    cls = 'bg-gray-100 text-gray-500'
+  } else if (a.overdue) {
+    label = 'overdue'
+    cls = 'bg-red-100 text-red-700'
+  } else {
+    label = 'to do'
+    cls = 'bg-blue-100 text-blue-700'
+  }
   return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
 }
 
 // A row in the per-subject list: title on the left, due + countdown on the right.
-function AssignmentRow({ a, now }: { a: Assignment; now: number }) {
-  const cd = a.due && !a.submitted ? countdown(a.due, now) : null
+// Ignored assignments are greyed with an un-ignore link.
+function AssignmentRow({ a, now, onUnignore }: { a: Assignment; now: number; onUnignore: (id: string) => void }) {
+  const cd = a.due && !a.submitted && !a.ignored ? countdown(a.due, now) : null
   return (
     <li className="flex items-center justify-between gap-3 py-1.5">
       <div className="flex min-w-0 items-center gap-2">
         <StateBadge a={a} />
-        <span className={`truncate text-sm ${a.submitted ? 'text-gray-400 line-through' : ''}`}>
+        <span
+          className={`truncate text-sm ${a.submitted || a.ignored ? 'text-gray-400 line-through' : ''}`}
+        >
           {a.title}
         </span>
+        {a.ignored && (
+          <button onClick={() => onUnignore(a.id)} className="shrink-0 text-xs text-blue-500 hover:underline">
+            un-ignore
+          </button>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-2 text-xs">
         <span className="text-gray-400">{fmtDue(a.due)}</span>
@@ -66,7 +83,7 @@ function AssignmentRow({ a, now }: { a: Assignment; now: number }) {
 }
 
 // A to-do item at the top of the page (also shows which course it's from).
-function TodoItem({ a, now }: { a: Assignment; now: number }) {
+function TodoItem({ a, now, onIgnore }: { a: Assignment; now: number; onIgnore: (a: Assignment) => void }) {
   const cd = a.due ? countdown(a.due, now) : null
   return (
     <li className="flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 shadow-sm">
@@ -74,15 +91,34 @@ function TodoItem({ a, now }: { a: Assignment; now: number }) {
         <div className="truncate text-sm font-medium">{a.title}</div>
         <div className="truncate text-xs text-gray-400">{a.course}</div>
       </div>
-      <div className="shrink-0 text-right text-xs">
-        <div className="text-gray-400">{fmtDue(a.due)}</div>
-        {cd && <div className={`font-semibold ${TONE_CLASS[cd.tone]}`}>{cd.text}</div>}
+      <div className="flex shrink-0 items-center gap-3 text-right text-xs">
+        <div>
+          <div className="text-gray-400">{fmtDue(a.due)}</div>
+          {cd && <div className={`font-semibold ${TONE_CLASS[cd.tone]}`}>{cd.text}</div>}
+        </div>
+        <button
+          onClick={() => onIgnore(a)}
+          title="Ignore — hide from to-dos, deadlines, and the brief"
+          className="text-gray-300 hover:text-red-500"
+        >
+          ✕
+        </button>
       </div>
     </li>
   )
 }
 
-function TodoGroup({ title, items, now }: { title: string; items: Assignment[]; now: number }) {
+function TodoGroup({
+  title,
+  items,
+  now,
+  onIgnore,
+}: {
+  title: string
+  items: Assignment[]
+  now: number
+  onIgnore: (a: Assignment) => void
+}) {
   if (items.length === 0) return null
   return (
     <div className="mb-3">
@@ -91,7 +127,7 @@ function TodoGroup({ title, items, now }: { title: string; items: Assignment[]; 
       </h4>
       <ul className="space-y-1.5">
         {items.map((a) => (
-          <TodoItem key={a.id} a={a} now={now} />
+          <TodoItem key={a.id} a={a} now={now} onIgnore={onIgnore} />
         ))}
       </ul>
     </div>
@@ -103,10 +139,13 @@ export default function Academic() {
   const [err, setErr] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
 
-  useEffect(() => {
+  const reload = () =>
     fetchAssignments()
       .then(setAssignments)
       .catch((e) => setErr((e as Error).message))
+
+  useEffect(() => {
+    reload()
   }, [])
 
   // Tick once a minute so the countdowns stay live without a full refetch.
@@ -115,8 +154,21 @@ export default function Academic() {
     return () => clearInterval(id)
   }, [])
 
-  // Outstanding work, split into the three buckets we show separately.
-  const todo = useMemo(() => (assignments ?? []).filter((a) => !a.submitted), [assignments])
+  async function onIgnore(a: Assignment) {
+    await ignoreAssignment(a)
+    reload()
+  }
+
+  async function onUnignore(id: string) {
+    await unignoreAssignment(id)
+    reload()
+  }
+
+  // Outstanding work (excluding ignored), split into the three buckets.
+  const todo = useMemo(
+    () => (assignments ?? []).filter((a) => !a.submitted && !a.ignored),
+    [assignments],
+  )
   const overdue = todo.filter((a) => a.overdue)
   const upcoming = todo.filter((a) => a.due && !a.overdue)
   const noDeadline = todo.filter((a) => !a.due)
@@ -154,9 +206,9 @@ export default function Academic() {
               <Placeholder title="🎉 Nothing outstanding" note="Every assignment is turned in." />
             ) : (
               <>
-                <TodoGroup title="Overdue" items={overdue} now={now} />
-                <TodoGroup title="Upcoming" items={upcoming} now={now} />
-                <TodoGroup title="No deadline / optional" items={noDeadline} now={now} />
+                <TodoGroup title="Overdue" items={overdue} now={now} onIgnore={onIgnore} />
+                <TodoGroup title="Upcoming" items={upcoming} now={now} onIgnore={onIgnore} />
+                <TodoGroup title="No deadline / optional" items={noDeadline} now={now} onIgnore={onIgnore} />
               </>
             )}
           </section>
@@ -173,7 +225,7 @@ export default function Academic() {
                   </div>
                   <ul className="divide-y">
                     {items.map((a) => (
-                      <AssignmentRow key={a.id} a={a} now={now} />
+                      <AssignmentRow key={a.id} a={a} now={now} onUnignore={onUnignore} />
                     ))}
                   </ul>
                 </div>

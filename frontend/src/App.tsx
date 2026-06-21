@@ -2,6 +2,7 @@ import { NavLink, Route, Routes } from 'react-router-dom'
 import Home from './pages/Home'
 import Academic from './pages/Academic'
 import Projects from './pages/Projects'
+import Mail from './pages/Mail'
 import { FloatingChat } from './components/Chat'
 
 function NavItem({ to, label }: { to: string; label: string }) {
@@ -30,6 +31,7 @@ export default function App() {
           <NavItem to="/" label="Home" />
           <NavItem to="/academic" label="Academic" />
           <NavItem to="/projects" label="Projects" />
+          <NavItem to="/mail" label="Mail" />
         </nav>
       </header>
       <main className="min-h-0 flex-1 overflow-hidden">
@@ -37,6 +39,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/academic" element={<Academic />} />
           <Route path="/projects" element={<Projects />} />
+          <Route path="/mail" element={<Mail />} />
         </Routes>
       </main>
 

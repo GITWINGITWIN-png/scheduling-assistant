@@ -94,6 +94,13 @@ function ProjectCard({ project, onChanged }: { project: Project; onChanged: () =
     setMsg(`✓ Added ${created} work block${created === 1 ? '' : 's'} to your calendar.`)
   }
 
+  // Ignored = status "dropped": excluded from the brief, nudges, and planning.
+  const ignored = project.status === 'dropped'
+  async function toggleIgnore() {
+    await updateProject(project.id, { status: ignored ? 'active' : 'dropped' })
+    onChanged()
+  }
+
   return (
     <div className="rounded-lg border bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -116,6 +123,13 @@ function ProjectCard({ project, onChanged }: { project: Project; onChanged: () =
           </button>
           <button onClick={() => setEditing((e) => !e)} className="rounded border px-3 py-1 text-gray-600 hover:bg-gray-50">
             {editing ? 'Close' : 'Edit'}
+          </button>
+          <button
+            onClick={toggleIgnore}
+            title={ignored ? 'Bring this project back' : 'Ignore — exclude from brief, deadlines, and planning'}
+            className="rounded border px-3 py-1 text-gray-500 hover:bg-gray-50"
+          >
+            {ignored ? 'Un-ignore' : 'Ignore'}
           </button>
         </div>
       </div>

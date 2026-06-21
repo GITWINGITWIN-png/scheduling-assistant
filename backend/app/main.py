@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
-from app.routers import academic, calendar, chat, proactive, projects
+from app.routers import academic, calendar, chat, mail, proactive, projects
 from app.scheduler import start_scheduler, stop_scheduler
 
 
@@ -40,8 +40,9 @@ app.include_router(chat.router)
 app.include_router(projects.router)
 app.include_router(academic.router)
 app.include_router(proactive.router)
+app.include_router(mail.router)
 
 
 @app.get("/")
 def health():
-    return {"status": "ok", "service": "my_secretary", "milestone": "M5"}
+    return {"status": "ok", "service": "my_secretary", "milestone": "M6"}

@@ -136,15 +136,31 @@ export interface Assignment {
   late: boolean
   submitted: boolean // already turned in or returned/graded
   overdue: boolean // not submitted and past its due date
+  ignored: boolean // user chose to ignore it (e.g. old un-submittable homework)
   link: string | null
 }
 
-// One fetch gives every assignment (with submitted/overdue flags), so the
+// One fetch gives every assignment (with submitted/overdue/ignored flags), so the
 // Academic page derives both the to-do groups and the per-subject list from it.
 export async function fetchAssignments(): Promise<Assignment[]> {
   const res = await fetch(`${BASE}/academic/assignments`)
   if (!res.ok) throw new Error(`assignments failed: ${res.status}`)
   return res.json()
+}
+
+// Ignore an assignment so it stops showing in to-dos, nudges, and the brief.
+export async function ignoreAssignment(assignment: Assignment): Promise<void> {
+  const res = await fetch(`${BASE}/academic/ignore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assignment_id: assignment.id, title: assignment.title, course: assignment.course }),
+  })
+  if (!res.ok) throw new Error(`ignore failed: ${res.status}`)
+}
+
+export async function unignoreAssignment(assignmentId: string): Promise<void> {
+  const res = await fetch(`${BASE}/academic/ignore/${assignmentId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`un-ignore failed: ${res.status}`)
 }
 
 // --- Proactive (M5): daily brief + deadline nudges ---
@@ -184,5 +200,73 @@ export interface Nudges {
 export async function fetchNudges(): Promise<Nudges> {
   const res = await fetch(`${BASE}/nudges`)
   if (!res.ok) throw new Error(`nudges failed: ${res.status}`)
+  return res.json()
+}
+
+// --- Mail (M6): Gmail read-only + local-LLM schedule extraction ---
+export interface Email {
+  id: string
+  thread_id: string
+  from: string
+  subject: string
+  date: string | null
+  snippet: string
+  body: string
+  unread: boolean
+  link: string
+}
+
+// Browse unread inbox (free Google API call — no tokens).
+export async function fetchUnread(limit = 20): Promise<Email[]> {
+  const res = await fetch(`${BASE}/mail/unread?limit=${limit}`)
+  if (!res.ok) throw new Error(`unread failed: ${res.status}`)
+  return res.json()
+}
+
+// Search mail with Gmail query syntax (free Google API call — no tokens).
+export async function searchMail(q: string, limit = 20): Promise<Email[]> {
+  const res = await fetch(`${BASE}/mail/search?q=${encodeURIComponent(q)}&limit=${limit}`)
+  if (!res.ok) throw new Error(`search failed: ${res.status}`)
+  return res.json()
+}
+
+// A schedule item the LOCAL model pulled out of an email (a suggestion only —
+// nothing is added to the calendar until you ask).
+export interface MailItem {
+  type: 'deadline' | 'meeting' | 'event' | 'other'
+  title: string
+  datetime: string | null
+  note: string
+  email_id: string
+  email_subject: string
+  email_from: string
+  link: string
+}
+
+export interface MailScan {
+  items: MailItem[]
+  scanned: number
+  model: string
+}
+
+// Run the local model over unread mail to extract deadlines/meetings/events.
+export async function scanMail(limit = 20): Promise<MailScan> {
+  const res = await fetch(`${BASE}/mail/scan?limit=${limit}`, { method: 'POST' })
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null)
+    throw new Error(detail?.detail ?? `scan failed: ${res.status}`)
+  }
+  return res.json()
+}
+
+export interface LocalStatus {
+  up: boolean
+  model: string
+}
+
+// Is the local model server (Ollama) reachable? Used to warn before scanning.
+export async function fetchLocalStatus(): Promise<LocalStatus> {
+  const res = await fetch(`${BASE}/mail/local-status`)
+  if (!res.ok) throw new Error(`local-status failed: ${res.status}`)
   return res.json()
 }

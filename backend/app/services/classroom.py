@@ -195,24 +195,30 @@ def list_assignments(active_only: bool = True, use_cache: bool = True) -> list[d
     return out
 
 
-def list_todo(active_only: bool = True) -> list[dict]:
+def list_todo(active_only: bool = True, exclude_ids: set[str] = frozenset()) -> list[dict]:
     """Only the assignments that still need action (not yet turned in).
 
-    Drops anything already TURNED_IN or RETURNED, so what remains is everything
-    you can still submit — whether it's upcoming (on time) or `overdue` (past the
-    deadline but not closed). Same sort: soonest due first, undated last.
+    Drops anything already TURNED_IN or RETURNED (and anything in `exclude_ids`,
+    i.e. assignments the user has ignored), so what remains is everything you can
+    still submit — whether upcoming or `overdue`. Soonest due first, undated last.
     """
-    return [a for a in list_assignments(active_only=active_only) if not a["submitted"]]
+    return [
+        a
+        for a in list_assignments(active_only=active_only)
+        if not a["submitted"] and a["id"] not in exclude_ids
+    ]
 
 
-def list_todo_grouped(active_only: bool = True) -> dict[str, list[dict]]:
+def list_todo_grouped(
+    active_only: bool = True, exclude_ids: set[str] = frozenset()
+) -> dict[str, list[dict]]:
     """Outstanding work split into the three buckets the Academic page shows:
 
         overdue      — past its due date, still open (turn in late)
         upcoming     — has a future due date, still open (turn in on time)
         no_deadline  — open but no due date (often optional)
     """
-    todo = list_todo(active_only=active_only)
+    todo = list_todo(active_only=active_only, exclude_ids=exclude_ids)
     return {
         "overdue": [a for a in todo if a["overdue"]],
         "upcoming": [a for a in todo if a["due"] and not a["overdue"]],

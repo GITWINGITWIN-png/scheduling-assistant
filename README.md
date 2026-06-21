@@ -12,7 +12,14 @@ progress (read automatically from your git repos / TODO, not just manual entry).
 
 ## Status
 
-**M5 — Proactive engine** is done: the Home page now shows a **daily brief** (Claude
+**M6 — Email intake (read-only)** is done: a new **Mail** page browses/searches the
+inbox (free Google API), and a **"Scan unread"** button runs a **local LLM via Ollama**
+(`scb10x/llama3.1-typhoon2-8b-instruct`, Thai/English) to extract deadlines/meetings/events
+as *suggestions only* — no Claude tokens, and mail bodies never leave the machine. The
+secretary can also read mail in chat (`search_email`, `recent_unread_email`). All
+read-only (`gmail.readonly`); sending is M7.
+
+**M5 — Proactive engine** is done: the Home page shows a **daily brief** (Claude
 writes a short morning summary from your calendar + deadlines, generated once a day
 and cached) and **deadline nudges** (overdue / due-soon / replan suggestions,
 tokenless). An APScheduler job pre-warms the brief each morning; it also generates
@@ -32,13 +39,11 @@ is chat-driven).
   + opt-in Claude reprioritization) ✓
 - **M5** Proactive engine: daily brief (Claude, cached daily), deadline nudges, and
   suggest-only nightly replan (APScheduler) ✓
-- **M6** Email intake (read-only): extract schedule items, inbox triage, email Q&A.
-  ← *we are here next*
-  *Design note:* candidate to offload the high-volume, simple NL tasks (triage,
-  field extraction, short summaries) to a **free local LLM via Ollama**, keeping
-  Claude-Pro for reasoning + tool use. `ask()` is integration-agnostic, so a second
-  `ask_local()` backend + a small router slots in without touching the rest..
+- **M6** Email intake (read-only): Mail page (browse/search), local-LLM schedule
+  extraction, email Q&A in chat. Extraction is **offloaded to a local LLM via Ollama**
+  (free, private, off the Pro budget); Claude stays for chat + tool use. ✓
 - **M7** Email replies (write): draft + send, **always with explicit approval before sending**.
+  ← *we are here next*
 
 ---
 
@@ -224,6 +229,37 @@ backend/scripts/      # chat.py (REPL), smoke_agent.py, test_school_classroom.py
   - **API** (`routers/proactive.py`): `GET /brief/today`, `POST /brief/regenerate`,
     `GET /nudges`. **Home page** wired: live BriefCard (+ Refresh) and DeadlinesCard.
     Verified: brief generated once then served from cache; scheduler clean in lifespan.
+  - **Ignore (M5+):** old un-submittable homework / dead projects shouldn't nag.
+    Assignments: `IgnoredAssignment` table + `services/dismissed.py`; filtered out of
+    to-dos, nudges, brief, and the agent's `list_todo` (via a new `exclude_ids` arg on
+    `classroom.list_todo[_grouped]`). API: `POST /academic/ignore`,
+    `DELETE /academic/ignore/{id}`, `GET /academic/ignored`; `/academic/assignments`
+    now carries an `ignored` flag. UI: ✕ "ignore" on each to-do (greyed + "un-ignore"
+    in the subject list). Projects: a one-click **Ignore** = status `dropped` (already
+    excluded from nudges/planning). Verified: ignore → drops from nudges → un-ignore restores.
+- **M6 (2026-06-21) — email intake (read-only) + first local-LLM offload.**
+  - **Gmail service** (`services/gmail.py`, `gmail.readonly`, **personal** account):
+    `list_unread`, `list_messages(query)` (Gmail search syntax), normalized to
+    `{id, from, subject, date, snippet, body, unread, link}` with a light multipart/HTML
+    body extractor; 2-min cache. **Shares the personal `token.json`** — so it requests
+    the *union* of calendar + gmail scopes (one consent; the calendar, needing only its
+    subset, then never re-consents — avoids a token ping-pong). *Re-consent happens once*
+    on first Mail use to add the gmail scope.
+  - **Local LLM** (`services/local_llm.py`): talks to **Ollama** over HTTP (httpx, no new
+    dep). `chat_json()` = JSON-mode, temp 0, serialized behind a lock (one generation at a
+    time so the GPU isn't thrashed), defensive JSON parse, clear `OllamaError` on failure.
+    Model is config-driven (`OLLAMA_MODEL`, default `scb10x/llama3.1-typhoon2-8b-instruct`).
+  - **Extraction** (`services/mail_extract.py`): scans unread mail, one email per local-LLM
+    call, returns schedule **suggestions only** (`{type, title, datetime, note, +source}`) —
+    nothing is written to the calendar. *Why local:* high-volume, simple, privacy-sensitive →
+    free + on-device, keeping the Pro budget for chat.
+  - **Chat tools** (`agent/gmail_tools.py`): `search_email`, `recent_unread_email`
+    (read-only) registered as a 4th MCP server in the secretary; reading mail in chat is a
+    free Google call (only the on-demand scan spends compute, and that's local).
+  - **API** (`routers/mail.py`): `GET /mail/unread`, `GET /mail/search`, `POST /mail/scan`,
+    `GET /mail/local-status`. **Mail page** (frontend): scan panel (with offline hint),
+    Gmail search box, unread list. Verified: backend imports + all 4 routes mounted; frontend
+    builds.
 
 ---
 
@@ -232,6 +268,9 @@ backend/scripts/      # chat.py (REPL), smoke_agent.py, test_school_classroom.py
 - **Backend:** Python (3.14, `uv`) + FastAPI + uvicorn
 - **LLM:** Claude via the **Claude Agent SDK** on the Claude **Pro** subscription
   (no paid API; leave `ANTHROPIC_API_KEY` blank). Kept integration-agnostic.
+- **Local LLM:** **Ollama** for the email→schedule extraction (M6) — free, private,
+  on-GPU. Model in `OLLAMA_MODEL` (default `scb10x/llama3.1-typhoon2-8b-instruct`,
+  a Thai/English 8B that fits an 8 GB GPU). `ollama serve` must be running to scan.
 - **Calendar:** Google Calendar API
 - **Email:** Gmail API (read-only at M6; compose/send at M7) — same OAuth as calendar
 - **Academic:** Google Classroom API (read-only) on a **separate school account**
@@ -280,7 +319,11 @@ uv sync
 ### 2. Google credentials
 The app needs its own identity with Google so it can run independently.
 1. In the [Google Cloud Console](https://console.cloud.google.com/), create a project.
-2. **APIs & Services → Library →** enable the **Google Calendar API**.
+2. **APIs & Services → Library →** enable the APIs you use, each individually:
+   **Google Calendar API** (M0), **Google Classroom API** (M3), **Gmail API** (M6).
+   *Enabling an API and granting OAuth scopes are separate gates* — if a feature 403s
+   with `accessNotConfigured`, the API just isn't enabled in the project yet (click
+   the link in the error → **Enable** → wait ~1–2 min).
 3. **APIs & Services → OAuth consent screen:** *External*, fill in the basics, add your
    Google account under *Test users*.
 4. **Credentials → Create Credentials → OAuth client ID →** application type **Desktop app**.

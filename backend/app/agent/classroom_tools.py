@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from claude_agent_sdk import tool
 
-from app.services import classroom
+from app.db import SessionLocal
+from app.services import classroom, dismissed
 
 
 def _fmt(a: dict) -> str:
@@ -25,7 +26,9 @@ def _fmt(a: dict) -> str:
     {},
 )
 async def list_todo(args: dict) -> dict:
-    grouped = classroom.list_todo_grouped()
+    with SessionLocal() as db:
+        excluded = dismissed.ignored_ids(db)
+    grouped = classroom.list_todo_grouped(exclude_ids=excluded)
     sections = []
     for key, label in (
         ("overdue", "OVERDUE"),

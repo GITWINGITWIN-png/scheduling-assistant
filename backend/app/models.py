@@ -61,6 +61,23 @@ class DailyBrief(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class IgnoredAssignment(Base):
+    """A Classroom assignment the user chose to ignore.
+
+    Classroom is read-only, so "ignore" is tracked here locally. Ignored
+    assignments are filtered out of to-dos, nudges, and the daily brief — handy
+    for old homework from finished courses that can never be turned in. We keep
+    the title/course so the "ignored" list is readable when un-ignoring.
+    """
+
+    __tablename__ = "ignored_assignments"
+
+    assignment_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    title: Mapped[str] = mapped_column(String(500), default="")
+    course: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class Task(Base):
     """A unit of work inside a Project, with an effort estimate in hours."""
 
