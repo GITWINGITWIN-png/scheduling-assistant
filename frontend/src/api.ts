@@ -47,16 +47,142 @@ export async function fetchEventsRange(start: string, end: string): Promise<CalE
   return raw.map(mapEvent)
 }
 
-// --- Projects ---
+// --- Projects (M4) ---
+export type ProjectStatus = 'active' | 'waiting' | 'done' | 'dropped'
+
 export interface Project {
   id: number
   name: string
   goal: string
   deadline: string | null
+  status: ProjectStatus
+  estimated_hours: number
+  repo_path: string | null
+  last_commit_at: string | null
+}
+
+export interface PlanBlock {
+  title: string
+  start: string
+  end: string
+}
+
+export interface PlanPreview {
+  blocks: PlanBlock[]
+  hours_scheduled: number
+  hours_unscheduled: number
+  deadline: string
+  error?: string
 }
 
 export async function fetchProjects(): Promise<Project[]> {
   const res = await fetch(`${BASE}/projects`)
   if (!res.ok) throw new Error(`projects failed: ${res.status}`)
+  return res.json()
+}
+
+export async function discoverRepos(root: string): Promise<Project[]> {
+  const res = await fetch(`${BASE}/projects/discover`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ root }),
+  })
+  if (!res.ok) throw new Error(`discover failed: ${res.status}`)
+  return res.json()
+}
+
+// Send only the fields you want to change.
+export async function updateProject(id: number, patch: Partial<Project>): Promise<Project> {
+  const res = await fetch(`${BASE}/projects/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error(`update failed: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteProject(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/projects/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`delete failed: ${res.status}`)
+}
+
+// Preview a plan (no calendar writes).
+export async function planProject(id: number): Promise<PlanPreview> {
+  const res = await fetch(`${BASE}/projects/${id}/plan`, { method: 'POST' })
+  if (!res.ok) throw new Error(`plan failed: ${res.status}`)
+  return res.json()
+}
+
+// Book the approved blocks into the calendar.
+export async function commitPlan(id: number, blocks: PlanBlock[]): Promise<{ created: number }> {
+  const res = await fetch(`${BASE}/projects/${id}/plan/commit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ blocks }),
+  })
+  if (!res.ok) throw new Error(`commit failed: ${res.status}`)
+  return res.json()
+}
+
+// --- Academic (Google Classroom) ---
+export interface Assignment {
+  course: string
+  course_id: string
+  id: string
+  title: string
+  due: string | null // ISO 8601, or null when the assignment has no due date
+  state: string // NEW | CREATED | TURNED_IN | RETURNED | RECLAIMED_BY_STUDENT
+  late: boolean
+  submitted: boolean // already turned in or returned/graded
+  overdue: boolean // not submitted and past its due date
+  link: string | null
+}
+
+// One fetch gives every assignment (with submitted/overdue flags), so the
+// Academic page derives both the to-do groups and the per-subject list from it.
+export async function fetchAssignments(): Promise<Assignment[]> {
+  const res = await fetch(`${BASE}/academic/assignments`)
+  if (!res.ok) throw new Error(`assignments failed: ${res.status}`)
+  return res.json()
+}
+
+// --- Proactive (M5): daily brief + deadline nudges ---
+export interface Brief {
+  for_date: string
+  content: string
+  created_at: string
+}
+
+// Today's brief — generated + cached on the first call of the day (one Claude call).
+export async function fetchBrief(): Promise<Brief> {
+  const res = await fetch(`${BASE}/brief/today`)
+  if (!res.ok) throw new Error(`brief failed: ${res.status}`)
+  return res.json()
+}
+
+export async function regenerateBrief(): Promise<Brief> {
+  const res = await fetch(`${BASE}/brief/regenerate`, { method: 'POST' })
+  if (!res.ok) throw new Error(`brief regenerate failed: ${res.status}`)
+  return res.json()
+}
+
+export interface NudgeItem {
+  type: 'assignment' | 'project'
+  label: string
+  sublabel: string
+  due: string | null
+}
+
+export interface Nudges {
+  overdue: NudgeItem[]
+  due_soon: NudgeItem[]
+  suggestions: string[]
+}
+
+// Tokenless: overdue items, things due soon, and replan suggestions.
+export async function fetchNudges(): Promise<Nudges> {
+  const res = await fetch(`${BASE}/nudges`)
+  if (!res.ok) throw new Error(`nudges failed: ${res.status}`)
   return res.json()
 }

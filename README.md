@@ -12,23 +12,32 @@ progress (read automatically from your git repos / TODO, not just manual entry).
 
 ## Status
 
-**M2 — Dashboard** is done: a 3-page React app (Home / Academic / Projects) with a
-live Google Calendar and a global chat assistant, talking to a FastAPI backend.
-M0 (Google Calendar plumbing) and M1 (the Claude chat agent with full calendar
-CRUD) are complete.
+**M5 — Proactive engine** is done: the Home page now shows a **daily brief** (Claude
+writes a short morning summary from your calendar + deadlines, generated once a day
+and cached) and **deadline nudges** (overdue / due-soon / replan suggestions,
+tokenless). An APScheduler job pre-warms the brief each morning; it also generates
+lazily on first open. Nightly replan is **suggest-only** (never edits your calendar).
+M0–M4 are complete: calendar plumbing + chat agent, the dashboard, the Google
+Classroom academic layer, and the project planner (headline feature; smart planning
+is chat-driven).
 
 ### Roadmap
 - **M0** Foundation: Google OAuth + read/write a calendar event ✓
 - **M1** Chat assistant: Claude agent with calendar tools (full CRUD) ✓
-- **M2** React dashboard: 3 pages, live calendar + global chat ✓ ← *we are here*
-- **M3** Academic input: **Google Classroom** (course names, assignments + due dates,
-  submission status, announcements — **not** course materials; on a *separate school
-  account*) as the primary source; recurring classes + syllabus PDF as fallback.
-  Requires a **dual-account auth refactor** (see Architecture).
-- **M4** Project planner: backward-plan work blocks from deadlines + auto-read progress.
-  Also supplies last-commit date + status to the Projects page.
-- **M5** Proactive engine: daily brief, deadline nudges, nightly replan (APScheduler).
+- **M2** React dashboard: 3 pages, live calendar + global chat ✓
+- **M3** Academic input: **Google Classroom** (courses, assignments + due dates,
+  submission status — **not** course materials; on a *separate school account*) ✓
+- **M4** Project planner: backward-plan work blocks from deadlines + auto-read
+  progress; supplies last-commit + status to the Projects page (deterministic core
+  + opt-in Claude reprioritization) ✓
+- **M5** Proactive engine: daily brief (Claude, cached daily), deadline nudges, and
+  suggest-only nightly replan (APScheduler) ✓
 - **M6** Email intake (read-only): extract schedule items, inbox triage, email Q&A.
+  ← *we are here next*
+  *Design note:* candidate to offload the high-volume, simple NL tasks (triage,
+  field extraction, short summaries) to a **free local LLM via Ollama**, keeping
+  Claude-Pro for reasoning + tool use. `ask()` is integration-agnostic, so a second
+  `ask_local()` backend + a small router slots in without touching the rest..
 - **M7** Email replies (write): draft + send, **always with explicit approval before sending**.
 
 ---
@@ -41,19 +50,19 @@ page) — it is the **same conversation everywhere** and **persists across navig
 (hidden with CSS when closed, never unmounted, so history survives).
 
 - **Page 1 — Home** (`pages/Home.tsx`): FullCalendar **week** view on top, LIVE
-  against the backend. It fetches exactly the *visible* range via
-  `fetchEventsRange` → `GET /calendar/range`, and refetches when you navigate
-  weeks/months. Bottom row: **Daily brief** (placeholder, M5) + **Deadlines per
-  subject** (placeholder, M3).
-- **Page 2 — Academic** (`pages/Academic.tsx`): top = "suggested to-dos across all
-  subjects" (prioritized, agent-generated); below = every subject with its
-  assignments + due dates + live countdowns, sorted by deadline. All placeholder
-  until M3 (Google Classroom + agent reasoning).
-- **Page 3 — Projects** (`pages/Projects.tsx`): an index of projects — name, last
-  commit date, short description, status (unfinished / finished / waiting-for /
-  dropped). Reads `GET /projects` (returns `[]` for now). Placeholder until M4
-  (the repo-reader supplies last-commit; the Project model still needs a `status`
-  field + last-commit).
+  against the backend (fetches the *visible* range via `fetchEventsRange` →
+  `GET /calendar/range`, refetches on navigation). Bottom row is LIVE (M5):
+  **☀️ Daily brief** (`GET /brief/today`, with a Refresh button) + **⏰ Deadlines**
+  (`GET /nudges`: overdue / due-soon / replan suggestions).
+- **Page 2 — Academic** (`pages/Academic.tsx`): LIVE (M3). Top = outstanding
+  to-dos split into Overdue / Upcoming / No-deadline (the "keep but separate"
+  choice); below = every subject with its assignments, due dates, submission-state
+  badges, and live (per-minute) countdowns, sorted by deadline. One fetch of
+  `/academic/assignments` feeds both sections.
+- **Page 3 — Projects** (`pages/Projects.tsx`): LIVE (M4). **Discover repos** (scan a
+  folder), per-project cards (name, last commit, status, deadline, effort), inline
+  edit, and **Plan now → preview → "Add to calendar"** (free deterministic, per
+  project). Cross-project / constrained planning is done in **chat**, not here.
 
 **LIVE in M2** = Home calendar + global chat. Everything else is a styled
 placeholder/empty state shaped for drop-in data later.
@@ -151,6 +160,70 @@ backend/scripts/      # chat.py (REPL), smoke_agent.py, test_school_classroom.py
     and added auto-scroll to the newest message. (3) chat reset on navigation — made it
     a single global `FloatingChat` mounted in `App` (hidden, not unmounted).
   - Verified `/calendar/range` returns the user's real events (±30-day window → 4 events).
+- **M3 (2026-06-19):** Google Classroom academic integration, end-to-end.
+  - **Go/no-go: GREEN** — the school Workspace allows third-party Classroom access
+    (read 21 courses / 13 active, 166 assignments).
+  - **Dual-account auth** (`services/google_auth.py`): `get_credentials(account, scopes)`
+    manages a token file per account (personal→`token.json`, school→`token_school.json`)
+    and re-consents when requested scopes grow. `calendar.py` now uses it (account
+    "personal"); Classroom uses it (account "school").
+  - **Google scope migration gotcha:** Google now hands back
+    `classroom.student-submissions.me.readonly` when you request
+    `classroom.coursework.me.readonly`, and `oauthlib` crashes on the scope change.
+    Fixed with `OAUTHLIB_RELAX_TOKEN_SCOPE=1` + a substitution-aware re-consent check
+    (so it doesn't loop). The substituted scope still lists coursework fine.
+  - **`services/classroom.py`** (read-only, school account, scopes: courses.readonly,
+    coursework.me.readonly, announcements.readonly — **no materials**): `list_courses`,
+    `list_assignments` (normalized + `submitted`/`overdue` flags, 5-min TTL cache),
+    `list_todo` / `list_todo_grouped` (overdue / upcoming / no_deadline).
+  - **`routers/academic.py`**: `GET /academic/{courses,assignments,todo}` (verified 200).
+  - **Agent tools** (`agent/classroom_tools.py`): `list_todo`, `list_courses` on a second
+    in-process MCP server "classroom"; agent verified answering "what's overdue?".
+  - **Academic page** (frontend): to-dos (overdue/upcoming/no-deadline) + per-subject
+    assignments with live countdowns. `npm run build` passes.
+- **M4 (2026-06-21) — deterministic core done; Claude-on-top still pending.**
+  - **Project model** gained `status` (active/waiting/done/dropped), `estimated_hours`,
+    `last_commit_at` (`repo_path` already existed). DB recreated (it was empty).
+  - **`services/repos.py`** (tokenless git reads): `discover_repos(root)` (one level
+    deep), `read_progress(repo_path)` (last commit, counts, recent subjects).
+  - **Projects API** (`routers/projects.py`): full CRUD, `POST /projects/discover`
+    (upsert repos by path, refresh last-commit, leaves your goal/deadline/effort),
+    `GET /projects/{id}/progress`.
+  - **`services/planner.py`** — deterministic gap-filler: reads calendar busy
+    intervals, places `block_hours` work blocks in free gaps within a daily working
+    window, capped per day, before the deadline. Defaults: 09:00–21:00, 1.5h blocks,
+    3h/day. Pure (no tokens). `POST /projects/{id}/plan` previews (no writes);
+    `POST /projects/{id}/plan/commit` books approved blocks as calendar events.
+  - **Projects page** (frontend): Discover button, per-project cards (status, last
+    commit, deadline, effort), inline edit, and Plan-now → preview → "Add to calendar".
+    `npm run build` passes. Verified backend: 12h → 8×1.5h blocks, 0 unscheduled.
+  - **Claude planning is chat-driven** (pivoted from a button, so you can state
+    constraints in plain language: "plan project A for next week, mornings only, leave
+    project B alone"). `agent/planner_tools.py` gives the secretary two tools —
+    `list_projects` (deadlines/remaining hours) and `get_free_slots` (REAL block-sized
+    free slots from the deterministic core) — and it books via the existing
+    `create_event`/`delete_event`. System prompt: read projects → get real slots →
+    honor constraints → on RE-plan, delete that project's existing `Work: <project>`
+    blocks first (replace, not stack), never touch projects told to leave alone.
+    Because `/chat` is **stateless**, a clear command is carried out in one turn and the
+    agent reports what it added/removed. Verified: "plan my_secretary, mornings only,
+    leave research_labs alone, don't book yet" → proposed only the real morning slots,
+    flagged that 3 of 12h fit, offered to widen the window. (The old button-based
+    `/plan/smart` + `smart_planner.py` were removed in favor of this.)
+- **M5 (2026-06-21) — proactive engine.**
+  - **Daily brief** (`agent/brief.py`): gathers today's calendar + nudges, Claude writes
+    a short plain-text brief. Cached one-per-day in the `DailyBrief` table via
+    `services/brief_store.get_or_create_today` (lazy on first open; `force` to refresh).
+    The one regularly-scheduled token use.
+  - **Nudges** (`services/nudges.py`, tokenless): overdue + due-soon (Classroom
+    assignments + project deadlines) + suggest-only replan flags for active projects
+    due soon with hours left.
+  - **Scheduler** (`scheduler.py`, APScheduler `AsyncIOScheduler`): a 07:00 cron job
+    pre-warms the brief; started/stopped in the FastAPI lifespan. Nightly replan is
+    suggest-only (computed live in nudges), so no calendar-editing job.
+  - **API** (`routers/proactive.py`): `GET /brief/today`, `POST /brief/regenerate`,
+    `GET /nudges`. **Home page** wired: live BriefCard (+ Refresh) and DeadlinesCard.
+    Verified: brief generated once then served from cache; scheduler clean in lifespan.
 
 ---
 
@@ -184,8 +257,14 @@ npm run dev        # http://localhost:5173
 ```
 
 Open **http://localhost:5173**. Home shows your live Google Calendar (week view) and
-a chat button (bottom-right, on every page). Academic and Projects are styled
-placeholders until M3/M4. CORS is configured for the Vite dev origin.
+a chat button (bottom-right, on every page). Academic shows your live Google Classroom
+assignments (M3); Projects stays a placeholder until M4. CORS is configured for the
+Vite dev origin.
+
+**Classroom (school account) one-time auth:** the Academic page reads from a *separate
+school account*. Authorize it once with `uv run python scripts/smoke_classroom.py`
+(from `backend/`) and sign in with your **school** account — it caches
+`token_school.json`. The personal-account `token.json` is unaffected.
 
 ---
 

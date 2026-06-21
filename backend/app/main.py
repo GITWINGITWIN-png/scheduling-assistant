@@ -11,14 +11,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
-from app.routers import academic, calendar, chat, projects
+from app.routers import academic, calendar, chat, proactive, projects
+from app.scheduler import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create database tables on startup.
+    # Create database tables, then start the proactive scheduler.
     init_db()
+    start_scheduler()
     yield
+    stop_scheduler()
 
 
 app = FastAPI(title="my_secretary", version="0.1.0", lifespan=lifespan)
@@ -36,8 +39,9 @@ app.include_router(calendar.router)
 app.include_router(chat.router)
 app.include_router(projects.router)
 app.include_router(academic.router)
+app.include_router(proactive.router)
 
 
 @app.get("/")
 def health():
-    return {"status": "ok", "service": "my_secretary", "milestone": "M3"}
+    return {"status": "ok", "service": "my_secretary", "milestone": "M5"}

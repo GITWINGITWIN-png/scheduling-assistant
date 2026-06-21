@@ -1,23 +1,187 @@
+import { useEffect, useMemo, useState } from 'react'
+import { fetchAssignments, type Assignment } from '../api'
 import { Placeholder } from '../components/Placeholder'
 
-// Page 2 (Academic): suggested to-dos on top, then subjects with assignments
-// + due dates + countdowns. All placeholder until M3 (Google Classroom).
+// Page 2 (Academic): outstanding to-dos on top (overdue / upcoming / no-deadline,
+// kept separate), then every subject with its assignments + live countdowns.
+// All data comes from Google Classroom via /academic/assignments (M3).
+
+const DAY_MS = 86_400_000
+
+// A human, ticking countdown. `now` is passed in so all rows update together
+// when the page's clock ticks (every minute).
+function countdown(dueISO: string, now: number): { text: string; tone: Tone } {
+  const diff = new Date(dueISO).getTime() - now
+  const days = Math.floor(Math.abs(diff) / DAY_MS)
+
+  if (diff < 0) return { text: days === 0 ? 'overdue' : `${days}d overdue`, tone: 'overdue' }
+  if (diff < DAY_MS) {
+    const hours = Math.max(1, Math.floor(diff / 3_600_000))
+    return { text: `in ${hours}h`, tone: 'soon' }
+  }
+  return { text: `in ${days}d`, tone: days <= 3 ? 'soon' : 'normal' }
+}
+
+type Tone = 'overdue' | 'soon' | 'normal'
+
+const TONE_CLASS: Record<Tone, string> = {
+  overdue: 'text-red-600',
+  soon: 'text-amber-600',
+  normal: 'text-gray-500',
+}
+
+function fmtDue(due: string | null): string {
+  if (!due) return 'No due date'
+  return new Date(due).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+// Small coloured label for the submission state.
+function StateBadge({ a }: { a: Assignment }) {
+  const label = a.submitted ? a.state.replace('_', ' ').toLowerCase() : a.overdue ? 'overdue' : 'to do'
+  const cls = a.submitted
+    ? 'bg-green-100 text-green-700'
+    : a.overdue
+      ? 'bg-red-100 text-red-700'
+      : 'bg-blue-100 text-blue-700'
+  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
+}
+
+// A row in the per-subject list: title on the left, due + countdown on the right.
+function AssignmentRow({ a, now }: { a: Assignment; now: number }) {
+  const cd = a.due && !a.submitted ? countdown(a.due, now) : null
+  return (
+    <li className="flex items-center justify-between gap-3 py-1.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <StateBadge a={a} />
+        <span className={`truncate text-sm ${a.submitted ? 'text-gray-400 line-through' : ''}`}>
+          {a.title}
+        </span>
+      </div>
+      <div className="flex shrink-0 items-center gap-2 text-xs">
+        <span className="text-gray-400">{fmtDue(a.due)}</span>
+        {cd && <span className={`font-semibold ${TONE_CLASS[cd.tone]}`}>{cd.text}</span>}
+      </div>
+    </li>
+  )
+}
+
+// A to-do item at the top of the page (also shows which course it's from).
+function TodoItem({ a, now }: { a: Assignment; now: number }) {
+  const cd = a.due ? countdown(a.due, now) : null
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 shadow-sm">
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium">{a.title}</div>
+        <div className="truncate text-xs text-gray-400">{a.course}</div>
+      </div>
+      <div className="shrink-0 text-right text-xs">
+        <div className="text-gray-400">{fmtDue(a.due)}</div>
+        {cd && <div className={`font-semibold ${TONE_CLASS[cd.tone]}`}>{cd.text}</div>}
+      </div>
+    </li>
+  )
+}
+
+function TodoGroup({ title, items, now }: { title: string; items: Assignment[]; now: number }) {
+  if (items.length === 0) return null
+  return (
+    <div className="mb-3">
+      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        {title} ({items.length})
+      </h4>
+      <ul className="space-y-1.5">
+        {items.map((a) => (
+          <TodoItem key={a.id} a={a} now={now} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function Academic() {
+  const [assignments, setAssignments] = useState<Assignment[] | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    fetchAssignments()
+      .then(setAssignments)
+      .catch((e) => setErr((e as Error).message))
+  }, [])
+
+  // Tick once a minute so the countdowns stay live without a full refetch.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Outstanding work, split into the three buckets we show separately.
+  const todo = useMemo(() => (assignments ?? []).filter((a) => !a.submitted), [assignments])
+  const overdue = todo.filter((a) => a.overdue)
+  const upcoming = todo.filter((a) => a.due && !a.overdue)
+  const noDeadline = todo.filter((a) => !a.due)
+
+  // All assignments grouped by course for the lower "Subjects" section.
+  const byCourse = useMemo(() => {
+    const map = new Map<string, Assignment[]>()
+    for (const a of assignments ?? []) {
+      if (!map.has(a.course)) map.set(a.course, [])
+      map.get(a.course)!.push(a)
+    }
+    return [...map.entries()]
+  }, [assignments])
+
   return (
     <div className="h-full overflow-y-auto p-4">
       <h2 className="mb-4 text-xl font-bold">Academic schedule</h2>
 
-      <div className="mb-4">
-        <Placeholder
-          title="✅ Suggested to-dos (across all subjects)"
-          note="The secretary will rank what to do next once it can read your assignments (M3)."
-        />
-      </div>
+      {err && (
+        <p className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600">
+          Couldn't load Classroom data: {err}
+        </p>
+      )}
 
-      <Placeholder
-        title="📚 Subjects & assignments"
-        note="Each subject with its assignments, due dates, and live countdowns — pulled from Google Classroom (M3), sorted by deadline."
-      />
+      {!assignments && !err && (
+        <p className="text-sm text-gray-400">Loading your Classroom assignments…</p>
+      )}
+
+      {assignments && (
+        <>
+          {/* Top: suggested to-dos */}
+          <section className="mb-6">
+            <h3 className="mb-2 text-lg font-semibold">✅ To do</h3>
+            {todo.length === 0 ? (
+              <Placeholder title="🎉 Nothing outstanding" note="Every assignment is turned in." />
+            ) : (
+              <>
+                <TodoGroup title="Overdue" items={overdue} now={now} />
+                <TodoGroup title="Upcoming" items={upcoming} now={now} />
+                <TodoGroup title="No deadline / optional" items={noDeadline} now={now} />
+              </>
+            )}
+          </section>
+
+          {/* Bottom: every subject with its assignments */}
+          <section>
+            <h3 className="mb-2 text-lg font-semibold">📚 Subjects & assignments</h3>
+            <div className="space-y-3">
+              {byCourse.map(([course, items]) => (
+                <div key={course} className="rounded-lg border bg-white p-3 shadow-sm">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="font-semibold">{course}</span>
+                    <span className="text-xs text-gray-400">{items.length} assignments</span>
+                  </div>
+                  <ul className="divide-y">
+                    {items.map((a) => (
+                      <AssignmentRow key={a.id} a={a} now={now} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   )
 }
