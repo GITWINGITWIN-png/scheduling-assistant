@@ -1,5 +1,9 @@
 // Tiny client for the FastAPI backend. One place to change the base URL.
-const BASE = 'http://localhost:8000'
+// In dev (`npm run dev`) the Vite server and the API are on different ports, so
+// we point at the backend explicitly. In the production build the backend
+// SERVES this app, so API calls are same-origin (relative) — which is what lets
+// it work over Tailscale from a phone (no hardcoded "localhost", no CORS).
+const BASE = import.meta.env.DEV ? 'http://localhost:8000' : ''
 
 // Some reads are served from a DB snapshot for instant skimming. The backend
 // wraps them in this envelope: `data` plus when it was fetched and whether that
