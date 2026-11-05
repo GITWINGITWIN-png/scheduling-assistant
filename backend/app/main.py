@@ -16,9 +16,10 @@ from fastapi import FastAPI
 
 from app.core import db
 from app.api import ask as ask_api
+from app.api import log as log_api
 from app.connectors import discord_bot
 from app.core.clock import clock
-from app.features import ask_discord
+from app.features import actions_discord, ask_discord
 
 VERSION = "2.0.0.dev0"
 
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI):
     db.migrate()  # new tables/columns from a fresh `git pull` are created here
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
+    actions_discord.setup()  # the ย้อนกลับ button
     await discord_bot.start()  # connects in the background; the web page works without it
     yield
     await discord_bot.stop()
@@ -36,6 +38,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="my_secretary", version=VERSION, lifespan=lifespan)
 app.include_router(ask_api.router)
+app.include_router(log_api.router)
 
 
 @app.get("/api/health")

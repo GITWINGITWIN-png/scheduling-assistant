@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from app.core import actions
 from app.core.config import get_config
 from app.core.db import now, session
 from app.core.tables import Setting
@@ -136,6 +137,8 @@ class Clock:
         try:
             result = await rnd.handler()
             _save_last_run(round_id, now())
+            actions.record(f"round.{round_id}", rnd.title + (" · ทำรอบที่พลาด" if caught_up else ""),
+                           result or "", source_label="นาฬิกาเลขา")
             log.info("round %s done%s: %s", round_id, " (catch-up)" if caught_up else "", result or "")
             return result
         except Exception:

@@ -30,7 +30,7 @@ from typing import Annotated
 from claude_agent_sdk import tool
 from sqlalchemy import func, select
 
-from app.core import llm
+from app.core import actions, llm
 from app.core.clock import clock
 from app.core.db import now, session
 from app.core.tables import Action, Decision, LLMUsage
@@ -145,8 +145,13 @@ def _sources(reply: llm.Reply) -> list[str]:
 HANDOFF_NOTE = "เป็นการวางแผน · ส่งต่อให้ Opus"
 
 
+# Where a message came from, for the action log's "ที่มา" (the web page, or a link to the Discord message)
+Via = tuple[str, str]
+WEB: Via = ("หน้าเว็บ", "")
+
+
 async def ask(text: str, history: list[tuple[str, str]] = (), on_text: TextSink = None,
-              on_note: TextSink = None) -> Answer:
+              on_note: TextSink = None, via: Via = WEB) -> Answer:
     """Sonnet answers, or hands off to Opus for a plan (on_note hears the hand-off)."""
     async def stream_unless_handoff(chunk: str) -> None:
         if on_text and not chunk.lstrip().upper().startswith("HANDOFF"):
@@ -156,21 +161,24 @@ async def ask(text: str, history: list[tuple[str, str]] = (), on_text: TextSink 
     if reply.text.lstrip().upper().startswith("HANDOFF"):
         if on_note:
             await on_note(HANDOFF_NOTE)
-        return await plan(text, history, on_text=on_text, sorted_by=reply)
+        return await plan(text, history, on_text=on_text, sorted_by=reply, via=via)
+    actions.record("ask", "ตอบคำถาม", text, source_label=via[0], source_url=via[1], tokens=reply.tokens)
     return Answer("answer", reply.text, reply.model_name, reply.effort, reply.duration_ms / 1000, reply.tokens, _sources(reply))
 
 
-async def deepen(text: str, history: list[tuple[str, str]] = (), on_text: TextSink = None) -> Answer:
+async def deepen(text: str, history: list[tuple[str, str]] = (), on_text: TextSink = None, via: Via = WEB) -> Answer:
     """"ให้ Opus คิดต่อ": the same question, thought through by Opus."""
     system = ASK_SYSTEM + "\nตอนนี้ผู้ใช้ขอให้คิดละเอียดขึ้นกว่าคำตอบเร็ว: ค้นให้ครบ อธิบายเหตุผล"
     reply = await llm.run("ask_deep", _prompt(text, history), system=system, tools=TOOLS, on_text=on_text)
     if reply.text.lstrip().upper().startswith("HANDOFF"):
-        return await plan(text, history, on_text=on_text)
+        return await plan(text, history, on_text=on_text, via=via)
+    actions.record("ask.deep", "ตอบคำถาม · Opus คิดต่อ", text, source_label=via[0], source_url=via[1], tokens=reply.tokens)
     return Answer("answer", reply.text, reply.model_name, reply.effort, reply.duration_ms / 1000, reply.tokens, _sources(reply))
 
 
 async def plan(text: str, history: list[tuple[str, str]] = (), on_text: TextSink = None,
-               sorted_by: llm.Reply | None = None, previous: Decision | None = None, change: str = "") -> Answer:
+               sorted_by: llm.Reply | None = None, previous: Decision | None = None, change: str = "",
+               via: Via = WEB) -> Answer:
     """Opus writes a plan, which is saved as a decision waiting for you."""
     prompt = _prompt(text, history)
     if previous is not None:
@@ -183,11 +191,13 @@ async def plan(text: str, history: list[tuple[str, str]] = (), on_text: TextSink
     with session() as s:
         d = Decision(kind="plan", title=title, detail={
             "request": text, "plan": body, "model": reply.model_name, "effort": reply.effort, "tokens": tokens,
-            "revises": previous.id if previous is not None else None,
+            "revises": previous.id if previous is not None else None, "started": False,
         })
         s.add(d)
         s.flush()
         decision_id = d.id
+    actions.record("plan.made", "แก้แผนตามที่ขอ" if previous is not None else "วางแผน · รอคุณตัดสิน", title,
+                   source_label=via[0], source_url=via[1], tokens=tokens)
     return Answer("plan", body, reply.model_name, reply.effort, reply.duration_ms / 1000, tokens, _sources(reply), decision_id, title)
 
 
@@ -196,8 +206,11 @@ class DecisionError(ValueError):
     """The decision doesn't exist or was already decided. The message says which."""
 
 
-def decide(decision_id: int, action: str, note: str = "") -> Decision:
-    """Approve or reject a plan. "edit" (revise) goes through revise() instead."""
+def decide(decision_id: int, action: str, note: str = "", via: Via = WEB) -> tuple[Decision, int]:
+    """Approve or reject a plan, and return it with the id of the logged (undoable) action.
+
+    "edit" (revise) goes through revise() instead.
+    """
     if action not in ("approve", "reject"):
         raise DecisionError(f"ไม่รู้จักคำสั่ง {action}")
     with session() as s:
@@ -209,14 +222,34 @@ def decide(decision_id: int, action: str, note: str = "") -> Decision:
         d.status = "approved" if action == "approve" else "rejected"
         d.answer = note
         d.answered_at = now()
-    return d
+    summary = "อนุมัติแผน · รอเริ่ม" if action == "approve" else "ไม่เอาแผน"
+    action_id = actions.record(f"plan.{action}", summary, d.title, source_label=via[0], source_url=via[1],
+                               undo={"decision_id": d.id})
+    return d, action_id
 
 
-async def revise(decision_id: int, change: str) -> Answer:
+async def _reopen_plan(data: dict) -> None:
+    """Undo for plan.approve / plan.reject: the plan waits for you again, if it hasn't started."""
+    with session() as s:
+        d = s.get(Decision, data.get("decision_id"))
+        if d is None:
+            raise actions.UndoError("ไม่พบแผนนี้แล้ว")
+        if d.detail.get("started"):
+            raise actions.UndoError("แผนนี้เริ่มทำไปแล้ว ย้อนไม่ได้ · หยุดได้ที่หน้างานเบื้องหลัง")
+        if d.status not in ("approved", "rejected"):
+            raise actions.UndoError(f"แผนนี้ไม่ได้อยู่ในสถานะที่ย้อนได้ ({d.status})")
+        d.status, d.answered_at = "pending", None
+
+
+actions.register_undo("plan.approve", _reopen_plan)
+actions.register_undo("plan.reject", _reopen_plan)
+
+
+async def revise(decision_id: int, change: str, via: Via = WEB) -> Answer:
     """แก้: Opus rewrites the plan with your change; the old one is marked revised."""
     with session() as s:
         old = s.get(Decision, decision_id)
         if old is None or old.status != "pending":
             raise DecisionError("แผนนี้แก้ไม่ได้แล้ว (ไม่พบ หรือตัดสินไปแล้ว)")
         old.status, old.answer, old.answered_at = "revised", change, now()
-    return await plan(old.detail.get("request", old.title), previous=old, change=change)
+    return await plan(old.detail.get("request", old.title), previous=old, change=change, via=via)

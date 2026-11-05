@@ -70,7 +70,7 @@ class DecideIn(BaseModel):
 @router.post("/decisions/{decision_id}")
 def decide(decision_id: int, body: DecideIn) -> dict:
     try:
-        d = ask.decide(decision_id, body.action, body.note)
+        d, action_id = ask.decide(decision_id, body.action, body.note)
     except ask.DecisionError as exc:
         raise HTTPException(409, str(exc)) from exc
-    return {"id": d.id, "status": d.status}
+    return {"id": d.id, "status": d.status, "action_id": action_id}

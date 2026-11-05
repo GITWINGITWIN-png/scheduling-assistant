@@ -14,7 +14,10 @@ The logic is in features/ask.py; this file only turns it into Discord messages.
 import discord
 
 from app.connectors import discord_bot as dc
+from app.core.tables import Action, Decision
+from app.core.db import session
 from app.features import ask
+from app.features.actions_discord import UndoButton, after_undo
 
 
 async def _history(message: discord.Message, limit: int = 6) -> list[tuple[str, str]]:
@@ -42,7 +45,7 @@ async def on_dm(message: discord.Message) -> None:
     if not message.content.strip():
         return
     async with message.channel.typing():  # "เลขากำลังพิมพ์…" while Sonnet/Opus works
-        a = await ask.ask(message.content, await _history(message))
+        a = await ask.ask(message.content, await _history(message), via=_via(message))
     card, view = answer_card(a)
     await dc.bot.send("dm", content=f"✨ {ask.HANDOFF_NOTE}" if a.kind == "plan" else None, embed=card, view=view,
                       kind=a.kind, ref=f"decision:{a.decision_id}" if a.decision_id else "ask",
@@ -75,7 +78,7 @@ class DeepButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ask:deep"
             return
         await interaction.response.defer(thinking=True)  # Discord wants a response within 3 s
         question = ref.resolved if isinstance(ref.resolved, discord.Message) else await interaction.channel.fetch_message(ref.message_id)
-        a = await ask.deepen(question.content, await _history(question))
+        a = await ask.deepen(question.content, await _history(question), via=_via(question))
         card, view = answer_card(a, deep_button=False)  # already Opus
         kwargs = {"view": view} if view else {}
         sent = await interaction.followup.send(embed=card, wait=True, **kwargs)
@@ -106,13 +109,14 @@ class PlanButton(discord.ui.DynamicItem[discord.ui.Button], template=r"plan:(?P<
             await interaction.response.send_modal(EditPlanModal(self.decision_id))
             return
         try:
-            ask.decide(self.decision_id, self.act)
+            _, action_id = ask.decide(self.decision_id, self.act, via=_via(interaction.message))
         except ask.DecisionError as exc:
             await interaction.response.send_message(str(exc), ephemeral=True)
             return
         done = ("✅ ใช้แผนนี้แล้ว · เก็บไว้ในเรื่องที่ตัดสินแล้ว (เลขาเริ่มงานเองได้เมื่อถึง B5)"
                 if self.act == "approve" else "ไม่เอาแผนนี้")
-        await interaction.response.edit_message(content=done, view=None)  # the buttons go away
+        # the three buttons go away; ย้อนกลับ stays until the plan starts
+        await interaction.response.edit_message(content=done, view=dc.buttons(UndoButton(action_id)))
 
 
 class EditPlanModal(discord.ui.Modal, title="แก้แผน"):
@@ -126,7 +130,7 @@ class EditPlanModal(discord.ui.Modal, title="แก้แผน"):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(thinking=True)
         try:
-            a = await ask.revise(self.decision_id, self.change.value)
+            a = await ask.revise(self.decision_id, self.change.value, via=_via(interaction.message))
         except ask.DecisionError as exc:
             await interaction.followup.send(str(exc))
             return
@@ -137,7 +141,23 @@ class EditPlanModal(discord.ui.Modal, title="แก้แผน"):
         dc.bot.record("dm", sent, kind="plan", ref=f"decision:{a.decision_id}", text_copy=a.text)
 
 
+def _via(message: discord.Message | None) -> ask.Via:
+    """"ที่มา" for the action log: a link straight back to the Discord message."""
+    return ("แชทส่วนตัว", message.jump_url if message else "")
+
+
+async def _plan_reopened(a: Action) -> tuple[str, discord.ui.View]:
+    """After undoing a plan decision, the plan is open again: show its buttons again."""
+    decision_id = (a.undo or {}).get("decision_id")
+    with session() as s:
+        d = s.get(Decision, decision_id)
+    title = d.title if d else ""
+    return (f"↩️ ย้อนกลับแล้ว · แผน “{title}” รอคุณตัดสินอีกครั้ง",
+            dc.buttons(*(PlanButton(decision_id, act) for act in ("approve", "edit", "reject"))))
+
+
 def setup() -> None:
     """Hook the chat into the bot. Called by main.py before the bot connects."""
     dc.bot.on_dm = on_dm
     dc.register_buttons(DeepButton, PlanButton)
+    after_undo["plan.approve"] = after_undo["plan.reject"] = _plan_reopened
