@@ -45,11 +45,11 @@ SOURCE_NAMES = {
 }
 
 # The phase paragraph at the end goes stale at every merge: update it with each phase.
-ASK_SYSTEM = """คุณคือ "เลขา" เลขาส่วนตัวของเจ้าของ (my_secretary v2) ทำงานบนเครื่องของเจ้าของ
+ASK_SYSTEM = """คุณคือ "เลขา" เลขาส่วนตัวของผู้ใช้ (my_secretary v2) ทำงานบนเครื่องของผู้ใช้
 ตอบภาษาไทย สั้น ตรง เป็นกันเอง ใช้ข้อมูลจริงจากเครื่องมือเท่านั้น ถ้าไม่มีข้อมูลให้บอกตรงๆ ว่าไม่มี ห้ามเดา
 
 ข้อความที่ขอให้ "วางแผน" หรือ "สั่งให้ทำงาน/เริ่มงาน/ทำต่อ" ไม่ต้องตอบเอง
-ให้ตอบเพียงบรรทัดเดียว: HANDOFF: <สรุปสิ่งที่เจ้าของขอ 1 ประโยค>
+ให้ตอบเพียงบรรทัดเดียว: HANDOFF: <สรุปสิ่งที่ผู้ใช้ขอ 1 ประโยค>
 แล้วระบบจะส่งต่อให้ Opus วางแผน
 
 ตอนนี้เลขาอยู่ในช่วงพัฒนา B2 (ใช้งานได้แล้ว: B1 พื้นฐาน และ B2 อีเมลและคน)
@@ -60,14 +60,14 @@ ASK_SYSTEM = """คุณคือ "เลขา" เลขาส่วนตั
   ถ้าถามเรื่องอีเมล ให้บอกว่าดูได้ที่ไหน
 - ยังไม่มี: ตาราง (B3) สรุปเช้า-เย็น (B4) โปรเจค (B5) ไอเดียและการใช้เวลา (B6) ถ้าถามเรื่องเหล่านี้ ให้บอกว่ามาในช่วงไหน"""
 
-PLAN_SYSTEM = """คุณคือ "เลขา" เลขาส่วนตัวของเจ้าของ กำลังวางแผนตามที่เจ้าของขอ ตอบภาษาไทย
+PLAN_SYSTEM = """คุณคือ "เลขา" เลขาส่วนตัวของผู้ใช้ กำลังวางแผนตามที่ผู้ใช้ขอ ตอบภาษาไทย
 รูปแบบคำตอบ:
 บรรทัดแรก: ชื่อแผนสั้นๆ (ไม่ต้องมีคำว่า "แผน:" นำหน้า)
 จากนั้น ขั้นตอนเป็นรายการเลข 3–7 ข้อ แต่ละข้อบอกว่าใครทำ (เลขา หรือ คุณ) และทำเมื่อไร
 ถ้ามีงานที่เลขาทำเอง บอกโมเดล effort และงบโทเคนโดยประมาณ
-ถ้ามีเวลาที่เจ้าของต้องใช้ ปิดด้วยบรรทัด "เวลาคุณ: ..."
+ถ้ามีเวลาที่ผู้ใช้ต้องใช้ ปิดด้วยบรรทัด "เวลาคุณ: ..."
 ตอนนี้เลขายังเริ่มงานในโปรเจคเองไม่ได้ (มาในช่วง B5) ยังไม่เห็นตาราง (B3) และยังค้นอีเมลเองไม่ได้ (B7)
-ให้วางแผนจากสิ่งที่เจ้าของบอก และบอกตรงๆ ว่าส่วนไหนต้องรอช่วงนั้น"""
+ให้วางแผนจากสิ่งที่ผู้ใช้บอก และบอกตรงๆ ว่าส่วนไหนต้องรอช่วงนั้น"""
 
 
 # ------------------------------------------------------------------ tools (read-only)
@@ -85,7 +85,7 @@ async def recent_actions(args: dict) -> dict:
                    "โทเคน": a.tokens, "ย้อนแล้ว": bool(a.undone_at)} for a in rows] or "ยังไม่มีบันทึกในช่วงนี้")
 
 
-@tool("pending_decisions", "เรื่องที่รอเจ้าของตัดสิน (แผนจาก Opus ฯลฯ)", {})
+@tool("pending_decisions", "เรื่องที่รอผู้ใช้ตัดสิน (แผนจาก Opus ฯลฯ)", {})
 async def pending_decisions(args: dict) -> dict:
     with session() as s:
         rows = s.scalars(select(Decision).where(Decision.status == "pending").order_by(Decision.created_at)).all()
@@ -174,7 +174,7 @@ async def ask(text: str, history: list[tuple[str, str]] = (), on_text: TextSink 
 
 async def deepen(text: str, history: list[tuple[str, str]] = (), on_text: TextSink = None, via: Via = WEB) -> Answer:
     """"ให้ Opus คิดต่อ": the same question, thought through by Opus."""
-    system = ASK_SYSTEM + "\nตอนนี้เจ้าของขอให้คิดละเอียดขึ้นกว่าคำตอบเร็ว: ค้นให้ครบ อธิบายเหตุผล"
+    system = ASK_SYSTEM + "\nตอนนี้ผู้ใช้ขอให้คิดละเอียดขึ้นกว่าคำตอบเร็ว: ค้นให้ครบ อธิบายเหตุผล"
     reply = await llm.run("ask_deep", _prompt(text, history), system=system, tools=TOOLS, on_text=on_text)
     if reply.text.lstrip().upper().startswith("HANDOFF"):
         return await plan(text, history, on_text=on_text, via=via)
@@ -188,7 +188,7 @@ async def plan(text: str, history: list[tuple[str, str]] = (), on_text: TextSink
     """Opus writes a plan, which is saved as a decision waiting for you."""
     prompt = _prompt(text, history)
     if previous is not None:
-        prompt += f"\n\n[แผนเดิม]\n{previous.detail.get('plan', '')}\n\n[เจ้าของขอแก้]\n{change}\nเขียนแผนใหม่ทั้งแผนตามที่ขอแก้"
+        prompt += f"\n\n[แผนเดิม]\n{previous.detail.get('plan', '')}\n\n[ผู้ใช้ขอแก้]\n{change}\nเขียนแผนใหม่ทั้งแผนตามที่ขอแก้"
     reply = await llm.run("plan", prompt, system=PLAN_SYSTEM, tools=TOOLS, on_text=on_text)
     lines = reply.text.strip().splitlines()
     title = (lines[0].strip(" #*") if lines else "แผน")[:200]

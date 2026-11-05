@@ -12,9 +12,6 @@ Everything goes through `run()`, so three rules hold everywhere:
    low = quick and cheap, high/xhigh/max = deeper and more tokens.
 3. **Every call leaves a row in llm_usage** (task, model, effort, tokens, time),
    failed ones included. That's the evidence for tuning.
-4. **One voice** (VOICE, added to every system prompt): the secretary calls you "คุณ"
-   and itself "ฉัน". Prompts call you "เจ้าของ" in their instructions, because inside a
-   prompt "คุณ" already means the model.
 
 Each call runs isolated: no built-in tools (no Bash, no file access), no
 ~/.claude settings, hooks, plugins or CLAUDE.md, and only the tools the caller
@@ -101,13 +98,6 @@ def task_settings(task: str) -> dict[str, str]:
     return {**DEFAULT_TASKS.get(task, DEFAULT_TASKS["ask"]), **saved.get(task, {})}
 
 
-# How the secretary talks to you, in every call. The user's decision (2026-11-05):
-# "อย่าเรียกฉันว่าเจ้านาย ใช้ คุณ/ฉัน ก็พอ". Before, the mail prompts said เจ้านาย and the
-# summaries copied it.
-VOICE = ('การใช้คำ: ทุกข้อความที่คุณเขียนคือการพูดกับเจ้าของโดยตรง เรียกเจ้าของว่า "คุณ" '
-         'ถ้าต้องพูดถึงตัวเองให้ใช้ "ฉัน" ห้ามเรียกเจ้าของว่า เจ้านาย นาย บอส ท่าน เจ้าของ หรือ ผู้ใช้')
-
-
 async def run(
     task: str,
     prompt: str,
@@ -130,7 +120,7 @@ async def run(
     options = ClaudeAgentOptions(
         model=model,
         effort=effort,
-        system_prompt=f"{system}\n\n{VOICE}",
+        system_prompt=system,
         tools=[],  # no built-in tools at all
         setting_sources=[],  # don't load ~/.claude settings, hooks, plugins, CLAUDE.md
         skills=[],
