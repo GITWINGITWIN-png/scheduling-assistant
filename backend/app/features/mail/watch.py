@@ -33,8 +33,8 @@ from dataclasses import dataclass
 from sqlalchemy import select
 
 from app.connectors import gmail, google
+from app.core import settings
 from app.core.db import now, session
-from app.core.tables import Setting
 from app.features.mail import people
 from app.features.mail.read import Reading, read_one
 from app.features.mail.tables import LEVELS, Email, Followup
@@ -65,14 +65,11 @@ SYNCED: list[Callable[[str, list], None]] = []
 
 # ------------------------------------------------------------------ settings and state
 def _get(key: str, default):
-    with session() as s:
-        row = s.get(Setting, key)
-        return row.value if row and row.value is not None else default
+    return settings.get(key, default)
 
 
 def _put(key: str, value) -> None:
-    with session() as s:
-        s.merge(Setting(key=key, value=value))
+    settings.put(key, value)
 
 
 def keywords() -> list[str]:
