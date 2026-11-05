@@ -67,6 +67,18 @@ def blocks_calendar(*, create: bool = True) -> str | None:
         except HttpError as exc:
             if not _missing(exc):
                 raise
+    # Not saved (or deleted): reuse a "เลขา" calendar you own before making another one, so
+    # losing the saved id (a fresh database, a test run) never leaves duplicates behind.
+    token = None
+    while True:
+        page = svc.calendarList().list(minAccessRole="owner", pageToken=token).execute()
+        for cal in page.get("items", []):
+            if cal.get("summary") == BLOCKS_NAME and not cal.get("deleted"):
+                settings.put(STATE_KEY, {**(settings.get(STATE_KEY) or {}), "blocks": cal["id"]})
+                return cal["id"]
+        token = page.get("nextPageToken")
+        if not token:
+            break
     if not create:
         return None
     body = {"summary": BLOCKS_NAME, "timeZone": get_config().timezone,

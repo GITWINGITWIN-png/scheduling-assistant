@@ -38,6 +38,7 @@ from app.features.mail import extract as mail_extract
 from app.features.mail import followups as mail_followups
 from app.features.mail import rounds as mail_rounds
 from app.features.mail import watch as mail_watch
+from app.features.schedule import sync as schedule_sync
 
 VERSION = "2.0.0.dev0"
 WEB_DIST = REPO_DIR / "frontend" / "dist"  # `npm run build` in frontend/ writes the web page here
@@ -54,6 +55,7 @@ async def start_background() -> None:
     mail_extract.setup()  # appointments and tasks from what the rounds read
     mail_followups.setup()  # who owes a reply, and the reminders
     mail_cards.setup()  # #ด่วน · #อนุมัติ · #สรุป cards (after extract, so they can say what was done)
+    schedule_sync.setup()  # B3: plan blocks and sync with Google Calendar every 15 min (off until B3's check)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button

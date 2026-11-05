@@ -166,7 +166,8 @@ class Block(Base):
     """blocks · บล็อกในตาราง: time set aside for a task, in the "เลขา" calendar (3.1, B3; B6 adds what really happened).
 
     status: planned (the planner may move it) · pinned (you moved it in Google Calendar,
-    so it stays where you put it) · removed (you deleted it, or a re-plan took it back).
+    so it stays where you put it) · deleted (you deleted it there: its time counts as
+    busy) · removed (a re-plan took it back, or the "เลขา" calendar was deleted).
     A block in the past counts as work done on its task, until B6 can check.
     """
 

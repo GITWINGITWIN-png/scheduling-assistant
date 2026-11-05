@@ -59,11 +59,14 @@ class Round:
         return CronTrigger(**self.cron, timezone=get_config().tz)
 
 
-# Every round agreed in stage 1 (PLAN.md 1.1, 2.1, 4.2, P2, P3), plus B1's nightly backup.
+# Every round agreed in stage 1 (PLAN.md 1.1, 2.1, 4.2, P2, P3), plus B1's nightly backup and B3's three.
 ROUNDS: dict[str, Round] = {r.id: r for r in (
     Round("watch", "เฝ้าคนสำคัญและคีย์เวิร์ด", "ทุก 5 นาที", {"minute": "*/5"}, "B2"),
     Round("mail_big", "รอบอ่านอีเมล (ใหญ่)", "00:00", {"hour": 0, "minute": 0}, "B2"),
     Round("mail_small", "รอบอ่านอีเมล (เล็ก)", "12:00", {"hour": 12, "minute": 0}, "B2"),
+    Round("schedule", "วางและซิงก์ตาราง", "ทุก 15 นาที", {"minute": "*/15"}, "B3"),
+    Round("remind", "เตือนก่อนถึงกำหนด", "ทุก 5 นาที", {"minute": "*/5"}, "B3"),
+    Round("classroom", "ดึงงานและสื่อจาก Classroom", "ทุก 2 ชั่วโมง", {"hour": "*/2", "minute": 10}, "B3"),
     Round("projects", "สแกนโปรเจคใน ~/Projects", "06:30", {"hour": 6, "minute": 30}, "B5"),
     Round("morning", "สรุปเช้า", "07:00", {"hour": 7, "minute": 0}, "B4"),
     Round("evening", "ทบทวนเย็น", "21:00", {"hour": 21, "minute": 0}, "B4"),
