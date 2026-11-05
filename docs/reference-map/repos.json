@@ -1,0 +1,140 @@
+{
+ "fetched_at": "2026-11-04",
+ "repos": {
+  "oc": {
+   "full_name": "openclaw/openclaw",
+   "stars": 393869,
+   "pushed": "2026-11-04",
+   "language": "TypeScript",
+   "archived": false,
+   "spdx": "MIT",
+   "description": "The AI that really does things. Any OS. Any Platform. The lobster way. 🦞 "
+  },
+  "ga": {
+   "full_name": "theexperiencecompany/gaia",
+   "stars": 324,
+   "pushed": "2026-11-03",
+   "language": "Python",
+   "archived": false,
+   "spdx": "NOASSERTION",
+   "description": "Your proactive personal AI assistant for daily life"
+  },
+  "kh": {
+   "full_name": "khoj-ai/khoj",
+   "stars": 37970,
+   "pushed": "2026-08-02",
+   "language": "Python",
+   "archived": false,
+   "spdx": "AGPL-3.0",
+   "description": "Your AI second brain. Self-hostable. Get answers from the web or your docs. Build custom agents, schedule automations, do deep research. Turn any online or local LLM into your personal, autonomous AI (gpt, claude, gemini, llama, qwen, mistral). Get started - free."
+  },
+  "le": {
+   "full_name": "leon-ai/leon",
+   "stars": 17635,
+   "pushed": "2026-11-04",
+   "language": "TypeScript",
+   "archived": false,
+   "spdx": "MIT",
+   "description": "🧠 Leon is your open-source personal assistant."
+  },
+  "ea": {
+   "full_name": "anthropics/claude-agent-sdk-demos",
+   "stars": 2801,
+   "pushed": "2026-08-27",
+   "language": "TypeScript",
+   "archived": false,
+   "spdx": "-",
+   "description": "Claude Code SDK Demos"
+  },
+  "afs": {
+   "full_name": "langchain-ai/agents-from-scratch",
+   "stars": 2435,
+   "pushed": "2026-08-11",
+   "language": "Jupyter Notebook",
+   "archived": false,
+   "spdx": "MIT",
+   "description": "Build an email assistant with human-in-the-loop and memory"
+  },
+  "eaia": {
+   "full_name": "langchain-ai/executive-ai-assistant",
+   "stars": 2207,
+   "pushed": "2026-07-27",
+   "language": "Python",
+   "archived": true,
+   "spdx": "MIT",
+   "description": ""
+  },
+  "iz": {
+   "full_name": "elie222/inbox-zero",
+   "stars": 12906,
+   "pushed": "2026-11-04",
+   "language": "TypeScript",
+   "archived": false,
+   "spdx": "NOASSERTION",
+   "description": "The world's best AI personal assistant for email. Open source app to help you reach inbox zero fast."
+  },
+  "tc": {
+   "full_name": "00sapo/taskcheck",
+   "stars": 41,
+   "pushed": "2026-10-18",
+   "language": "Python",
+   "archived": false,
+   "spdx": "AGPL-3.0",
+   "description": "A non-AI automatic scheduler of todo and tasks, respecting your working hours and calendar."
+  },
+  "sp": {
+   "full_name": "super-productivity/super-productivity",
+   "stars": 23395,
+   "pushed": "2026-11-04",
+   "language": "TypeScript",
+   "archived": false,
+   "spdx": "MIT",
+   "description": "Super Productivity is an advanced todo list app with integrated Timeboxing and time tracking capabilities. It also comes with integrations for Jira, GitLab, GitHub and Open Project."
+  },
+  "gw": {
+   "full_name": "taylorwilsdon/google_workspace_mcp",
+   "stars": 3473,
+   "pushed": "2026-10-30",
+   "language": "Python",
+   "archived": false,
+   "spdx": "MIT",
+   "description": "Control Gmail, Google Calendar, Docs, Sheets, Slides, Chat, Forms, Tasks, Search & Drive with AI - Comprehensive Google Workspace MCP Server & CLI Tool"
+  },
+  "am": {
+   "full_name": "semperai/amica",
+   "stars": 1617,
+   "pushed": "2026-09-22",
+   "language": "TypeScript",
+   "archived": false,
+   "spdx": "MIT",
+   "description": "Amica is an open source interface for interactive communication with 3D characters with voice synthesis and speech recognition."
+  },
+  "cv": {
+   "full_name": "pixiv/ChatVRM",
+   "stars": 847,
+   "pushed": "2025-05-27",
+   "language": "TypeScript",
+   "archived": true,
+   "spdx": "MIT",
+   "description": ""
+  },
+  "ai": {
+   "full_name": "moeru-ai/airi",
+   "stars": 51075,
+   "pushed": "2026-11-04",
+   "language": "TypeScript",
+   "archived": false,
+   "spdx": "MIT",
+   "description": "💖🧸 Self hosted, you-owned Grok Companion, a container of souls of waifu, cyber livings to bring them into our worlds, wishing to achieve Neuro-sama's altitude. Capable of realtime voice chat, Minecraft, Factorio playing. Web / macOS / Windows supported."
+  },
+  "olv": {
+   "full_name": "Open-LLM-VTuber/Open-LLM-VTuber",
+   "stars": 14572,
+   "pushed": "2026-05-15",
+   "language": "Python",
+   "archived": false,
+   "spdx": "NOASSERTION",
+   "description": "Talk to any LLM with hands-free voice interaction, voice interruption, and Live2D avatar running locally across platforms"
+  }
+ }
+}

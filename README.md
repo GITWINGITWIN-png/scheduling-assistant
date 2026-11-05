@@ -8,6 +8,12 @@ progress (read automatically from your git repos / TODO, not just manual entry).
 > This README is the project's canonical record: roadmap, web design,
 > architecture decisions, important constraints, and a progress log all live here.
 
+> **v2 is planned (2026-11-05).** The redesign was agreed on the plan board in three stages
+> (features → look → development plan). **The plan to follow is
+> [`docs/plan-v2/PLAN.md`](docs/plan-v2/PLAN.md)**, and the build checklist (B1–B8) is in
+> `PROGRESS.md`. v2 is a clean rewrite on branch `v2`. Everything below describes v1, which
+> stays in `main` and tag `v1-final` for reference.
+
 ---
 
 ## Status
