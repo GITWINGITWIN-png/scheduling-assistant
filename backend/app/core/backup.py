@@ -34,6 +34,9 @@ def backup_now() -> Path:
     dst = sqlite3.connect(tmp)
     try:
         src.backup(dst)
+        # The copy inherits WAL mode from the live database, and a WAL-mode file grows -shm/-wal
+        # files beside it whenever it is opened. A backup should be one self-contained file.
+        dst.execute("PRAGMA journal_mode=DELETE")
     finally:
         dst.close()
         src.close()
