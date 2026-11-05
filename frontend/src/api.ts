@@ -49,6 +49,21 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
   return res.json();
 }
 
+// W2 คนและอีเมล (B2)
+export type Level = "important" | "interested" | "ignored";
+export type Person = {
+  id: number; name: string; level: Level; level_name: string; source: string; until: string | null;
+  days_left: number | null; expired: boolean; note: string; demote_reason: string; last_mail_at: string | null;
+  addresses: string[]; awaiting: boolean;
+};
+export type PersonMail = { id: string; sent_at: string; subject: string; from_me: boolean; summary: string; stage: string; link: string; needs_reply: boolean; done: string[] };
+export type Followup = { id: number; person_id: number | null; name: string; subject: string; waiting_on: "you" | "them"; since: string; days: number; remind_after_days: number };
+export type PersonDetail = Person & { emails: PersonMail[]; followups: Followup[] };
+export type MailSettings = {
+  keywords: string[]; interests: string[]; followup_days: number; emails_week: number; last_watch: string | null;
+  accounts: { id: string; label: string; connected: boolean; problem: string; address: string }[];
+};
+
 export const api = {
   status: () => call<Status>("GET", "/api/status"),
   settings: () => call<Settings>("GET", "/api/settings"),
@@ -59,6 +74,17 @@ export const api = {
     call<{ items: LogItem[]; groups: { key: string; label: string }[] }>("GET", `/api/log?range=${range}&group=${group}`),
   undo: (id: number) => call<LogItem>("POST", `/api/log/${id}/undo`),
   decisions: () => call<{ items: Decision[] }>("GET", "/api/decisions?status=pending"),
+  people: (level: Level) => call<{ counts: Record<Level | "followups", number>; items: Person[] }>("GET", `/api/people?level=${level}`),
+  person: (id: number) => call<PersonDetail>("GET", `/api/people/${id}`),
+  setLevel: (id: number, level: Level, opts: { days?: number | null; note?: string; reason?: string } = {}) =>
+    call<{ action_id: number }>("POST", `/api/people/${id}/level`, { level, ...opts }),
+  setNote: (id: number, note: string) => call<{ ok: boolean }>("PUT", `/api/people/${id}/note`, { note }),
+  addPerson: (address: string, name: string, days: number | null, note: string) =>
+    call<{ id: number; action_id: number }>("POST", "/api/people", { address, name, days, note }),
+  followups: () => call<{ items: Followup[] }>("GET", "/api/followups"),
+  answerFollowup: (id: number, act: "done" | "later") => call<{ ok: boolean }>("POST", `/api/followups/${id}`, { act }),
+  mailSettings: () => call<MailSettings>("GET", "/api/mail/settings"),
+  saveMailSettings: (s: { keywords?: string[]; interests?: string[]; followup_days?: number }) => call<MailSettings>("PUT", "/api/mail/settings", s),
   answerAppointment: (id: number, accept: boolean) =>
     call<{ id: number; status: string; action_id: number | null }>("POST", `/api/appointments/${id}`, { accept }),
   decide: (id: number, action: "approve" | "reject") => call<{ id: number; status: string; action_id: number }>("POST", `/api/decisions/${id}`, { action }),
