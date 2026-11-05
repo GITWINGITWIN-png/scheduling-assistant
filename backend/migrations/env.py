@@ -13,8 +13,8 @@ from alembic import context
 import app.core.tables  # noqa: F401  registers the shared tables on Base.metadata
 from app.core.db import Base, engine
 
-# Each later phase that adds tables imports its module here too, for example:
-# import app.features.people.tables
+# Each later phase that adds tables imports its module here too:
+import app.features.mail.tables  # noqa: F401,E402  B2: people, emails, followups
 
 target_metadata = Base.metadata
 
