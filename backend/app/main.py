@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.core import db
+from app.connectors import discord_bot
 from app.core.clock import clock
 
 VERSION = "2.0.0.dev0"
@@ -24,7 +25,9 @@ VERSION = "2.0.0.dev0"
 async def lifespan(app: FastAPI):
     db.migrate()  # new tables/columns from a fresh `git pull` are created here
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
+    await discord_bot.start()  # connects in the background; the web page works without it
     yield
+    await discord_bot.stop()
     clock.stop()
 
 
