@@ -24,3 +24,10 @@ dist/
 # Editor
 .vscode/
 .idea/
+
+# Left on disk by M8 (branch m8-character): the Kokoro sidecar's venv and
+# weights, synthesised WAVs, and the user's .vrm. Not part of v2; ignored here
+# so they don't show as untracked. On m8-character the sidecar's code is tracked.
+backend/tts_sidecar/
+backend/.tts_cache/
+frontend/public/character/
