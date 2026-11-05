@@ -11,10 +11,15 @@ then open http://localhost:8000. Always-on, it runs as a systemd user service
 this order: bring the store up to date, start the clock (catching up on missed
 rounds), hook the features into Discord, connect the bot. One process holds
 all of it: the API, the web page, the clock and the bot.
+
+Only one process at a time runs the clock and the bot (core/worker.py). A second
+copy, e.g. on :8001 next to the service, serves the web page and API only, and
+takes over if the first one stops.
 """
 
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
@@ -23,7 +28,7 @@ from app.api import ask as ask_api
 from app.api import log as log_api
 from app.api import settings as settings_api
 from app.connectors import discord_bot
-from app.core import backup, db
+from app.core import backup, db, worker
 from app.core.clock import clock
 from app.core.config import REPO_DIR
 from app.features import actions_discord, ask_discord
@@ -32,19 +37,47 @@ VERSION = "2.0.0.dev0"
 WEB_DIST = REPO_DIR / "frontend" / "dist"  # `npm run build` in frontend/ writes the web page here
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    db.migrate()  # new tables/columns from a fresh `git pull` are created here
+async def start_background() -> None:
+    """The worker's parts: only the process holding the worker lock runs these."""
     backup.setup()  # the nightly backup is the clock's first round with work (B1)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button
     await discord_bot.start()  # connects in the background; the web page works without it
+
+
+async def wait_to_take_over() -> None:
+    """For a second copy: check now and then whether the worker stopped, and take over if so."""
+    while not worker.claim():
+        await asyncio.sleep(worker.LOCK_RETRY)
+    log.info("the other secretary stopped; this one now runs the clock and the Discord bot")
+    discord_bot.bot.problem = ""
+    await start_background()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db.migrate()  # new tables/columns from a fresh `git pull` are created here
+    waiting: asyncio.Task | None = None
+    if worker.claim():
+        await start_background()
+    else:
+        discord_bot.bot.problem = (f"เลขาอีกตัว (pid {worker.holder()}) ดูแลนาฬิกาและ Discord อยู่ · "
+                                   "ตัวนี้เปิดแค่หน้าเว็บ เพื่อไม่ให้ตอบซ้ำ")
+        log.warning("another secretary (pid %s) runs the clock and the Discord bot; "
+                    "this one serves the web page and API only", worker.holder())
+        waiting = asyncio.create_task(wait_to_take_over(), name="wait-to-take-over")
     yield
-    await discord_bot.stop()
-    clock.stop()
+    if waiting:
+        waiting.cancel()
+        with suppress(asyncio.CancelledError):
+            await waiting
+    if worker.is_worker():
+        await discord_bot.stop()
+        clock.stop()
 
 
 app = FastAPI(title="my_secretary", version=VERSION, lifespan=lifespan)
