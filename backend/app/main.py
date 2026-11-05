@@ -26,12 +26,18 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from app.api import ask as ask_api
 from app.api import log as log_api
+from app.api import mail as mail_api
 from app.api import settings as settings_api
 from app.connectors import discord_bot
 from app.core import backup, db, worker
 from app.core.clock import clock
 from app.core.config import REPO_DIR
 from app.features import actions_discord, ask_discord
+from app.features.mail import cards as mail_cards
+from app.features.mail import extract as mail_extract
+from app.features.mail import followups as mail_followups
+from app.features.mail import rounds as mail_rounds
+from app.features.mail import watch as mail_watch
 
 VERSION = "2.0.0.dev0"
 WEB_DIST = REPO_DIR / "frontend" / "dist"  # `npm run build` in frontend/ writes the web page here
@@ -43,6 +49,11 @@ log = logging.getLogger(__name__)
 async def start_background() -> None:
     """The worker's parts: only the process holding the worker lock runs these."""
     backup.setup()  # the nightly backup is the clock's first round with work (B1)
+    mail_watch.setup()  # B2: the 5-minute watch (starts switched off until B2's check)
+    mail_rounds.setup()  # B2: the 00:00 and 12:00 reading rounds (also off until then)
+    mail_extract.setup()  # appointments and tasks from what the rounds read
+    mail_followups.setup()  # who owes a reply, and the reminders
+    mail_cards.setup()  # #ด่วน · #อนุมัติ · #สรุป cards (after extract, so they can say what was done)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button
@@ -83,6 +94,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="my_secretary", version=VERSION, lifespan=lifespan)
 app.include_router(ask_api.router)
 app.include_router(log_api.router)
+app.include_router(mail_api.router)
 app.include_router(settings_api.router)
 
 

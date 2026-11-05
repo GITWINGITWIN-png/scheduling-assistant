@@ -3,11 +3,12 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { Shell } from "./components/Shell";
 import { PAGES } from "./nav";
 import { Log } from "./pages/Log";
+import { People } from "./pages/People";
 import { Settings } from "./pages/Settings";
 import { Soon } from "./pages/Soon";
 import { StatusProvider } from "./status";
 
-const READY: Record<string, () => React.ReactElement> = { "/log": () => <Log />, "/settings": () => <Settings /> };
+const READY: Record<string, () => React.ReactElement> = { "/people": () => <People />, "/log": () => <Log />, "/settings": () => <Settings /> };
 
 export default function App() {
   return (

@@ -1,8 +1,9 @@
 """The shared tables every part of the secretary uses (PLAN.md, "ระบบ · ใช้ร่วมกันทุกส่วน").
 
-Each feature's own tables (people, events, projects...) live with that feature
-and arrive in its phase. Only the five that B1 needs are here. `rules` and
-`briefs` come with B5 and B4.
+Each feature's own tables (people, emails, projects...) live with that feature
+and arrive in its phase. Here are the ones several phases share: the five from
+B1, and events + tasks from B2 (B3-B5 add to them). `rules` and `briefs` come
+with B5 and B4.
 
 Every table has a comment saying what it holds, and the fields follow the data
 model board (d2) of the plan.
@@ -11,7 +12,7 @@ model board (d2) of the plan.
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, UTCDateTime, now
@@ -110,3 +111,45 @@ class Decision(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)  # pending · approved · rejected
     answer: Mapped[str] = mapped_column(Text, default="")  # your note, e.g. what to change
     answered_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
+
+
+class Event(Base):
+    """events · นัด: an appointment the secretary knows about (features 1.3, 3.1).
+
+    B2 creates them from email; B3 adds the two-way calendar sync and your own entries.
+    status: placed (in Google Calendar, `gcal_id` set) · proposed (waiting in #อนุมัติ)
+    · declined (you said no) · removed (undone, deleted from the calendar).
+    """
+
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(Text)
+    starts_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    ends_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False)
+    location: Mapped[str] = mapped_column(Text, default="")
+    source: Mapped[str] = mapped_column(String(20))  # email · you · project
+    source_ref: Mapped[str] = mapped_column(String(64), default="")  # e.g. the Gmail message id
+    gcal_id: Mapped[str] = mapped_column(String(128), default="")
+    status: Mapped[str] = mapped_column(String(12), default="proposed", index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
+
+
+class Task(Base):
+    """tasks · งานและเดดไลน์: something you have to do (features P4, 3.1, U1).
+
+    B2 adds work people ask for by email; B3 adds Classroom deadlines; B5 project work.
+    """
+
+    __tablename__ = "tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(Text)
+    due_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(20))  # email · classroom · project · you
+    source_ref: Mapped[str] = mapped_column(String(64), default="")
+    project: Mapped[str] = mapped_column(String(200), default="")
+    est_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(10), default="open", index=True)  # open · done · dropped
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
