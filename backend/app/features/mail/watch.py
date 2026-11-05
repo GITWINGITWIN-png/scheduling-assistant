@@ -2,9 +2,13 @@
 
 Each run, per connected account:
 1. ask Gmail what's new since last time (connectors/gmail.py; no model, no tokens)
-2. store each message's header and file the sender in the registry (new people: interested)
-3. flag what can't wait: someone important · a watched keyword in the subject or the
-   first lines · a reply on a thread where you were waiting for them
+2. store each message's header and file the sender in the registry. New people start as
+   interested, except when their first email sits in Gmail's Promotions, Social or Forums
+   tab: those start as ignored (subjects skimmed at 00:00), so newsletters don't use the
+   rounds' tokens. You can raise anyone on the people page.
+3. flag what can't wait: someone important · a reply on a thread where you were waiting
+   for them · a watched keyword in the subject or the first lines (not from someone
+   ignored: "ด่วน! ลดราคา" from a shop shouldn't reach #ด่วน)
 4. read the flagged ones in full right away with the model; everything else waits for
    the 00:00 / 12:00 rounds (rounds.py), which is what keeps the token use low
 
@@ -85,12 +89,19 @@ def address_of(account: str) -> str:
 
 
 # ------------------------------------------------------------------ flagging
+def first_level(h: gmail.Header) -> tuple[str, str]:
+    """(level, source) for someone writing for the first time."""
+    return ("ignored", "bulk_tab") if h.bulk_tab else ("interested", "first_mail")
+
+
 def flag(*, level: str, subject: str, snippet: str, awaiting: bool) -> str:
     """Why this email should be read now, or "" if it can wait for the round."""
     if level == "important":
         return "important"
     if awaiting:
         return "awaiting"
+    if level == "ignored":  # you (or the bulk tab) said this sender doesn't matter: no keyword alarms
+        return ""
     text = f"{subject}\n{snippet}".lower()
     for word in keywords():
         if word.lower() in text:
@@ -119,7 +130,8 @@ def _store(account: str, h: gmail.Header, *, stage: str = "seen") -> Email | Non
             if to:
                 row.person_id = people.ensure(s, to).id
         else:
-            person = people.ensure(s, h.sender, h.sender_name)
+            level, source = first_level(h)
+            person = people.ensure(s, h.sender, h.sender_name, level=level, source=source)
             person.last_mail_at = max(filter(None, (person.last_mail_at, h.sent_at)))
             awaiting = s.scalar(select(Followup.id).where(
                 Followup.thread_id == h.thread_id, Followup.waiting_on == "them", Followup.closed_at.is_(None))) is not None

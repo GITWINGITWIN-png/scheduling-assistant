@@ -15,6 +15,7 @@ LEVELS = {"important": "สำคัญ", "interested": "สนใจ", "ignored
 SOURCES = {  # why a person is at their level, in your words
     "you": "คุณตั้ง",
     "first_mail": "ส่งมาครั้งแรก",
+    "bulk_tab": "อีเมลแรกอยู่แท็บโปรโมชัน/โซเชียล/ฟอรัม",
     "secretary": "เลขาเสนอ คุณอนุมัติ",
 }
 

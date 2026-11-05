@@ -29,12 +29,13 @@ def find(s: Session, address: str) -> Person | None:
     return s.get(Person, row.person_id) if row else None
 
 
-def ensure(s: Session, address: str, name: str = "") -> Person:
-    """The person behind an address, created as interested if they're new (inside your session)."""
+def ensure(s: Session, address: str, name: str = "", *, level: str = "interested", source: str = "first_mail") -> Person:
+    """The person behind an address (inside your session). Someone new starts at `level`;
+    someone already known keeps theirs, so a person you set in advance stays as you set them."""
     address = normalize(address)
     person = find(s, address)
     if person is None:
-        person = Person(name=name or address.split("@")[0], level="interested", level_source="first_mail")
+        person = Person(name=name or address.split("@")[0], level=level, level_source=source)
         s.add(person)
         s.flush()  # get the id
         s.add(PersonAddress(address=address, person_id=person.id))

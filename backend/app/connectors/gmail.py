@@ -27,6 +27,8 @@ from googleapiclient.errors import HttpError
 from app.connectors import google
 
 SKIP_LABELS = {"SPAM", "TRASH", "DRAFT"}
+# Gmail's own sorting into tabs. Mail it puts in these is almost always sent in bulk.
+BULK_TABS = {"CATEGORY_PROMOTIONS": "โปรโมชัน", "CATEGORY_SOCIAL": "โซเชียล", "CATEGORY_FORUMS": "ฟอรัม"}
 
 
 @dataclass
@@ -44,6 +46,11 @@ class Header:
     @property
     def from_me(self) -> bool:
         return "SENT" in self.labels
+
+    @property
+    def bulk_tab(self) -> str:
+        """The bulk tab Gmail filed it under, in your words ("" for the main inbox, updates, etc.)."""
+        return next((BULK_TABS[label] for label in BULK_TABS if label in self.labels), "")
 
 
 def _service(account: str):
