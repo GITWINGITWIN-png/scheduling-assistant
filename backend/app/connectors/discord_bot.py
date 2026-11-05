@@ -144,15 +144,29 @@ class SecretaryBot(discord.Client):
 
     async def send(self, channel: str, *, content: str | None = None, embed: discord.Embed | None = None,
                    view: discord.ui.View | None = None, kind: str = "note", ref: str = "",
-                   text_copy: str = "") -> tuple[Message, discord.Message]:
-        """Post to a channel ("urgent", "summary", "approve", "ideas" or "dm") and record it."""
+                   text_copy: str = "", reply_to: discord.Message | None = None) -> tuple[Message, discord.Message]:
+        """Post to a channel ("urgent", "summary", "approve", "ideas" or "dm") and record it.
+
+        reply_to: answer as a reply to that message, so a button pressed later can find what it
+        was about (message.reference) without the secretary storing anything extra.
+        """
         target = await self._target(channel)
-        sent = await target.send(content=content, embed=embed, view=view)
-        copy = text_copy or content or (embed.description if embed and embed.description else "")
+        sent = await target.send(content=content, embed=embed, view=view,
+                                 reference=reply_to, mention_author=False)
+        return self.record(channel, sent, kind=kind, ref=ref, text_copy=text_copy), sent
+
+    def record(self, channel: str, sent: discord.Message, *, kind: str, ref: str = "", text_copy: str = "") -> Message:
+        """Write a message the bot posted to the `messages` table (send() does this for you)."""
+        first = sent.embeds[0] if sent.embeds else None
+        copy = text_copy or sent.content or (first.description if first and first.description else "")
         with session() as s:
             row = Message(channel=channel, discord_id=sent.id, kind=kind, ref=ref, content=copy)
             s.add(row)
-        return row, sent
+        return row
+
+    @staticmethod
+    def is_owner(user: discord.abc.User) -> bool:
+        return user.id == get_config().discord_owner_id
 
 
 bot = SecretaryBot()
