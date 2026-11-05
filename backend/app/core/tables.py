@@ -12,7 +12,7 @@ model board (d2) of the plan.
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, UTCDateTime, now
@@ -116,9 +116,11 @@ class Decision(Base):
 class Event(Base):
     """events · นัด: an appointment the secretary knows about (features 1.3, 3.1).
 
-    B2 creates them from email; B3 adds the two-way calendar sync and your own entries.
+    B2 creates them from email (source "email"). B3 also copies in what is on your own
+    calendar (source "calendar", source_ref = the Google event id), so busy time and
+    reminders work from one table.
     status: placed (in Google Calendar, `gcal_id` set) · proposed (waiting in #อนุมัติ)
-    · declined (you said no) · removed (undone, deleted from the calendar).
+    · declined (you said no) · removed (undone, or deleted from the calendar).
     """
 
     __tablename__ = "events"
@@ -129,9 +131,11 @@ class Event(Base):
     ends_at: Mapped[datetime] = mapped_column(UTCDateTime)
     all_day: Mapped[bool] = mapped_column(Boolean, default=False)
     location: Mapped[str] = mapped_column(Text, default="")
-    source: Mapped[str] = mapped_column(String(20))  # email · you · project
+    source: Mapped[str] = mapped_column(String(20))  # email · calendar · you · project
     source_ref: Mapped[str] = mapped_column(String(64), default="")  # e.g. the Gmail message id
     gcal_id: Mapped[str] = mapped_column(String(128), default="")
+    link: Mapped[str] = mapped_column(Text, default="", server_default="")  # opens it in Google Calendar
+    recurring: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")  # a weekly class: no reminders
     status: Mapped[str] = mapped_column(String(12), default="proposed", index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
 
@@ -150,6 +154,47 @@ class Task(Base):
     source: Mapped[str] = mapped_column(String(20))  # email · classroom · project · you
     source_ref: Mapped[str] = mapped_column(String(64), default="")
     project: Mapped[str] = mapped_column(String(200), default="")
-    est_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    est_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None: the default for its source
+    # How the planner places it: early (start soon, done a day before the due date; the
+    # default) or late (as close to the due date as fits), the user's choice at the B3 plan.
+    plan_mode: Mapped[str] = mapped_column(String(8), default="early", server_default="early")
     status: Mapped[str] = mapped_column(String(10), default="open", index=True)  # open · done · dropped
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
+
+
+class Block(Base):
+    """blocks · บล็อกในตาราง: time set aside for a task, in the "เลขา" calendar (3.1, B3; B6 adds what really happened).
+
+    status: planned (the planner may move it) · pinned (you moved it in Google Calendar,
+    so it stays where you put it) · removed (you deleted it, or a re-plan took it back).
+    A block in the past counts as work done on its task, until B6 can check.
+    """
+
+    __tablename__ = "blocks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), index=True)
+    starts_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    ends_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    gcal_id: Mapped[str] = mapped_column(String(128), default="")
+    status: Mapped[str] = mapped_column(String(10), default="planned", index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
+
+
+class Reminder(Base):
+    """reminders · เตือน: one "1 day before" / "1 hour before" message, sent once (P5, B3).
+
+    `due_at` is the time being reminded about, so an appointment moved to a new time
+    gets reminded again for the new time.
+    """
+
+    __tablename__ = "reminders"
+    __table_args__ = (UniqueConstraint("kind", "ref_id", "lead", "due_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(8))  # event · task
+    ref_id: Mapped[int] = mapped_column(Integer)
+    lead: Mapped[str] = mapped_column(String(4))  # 1d · 1h
+    due_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    sent_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
+    message_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), default=None)
