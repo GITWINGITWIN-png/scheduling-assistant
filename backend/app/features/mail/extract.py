@@ -7,6 +7,10 @@ For each "นัด" line the model wrote, core/when.py works out the real time 
 - from anyone else: a proposal waiting in #อนุมัติ, because you may not want to go
   ("ร่างไว้ให้คุณกดรับก่อน")
 
+If the calendar can't be reached (the main account isn't connected, or its sign-in expired),
+an appointment that would have gone in directly waits in #อนุมัติ instead, with the reason,
+so nothing is lost; รับนัด then places it once the calendar works again.
+
 Every calendar entry links back to the original email. A line whose time can't be worked
 out is skipped and logged, rather than guessed. "งาน" lines become tasks (P4), with a
 due date when one is given. The same email read twice never adds anything twice.
@@ -20,7 +24,7 @@ from datetime import timedelta
 
 from sqlalchemy import select
 
-from app.connectors import gcal
+from app.connectors import gcal, google
 from app.core import actions, when
 from app.core.db import now, session
 from app.core.tables import Decision, Event, Task
@@ -36,6 +40,11 @@ PROPOSED: list = []  # hooks: async fn(event_id, decision_id, email) after a pro
 # What was done for each email, for the #ด่วน card's "เลขาทำให้แล้ว" and its ย้อนกลับ:
 # {email id: [(in your words, action id), ...]}. The card takes (pops) its email's entry.
 DONE: dict[str, list[tuple[str, int]]] = {}
+# Appointments from an email that are waiting in #อนุมัติ: {email id: why, in your words}.
+# The #ด่วน card takes (pops) it for its "รอคุณรับ" field.
+ASKED: dict[str, str] = {}
+
+_deciding = asyncio.Lock()  # one answer at a time, so a double click can't place an event twice
 
 
 def gmail_link(e: Email) -> str:
@@ -75,6 +84,22 @@ async def _undo_place(undo: dict) -> None:
         ev.status, ev.gcal_id = "removed", ""
 
 
+def _when_words(start, has_time: bool) -> str:
+    return thai_datetime(start) if has_time else thai_datetime(start).split(" ")[0] + " ทั้งวัน"
+
+
+def _ask(event_id: int, e: Email, why: str = "") -> int:
+    """Make the proposal that waits for รับนัด / ไม่ไป. -> decision id."""
+    with session() as s:
+        ev = s.get(Event, event_id)
+        d = Decision(kind="appointment", title=ev.title,
+                     detail={"event_id": event_id, "email_id": e.id, "from": e.sender_name or e.sender,
+                             "when": _when_words(ev.starts_at, not ev.all_day), "subject": e.subject, "why": why})
+        s.add(d)
+        s.flush()
+        return d.id
+
+
 async def on_read(r: ReadEmail) -> None:
     e = r.email
     for title, when_text, minutes, location in r.reading.events:
@@ -91,22 +116,23 @@ async def on_read(r: ReadEmail) -> None:
             s.add(ev)
             s.flush()
             event_id = ev.id
-            if not _direct(e):
-                d = Decision(kind="appointment", title=title,
-                             detail={"event_id": event_id, "email_id": e.id, "from": e.sender_name or e.sender,
-                                     "when": thai_datetime(w.start) if w.has_time else thai_datetime(w.start).split(" ")[0] + " ทั้งวัน",
-                                     "subject": e.subject})
-                s.add(d)
-                s.flush()
-                decision_id = d.id
+        why = ""
         if _direct(e):
-            action_id = await place(event_id, via=(f"อีเมลจาก {e.sender_name or e.sender}", gmail_link(e)))
-            DONE.setdefault(e.id, []).append((f"ลงนัด {thai_datetime(w.start) if w.has_time else thai_datetime(w.start).split(' ')[0]}: {title}", action_id))
-            for hook in PLACED:
-                await hook(event_id, action_id, e)
-        else:
-            for hook in PROPOSED:
-                await hook(event_id, decision_id, e)
+            try:
+                action_id = await place(event_id, via=(f"อีเมลจาก {e.sender_name or e.sender}", gmail_link(e)))
+            except Exception as exc:  # never lose the appointment: ask instead, and say why
+                log.exception("couldn't place event %s directly; asking in #อนุมัติ instead", event_id)
+                why = ("ลงปฏิทินเองไม่ได้: บัญชีหลักยังไม่ได้เชื่อมหรือหมดอายุ" if isinstance(exc, google.NeedsConsent)
+                       else "ลงปฏิทินเองไม่ได้: ติดต่อ Google Calendar ไม่สำเร็จ")
+            else:
+                DONE.setdefault(e.id, []).append((f"ลงนัด {_when_words(w.start, w.has_time).removesuffix(' ทั้งวัน')}: {title}", action_id))
+                for hook in PLACED:
+                    await hook(event_id, action_id, e)
+                continue
+        decision_id = _ask(event_id, e, why)
+        ASKED[e.id] = why or "นัดอยู่ใน #อนุมัติ"
+        for hook in PROPOSED:
+            await hook(event_id, decision_id, e)
     for title, due_text in r.reading.tasks:
         due = when.parse(due_text, e.sent_at) if due_text else None
         with session() as s:
@@ -124,24 +150,33 @@ async def on_read(r: ReadEmail) -> None:
 
 async def decide(decision_id: int, accept: bool, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> tuple[Decision, int | None]:
     """You answered a proposed appointment: รับ puts it in the calendar, ไม่ไป declines it.
-    -> (the decision, the calendar action id if placed)."""
-    with session() as s:
-        d = s.get(Decision, decision_id)
-        if d is None or d.kind != "appointment":
-            raise ValueError("ไม่พบนัดนี้")
-        if d.status != "pending":
-            raise ValueError("ตัดสินนัดนี้ไปแล้ว")
-        d.status, d.answered_at = ("approved" if accept else "rejected"), now()
-        event_id = d.detail["event_id"]
-        if not accept:
-            s.get(Event, event_id).status = "declined"
-    if accept:
-        action_id = await place(event_id, via=via)
-    else:
+    -> (the decision, the calendar action id if placed).
+
+    รับ is only recorded once the event is really in the calendar: if Google can't be
+    reached, you get the reason (ValueError) and the appointment keeps waiting."""
+    async with _deciding:
+        with session() as s:
+            d = s.get(Decision, decision_id)
+            if d is None or d.kind != "appointment":
+                raise ValueError("ไม่พบนัดนี้")
+            if d.status != "pending":
+                raise ValueError("ตัดสินนัดนี้ไปแล้ว")
+            event_id, title, when_words = d.detail["event_id"], d.title, d.detail.get("when", "")
         action_id = None
-        actions.record("calendar.decline", f"ไม่ไปนัด: {d.title}", d.detail.get("when", ""), source_label=via[0], source_url=via[1])
-    with session() as s:
-        return s.get(Decision, decision_id), action_id
+        if accept:
+            try:
+                action_id = await place(event_id, via=via)
+            except google.NeedsConsent as exc:
+                raise ValueError(f"ยังลงปฏิทินไม่ได้ · {exc}") from exc
+        with session() as s:
+            d = s.get(Decision, decision_id)
+            d.status, d.answered_at = ("approved" if accept else "rejected"), now()
+            if not accept:
+                s.get(Event, event_id).status = "declined"
+        if not accept:
+            actions.record("calendar.decline", f"ไม่ไปนัด: {title}", when_words, source_label=via[0], source_url=via[1])
+        with session() as s:
+            return s.get(Decision, decision_id), action_id
 
 
 async def _undo_task(undo: dict) -> None:

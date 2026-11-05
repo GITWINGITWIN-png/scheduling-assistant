@@ -75,6 +75,7 @@ async def alert(r: watch.ReadEmail) -> None:
     """AFTER_READ hook (runs after extract.on_read): the #ด่วน card for an email that can't wait."""
     e = r.email
     done = extract.DONE.pop(e.id, [])
+    asked = extract.ASKED.pop(e.id, "")
     if not (e.flagged or e.level == "important") or not _ready():
         return
     who = e.sender_name or e.sender
@@ -83,8 +84,8 @@ async def alert(r: watch.ReadEmail) -> None:
     fields = [("เลขาทำให้แล้ว", "\n".join(f"• {text}" for text, _ in done), False)] if done else []
     if r.reading.needs_reply:
         fields.append(("ต้องตอบ", "เรื่องนี้รอคำตอบจากคุณ", True))
-    if r.reading.events and not extract._direct(e):  # not important: its appointments wait in #อนุมัติ
-        fields.append(("รอคุณรับ", "นัดอยู่ใน #อนุมัติ", True))
+    if asked:  # appointments waiting in #อนุมัติ (not important, or the calendar couldn't be reached)
+        fields.append(("รอคุณรับ", asked, True))
     card = dc.embed(e.subject or "(ไม่มีหัวข้อ)", r.reading.summary, tone="bad" if e.flagged in ("important", "awaiting") else "warn",
                     fields=fields, author=heading, footer=f"{watch.flag_label(e.flagged)} · ส่งเมื่อ {local(e.sent_at):%H:%M}")
     items: list[discord.ui.Item] = [_open_email(e)]
@@ -126,10 +127,11 @@ async def ask_appointment(event_id: int, decision_id: int, e: Email) -> None:
         return
     with session() as s:
         ev, d = s.get(Event, event_id), s.get(Decision, decision_id)
-        title, when, place = ev.title, d.detail.get("when", ""), ev.location
+        title, when, place, why = ev.title, d.detail.get("when", ""), ev.location, d.detail.get("why", "")
     card = dc.embed(title, f"**{when}**" + (f" · {place}" if place else ""), tone="info",
                     author=f"นัดรอคุณรับ · {e.sender_name or e.sender} ({LEVELS.get(e.level, e.level)})",
-                    fields=[("จากอีเมล", e.subject or "(ไม่มีหัวข้อ)", False)], footer="กดรับแล้วเลขาลงปฏิทินให้ · ย้อนกลับได้")
+                    fields=[("จากอีเมล", e.subject or "(ไม่มีหัวข้อ)", False)] + ([("ทำไมต้องถาม", why, False)] if why else []),
+                    footer="กดรับแล้วเลขาลงปฏิทินให้ · ย้อนกลับได้")
     sent_row, _ = await dc.bot.send("approve", embed=card, view=dc.buttons(AppointmentButton(decision_id, "yes"),
                                     AppointmentButton(decision_id, "no"), _open_email(e)),
                                     kind="appointment", ref=f"decision:{decision_id}", text_copy=f"{title} · {when}")
