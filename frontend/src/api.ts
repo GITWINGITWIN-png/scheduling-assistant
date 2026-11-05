@@ -13,7 +13,7 @@ export type Settings = {
   themes: { id: string; name: string; sub: string }[];
   clock: Round[];
   discord: { configured: boolean; connected: boolean; user: string; channels: string[]; problem: string };
-  google: { id: string; label: string; connected: boolean; problem: string }[];
+  google: { id: string; label: string; does: string; connected: boolean; problem: string }[];
   services: { icon: string; name: string; detail: string; phase: string }[];
 };
 

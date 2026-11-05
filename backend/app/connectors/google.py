@@ -2,11 +2,14 @@
 
 Accounts and what each may do are in ACCOUNTS:
 
-- personal (หลัก, v1's token.json, an @ku.th address): read Gmail, read and write
-  Calendar. Appointments from any account go into this one calendar, so you have one schedule.
+- gmail (หลัก, your everyday Gmail): read Gmail, read and write Calendar. Appointments
+  from every account go into this one calendar (CALENDAR_ACCOUNT), so you have one schedule.
+- ku (KU, the @ku.th address; v1's token.json, which v1 called "personal"): read Gmail.
+  Its old token also allows Calendar; that grant is kept but not used.
 - school (Classroom, v1's token_school.json): read Gmail, plus the Classroom permissions B3
   uses. They are asked for together, so B3 doesn't need another consent.
-The ids keep v1's names; the labels say what each account is for.
+No address is written here: an account is whoever signs in during `connect`, and the
+settings page shows the address the watch found.
 
 Every account uses the same OAuth client (backend/credentials.json, v1's, outside git).
 Each account keeps its own token in ~/.secretary/google/<account>.json (mode 0600, outside
@@ -14,7 +17,7 @@ the repo). The token holds a refresh token, so after one consent, calls stay sig
 
 Connecting an account (once; it opens your browser):
 
-    cd backend && uv run python -m app.connectors.google connect school
+    cd backend && uv run python -m app.connectors.google connect gmail
     cd backend && uv run python -m app.connectors.google status
 
 v1's tokens (backend/token.json, token_school.json) are copied on first use. An account
@@ -61,14 +64,16 @@ class Account:
     id: str
     label: str
     scopes: tuple[str, ...]
-    v1_token: str  # file name in backend/ that v1 used for this account
+    does: str  # what the secretary uses it for, in your words (settings page)
+    v1_token: str | None = None  # file name in backend/ that v1 used for this account, if any
 
 
 ACCOUNTS = {
-    "personal": Account("personal", "หลัก", (GMAIL_READ, CALENDAR), "token.json"),
-    "school": Account("school", "Classroom", (GMAIL_READ, *CLASSROOM), "token_school.json"),
+    "gmail": Account("gmail", "หลัก", (GMAIL_READ, CALENDAR), "Gmail อ่านอย่างเดียว · ปฏิทิน อ่านและเขียน (นัดลงที่นี่)"),
+    "ku": Account("ku", "KU", (GMAIL_READ,), "Gmail อ่านอย่างเดียว", "token.json"),
+    "school": Account("school", "Classroom", (GMAIL_READ, *CLASSROOM), "Gmail อ่านอย่างเดียว · Classroom (B3)", "token_school.json"),
 }
-CALENDAR_ACCOUNT = "personal"  # where appointments are written
+CALENDAR_ACCOUNT = "gmail"  # where appointments are written
 
 
 class NeedsConsent(Exception):
@@ -108,6 +113,8 @@ def _save(account: str, creds: Credentials) -> None:
 
 def import_v1(account: str) -> bool:
     """Copy v1's token for this account once, if v2 has none yet. Returns True if copied."""
+    if ACCOUNTS[account].v1_token is None:
+        return False
     old, new = BACKEND_DIR / ACCOUNTS[account].v1_token, token_path(account)
     if new.exists() or not old.exists():
         return False
@@ -157,7 +164,7 @@ def status() -> list[dict]:
         connected = token_path(acc.id).exists()
         lacking = missing(acc.id) if connected else list(acc.scopes)
         out.append({
-            "id": acc.id, "label": acc.label, "connected": connected and not lacking,
+            "id": acc.id, "label": acc.label, "does": acc.does, "connected": connected and not lacking,
             "problem": "" if connected and not lacking else str(NeedsConsent(acc.id, "ยังไม่ได้เชื่อม" if not connected else "ขาดสิทธิ์บางอย่าง")),
         })
     return out

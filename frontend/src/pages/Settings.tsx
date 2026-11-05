@@ -113,7 +113,7 @@ export function Settings() {
               side={dc.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn">{dc.configured ? "มีปัญหา" : "รอตั้งค่า"}</Chip>} />
             {s.google.map((g) => (
               <Row key={g.id} icon="mail" title={`Google · ${g.label}`}
-                sub={g.connected ? (g.id === "personal" ? "Gmail อ่านอย่างเดียว · ปฏิทิน อ่านและเขียน" : "Gmail อ่านอย่างเดียว · Classroom (B3)") : g.problem}
+                sub={g.connected ? g.does : g.problem}
                 side={g.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn">รอเชื่อม</Chip>} />
             ))}
             {s.services.map((x) => (

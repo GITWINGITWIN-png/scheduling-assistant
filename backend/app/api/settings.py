@@ -44,7 +44,7 @@ def get_settings() -> dict:
         "themes": [{"id": k, "name": n, "sub": sub} for k, (n, sub, _) in themes.THEMES.items()],
         "clock": clock.status(),
         "discord": discord_bot.status(),
-        "google": google.status(),  # live since B2: Gmail (both accounts) + Calendar (personal)
+        "google": google.status(),  # live since B2: Gmail (every account) + Calendar (google.CALENDAR_ACCOUNT)
         "services": SERVICES,
     }
 
