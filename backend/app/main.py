@@ -32,6 +32,7 @@ from app.core import backup, db, worker
 from app.core.clock import clock
 from app.core.config import REPO_DIR
 from app.features import actions_discord, ask_discord
+from app.features.mail import extract as mail_extract
 from app.features.mail import rounds as mail_rounds
 from app.features.mail import watch as mail_watch
 
@@ -47,6 +48,7 @@ async def start_background() -> None:
     backup.setup()  # the nightly backup is the clock's first round with work (B1)
     mail_watch.setup()  # B2: the 5-minute watch (starts switched off until B2's check)
     mail_rounds.setup()  # B2: the 00:00 and 12:00 reading rounds (also off until then)
+    mail_extract.setup()  # appointments and tasks from what the rounds read
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button
