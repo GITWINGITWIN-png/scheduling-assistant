@@ -13,7 +13,7 @@ export const NAV: (NavItem | { group: string })[] = [
     about: "ทะเบียนโปรเจค: สถานะ potential ความเร่งด่วน ข่าวล่าสุด คำแนะนำ และคู่มือเชื่อมต่อ" },
   { path: "/jobs", label: "งานเบื้องหลัง", icon: "jobs", screen: "W4", phase: "B5", ready: false,
     about: "โควตาและเส้น 70% งานที่กำลังทำ คิวงาน และแผนที่รอคุณ · ทุกแผนบอกโมเดลและ effort" },
-  { path: "/schedule", label: "ตาราง", icon: "calendar", screen: "W5", phase: "B3", ready: false,
+  { path: "/schedule", label: "ตาราง", icon: "calendar", screen: "W5", phase: "B3", ready: true,
     about: "ตารางสัปดาห์: นัด เดดไลน์ บล็อกงาน ที่ทำจริง ซิงก์กับ Google Calendar" },
   { path: "/ideas", label: "ไอเดีย", icon: "idea", screen: "W6", phase: "B6", ready: false,
     about: "คลังไอเดียเป็นกลุ่ม · กลุ่มที่โตพอเสนอเป็นโปรเจคหรืองาน" },

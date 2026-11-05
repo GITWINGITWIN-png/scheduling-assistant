@@ -27,6 +27,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from app.api import ask as ask_api
 from app.api import log as log_api
 from app.api import mail as mail_api
+from app.api import schedule as schedule_api
 from app.api import settings as settings_api
 from app.connectors import discord_bot
 from app.core import backup, db, worker
@@ -105,6 +106,7 @@ app = FastAPI(title="my_secretary", version=VERSION, lifespan=lifespan)
 app.include_router(ask_api.router)
 app.include_router(log_api.router)
 app.include_router(mail_api.router)
+app.include_router(schedule_api.router)
 app.include_router(settings_api.router)
 
 
