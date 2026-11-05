@@ -35,6 +35,7 @@ from app.core.config import REPO_DIR
 from app.features import actions_discord, ask_discord
 from app.features.mail import cards as mail_cards
 from app.features.mail import extract as mail_extract
+from app.features.mail import followups as mail_followups
 from app.features.mail import rounds as mail_rounds
 from app.features.mail import watch as mail_watch
 
@@ -51,6 +52,7 @@ async def start_background() -> None:
     mail_watch.setup()  # B2: the 5-minute watch (starts switched off until B2's check)
     mail_rounds.setup()  # B2: the 00:00 and 12:00 reading rounds (also off until then)
     mail_extract.setup()  # appointments and tasks from what the rounds read
+    mail_followups.setup()  # who owes a reply, and the reminders
     mail_cards.setup()  # #ด่วน · #อนุมัติ · #สรุป cards (after extract, so they can say what was done)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered

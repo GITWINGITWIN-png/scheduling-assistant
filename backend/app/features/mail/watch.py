@@ -51,6 +51,8 @@ class ReadEmail:
 
 
 AFTER_READ: list[Callable[[ReadEmail], Awaitable[None]]] = []
+# After each sync, in the sync thread: (account, new headers). Follow-ups track threads here.
+SYNCED: list[Callable[[str, list], None]] = []
 
 
 # ------------------------------------------------------------------ settings and state
@@ -107,7 +109,11 @@ def _store(account: str, h: gmail.Header, *, stage: str = "seen") -> Email | Non
         mine = h.from_me or h.sender in my_addresses()
         row = Email(id=h.id, account=account, thread_id=h.thread_id, sender=h.sender, sender_name=h.sender_name,
                     subject=h.subject, sent_at=h.sent_at, from_me=mine, stage="sent" if mine else stage)
-        if not mine:
+        if mine:  # the person is who you wrote to, so a follow-up knows whose reply you await
+            to = next((a for a in h.to if a not in my_addresses()), "")
+            if to:
+                row.person_id = people.ensure(s, to).id
+        else:
             person = people.ensure(s, h.sender, h.sender_name)
             person.last_mail_at = max(filter(None, (person.last_mail_at, h.sent_at)))
             awaiting = s.scalar(select(Followup.id).where(
@@ -157,7 +163,11 @@ def sync(account: str) -> tuple[int, list[str]]:
 
 
 def after_sync(account: str, headers: list[gmail.Header]) -> None:
-    """Follow-ups update here (step 8); kept as a seam so sync() stays one readable loop."""
+    for hook in SYNCED:
+        try:
+            hook(account, headers)
+        except Exception:
+            log.exception("after-sync hook %s failed", getattr(hook, "__name__", hook))
 
 
 # ------------------------------------------------------------------ reading now

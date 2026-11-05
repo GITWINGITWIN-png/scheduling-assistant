@@ -67,12 +67,15 @@ class RoundResult:
     people: list[PersonSummary] = field(default_factory=list)
     skimmed: int = 0
     noteworthy: list[tuple[str, str, str]] = field(default_factory=list)  # (sender, subject, why)
+    reminded: int = 0  # follow-up reminders sent (12:00 round)
     tokens: int = 0
 
     def line(self) -> str:
         parts = [f"คนสำคัญ {self.important} ฉบับ", f"คนที่สนใจ {len(self.people)} คน"]
         if self.big:
             parts.append(f"หัวข้อ {self.skimmed} ฉบับ" + (f" · น่าสนใจ {len(self.noteworthy)}" if self.noteworthy else ""))
+        if self.reminded:
+            parts.append(f"เตือนเรื่องค้าง {self.reminded}")
         return " · ".join(parts) + (f" · {self.tokens:,} โทเคน" if self.tokens else "")
 
 
@@ -138,7 +141,7 @@ async def _read_interested(result: RoundResult) -> None:
             with session() as s:
                 latest = s.get(Email, group[-1].id)
             result.people.append(PersonSummary(pid, names.get(pid, group[0].sender_name), len(group), reading))
-            if reading.events or reading.tasks:
+            if reading.events or reading.tasks or reading.needs_reply:
                 for hook in watch.AFTER_READ:
                     try:
                         await hook(watch.ReadEmail(latest, reading))
@@ -189,6 +192,9 @@ async def run_round(big: bool) -> str:
         await _read_interested(result)
         if big:
             await _skim_ignored(result)
+        else:  # reminders at noon, so #ด่วน doesn't buzz at midnight
+            from app.features.mail import followups
+            result.reminded = await followups.remind()
     for hook in ROUND_DONE:
         try:
             await hook(result)

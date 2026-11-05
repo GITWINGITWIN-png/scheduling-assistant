@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 
 import discord
+from sqlalchemy import select
 
 from app.connectors import discord_bot as dc
 from app.core import actions
@@ -24,8 +25,8 @@ from app.core.db import session
 from app.core.tables import Decision, Event
 from app.core.timefmt import local
 from app.features.actions_discord import UndoButton
-from app.features.mail import extract, rounds, watch
-from app.features.mail.tables import LEVELS, Email
+from app.features.mail import extract, followups, rounds, watch
+from app.features.mail.tables import LEVELS, Email, Followup
 
 log = logging.getLogger(__name__)
 
@@ -160,8 +161,48 @@ async def round_summary(r: rounds.RoundResult) -> None:
     await dc.bot.send("summary", embed=card, kind="mail_round", ref="round:big" if r.big else "round:small", text_copy="\n".join(lines))
 
 
+class FollowupButton(discord.ui.DynamicItem[discord.ui.Button], template=r"fu:(?P<id>\d+):(?P<act>done|later)"):
+    """ตอบแล้ว (close it) · เตือนพรุ่งนี้ (remind again in a day)."""
+
+    def __init__(self, followup_id: int, act: str) -> None:
+        self.followup_id, self.act = followup_id, act
+        label = "ตอบแล้ว" if act == "done" else "เตือนพรุ่งนี้"
+        super().__init__(discord.ui.Button(label=label, style=discord.ButtonStyle.secondary, custom_id=f"fu:{followup_id}:{act}"))
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match, /):
+        return cls(int(match["id"]), match["act"])
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not dc.bot.is_owner(interaction.user):
+            await interaction.response.send_message("ปุ่มนี้สำหรับเจ้าของเลขาเท่านั้น", ephemeral=True)
+            return
+        if self.act == "done":
+            followups.close(self.followup_id)
+            await interaction.response.edit_message(content="✅ ปิดเรื่องนี้แล้ว", view=None)
+        else:
+            followups.snooze(self.followup_id)
+            await interaction.response.edit_message(content="⏰ จะเตือนอีกครั้งพรุ่งนี้", view=None)
+
+
+async def remind_card(f: Followup, name: str, waited: int) -> None:
+    """followups.REMIND hook: the เรื่องค้าง card in #ด่วน (D1)."""
+    if not _ready():
+        return
+    title = f"ยังไม่ได้ตอบ {name} {waited} วันแล้ว" if f.waiting_on == "you" else f"รอ {name} ตอบ {waited} วันแล้ว"
+    with session() as s:
+        last = s.scalar(select(Email).where(Email.thread_id == f.thread_id).order_by(Email.sent_at.desc()).limit(1))
+    items: list[discord.ui.Item] = [FollowupButton(f.id, "done"), FollowupButton(f.id, "later")]
+    if last:
+        items.append(_open_email(last))
+    card = dc.embed(title, f"เรื่อง: {f.subject or '(ไม่มีหัวข้อ)'}", tone="muted", author="เรื่องค้าง",
+                    footer=f"เตือนเมื่อเกิน {f.remind_after_days} วัน · ตั้งได้ในหน้าคนและอีเมล")
+    await dc.bot.send("urgent", embed=card, view=dc.buttons(*items), kind="followup", ref=f"followup:{f.id}", text_copy=title)
+
+
 def setup() -> None:
-    dc.register_buttons(UndoAllButton, AppointmentButton)
-    for hooks, fn in ((watch.AFTER_READ, alert), (extract.PROPOSED, ask_appointment), (rounds.ROUND_DONE, round_summary)):
+    dc.register_buttons(UndoAllButton, AppointmentButton, FollowupButton)
+    for hooks, fn in ((watch.AFTER_READ, alert), (extract.PROPOSED, ask_appointment), (rounds.ROUND_DONE, round_summary),
+                      (followups.REMIND, remind_card)):
         if fn not in hooks:
             hooks.append(fn)
