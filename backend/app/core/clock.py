@@ -12,6 +12,12 @@ each round's last run is saved in the store ("state.clock"), and at startup
 `catch_up()` asks, for each round: "was a scheduled time missed since the
 last run?" If one was, the round runs once right away, however many times it
 was missed. Nobody wants five backups or two morning briefs in a row.
+
+Each round has an on/off switch (settings page, "clock.enabled"). A round that
+arrives with a new phase starts **off**, and you switch it on at that phase's
+check. So no new scheduled work starts by itself, even if the machine restarts
+in the middle of a phase (the service runs whatever code is checked out).
+Only B1's backup is on from the start.
 """
 
 import asyncio
@@ -34,6 +40,8 @@ log = logging.getLogger(__name__)
 Handler = Callable[[], Awaitable[str | None]]
 
 STATE_KEY = "state.clock"  # {round id: ISO time of its last run}
+ENABLED_KEY = "clock.enabled"  # {round id: on/off}; a round not listed uses ON_BY_DEFAULT
+ON_BY_DEFAULT = {"backup"}
 
 
 @dataclass
@@ -88,6 +96,37 @@ def _save_last_run(round_id: str, at: datetime) -> None:
         s.merge(Setting(key=STATE_KEY, value=state))
 
 
+def enabled(round_id: str) -> bool:
+    with session() as s:
+        row = s.get(Setting, ENABLED_KEY)
+        return bool((row.value or {}).get(round_id, round_id in ON_BY_DEFAULT)) if row else round_id in ON_BY_DEFAULT
+
+
+def set_enabled(round_id: str, on: bool, via: tuple[str, str] = ("หน้าเว็บ", "")) -> int:
+    """Switch a round on or off (recorded, undoable). Returns the action id."""
+    if round_id not in ROUNDS:
+        raise KeyError(round_id)
+    old = enabled(round_id)
+    with session() as s:
+        row = s.get(Setting, ENABLED_KEY)
+        state = dict(row.value) if row and row.value else {}
+        state[round_id] = on
+        s.merge(Setting(key=ENABLED_KEY, value=state))
+    return actions.record("settings.round", f"{'เปิด' if on else 'ปิด'}รอบ{ROUNDS[round_id].title}", ROUNDS[round_id].when,
+                          source_label=via[0], source_url=via[1], undo={"round_id": round_id, "old": old})
+
+
+async def _undo_enabled(undo: dict) -> None:
+    with session() as s:
+        row = s.get(Setting, ENABLED_KEY)
+        state = dict(row.value) if row and row.value else {}
+        state[undo["round_id"]] = undo["old"]
+        s.merge(Setting(key=ENABLED_KEY, value=state))
+
+
+actions.register_undo("settings.round", _undo_enabled)
+
+
 def missed_since(rnd: Round, last: datetime, at: datetime) -> datetime | None:
     """The first scheduled time after `last` if it is already in the past at `at`, else None."""
     due = rnd.trigger().get_next_fire_time(None, last + timedelta(microseconds=1))
@@ -133,6 +172,9 @@ class Clock:
         rnd = ROUNDS[round_id]
         if rnd.handler is None or round_id in self._running:
             return None
+        if not enabled(round_id):
+            log.info("round %s is switched off; skipped", round_id)
+            return None
         self._running.add(round_id)
         try:
             result = await rnd.handler()
@@ -155,7 +197,7 @@ class Clock:
             job = self.scheduler.get_job(rnd.id) if self.scheduler.running else None
             out.append({
                 "id": rnd.id, "title": rnd.title, "when": rnd.when, "phase": rnd.phase,
-                "active": rnd.handler is not None,
+                "active": rnd.handler is not None, "enabled": enabled(rnd.id),
                 "last_run": state.get(rnd.id),
                 "next_run": job.next_run_time.isoformat() if job and job.next_run_time else None,
             })

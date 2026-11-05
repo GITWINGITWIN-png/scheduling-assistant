@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 
 from app.connectors import discord_bot, google
 from app.core import llm, themes
+from app.core import clock as clock_mod
 from app.core.clock import clock
 from app.core.db import now, session
 from app.core.tables import Decision, LLMUsage
@@ -16,7 +17,6 @@ router = APIRouter(prefix="/api", tags=["settings"])
 
 # Model choices agreed for later phases: shown greyed out until their phase (W10 ①)
 PLANNED_TASKS = [
-    {"label": "อ่านอีเมลทุกระดับ", "model": "Opus", "effort": "medium", "phase": "B2"},
     {"label": "เตือนนัด · ซิงก์ปฏิทิน", "model": "สคริปต์", "effort": "—", "phase": "B3"},
     {"label": "งานเบื้องหลัง", "model": "Opus", "effort": "ต่อแผน", "phase": "B5"},
     {"label": "ย่อข่าวโปรเจค", "model": "OmniRoute", "effort": "—", "phase": "B5"},
@@ -47,6 +47,20 @@ def get_settings() -> dict:
         "google": google.status(),  # live since B2: Gmail (both accounts) + Calendar (personal)
         "services": SERVICES,
     }
+
+
+class RoundIn(BaseModel):
+    on: bool
+
+
+@router.put("/settings/rounds/{round_id}")
+def put_round(round_id: str, body: RoundIn) -> dict:
+    """The on/off switch of one clock round (a new phase's rounds start off)."""
+    try:
+        action_id = clock_mod.set_enabled(round_id, body.on)
+    except KeyError:
+        raise HTTPException(404, "no such round")
+    return {"round": round_id, "on": body.on, "action_id": action_id}
 
 
 class TaskIn(BaseModel):

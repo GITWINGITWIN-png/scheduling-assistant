@@ -2,10 +2,11 @@
 
 Accounts and what each may do are in ACCOUNTS:
 
-- personal (ส่วนตัว): read Gmail, read and write Calendar. Appointments from any
-  account go into this one calendar, so you have one schedule.
-- school (มหาวิทยาลัย): read Gmail, plus the Classroom permissions B3 uses. They are
-  asked for together, so B3 doesn't need another consent.
+- personal (หลัก, v1's token.json, an @ku.th address): read Gmail, read and write
+  Calendar. Appointments from any account go into this one calendar, so you have one schedule.
+- school (Classroom, v1's token_school.json): read Gmail, plus the Classroom permissions B3
+  uses. They are asked for together, so B3 doesn't need another consent.
+The ids keep v1's names; the labels say what each account is for.
 
 Every account uses the same OAuth client (backend/credentials.json, v1's, outside git).
 Each account keeps its own token in ~/.secretary/google/<account>.json (mode 0600, outside
@@ -64,8 +65,8 @@ class Account:
 
 
 ACCOUNTS = {
-    "personal": Account("personal", "ส่วนตัว", (GMAIL_READ, CALENDAR), "token.json"),
-    "school": Account("school", "มหาวิทยาลัย", (GMAIL_READ, *CLASSROOM), "token_school.json"),
+    "personal": Account("personal", "หลัก", (GMAIL_READ, CALENDAR), "token.json"),
+    "school": Account("school", "Classroom", (GMAIL_READ, *CLASSROOM), "token_school.json"),
 }
 CALENDAR_ACCOUNT = "personal"  # where appointments are written
 

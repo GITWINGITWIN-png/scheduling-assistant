@@ -3,7 +3,7 @@
 export type Status = { pending: number; tokens_week: number; discord: boolean; theme: string };
 
 export type Task = { task: string; label: string; model: string; effort: string; default_model: string; default_effort: string };
-export type Round = { id: string; title: string; when: string; phase: string; active: boolean; last_run: string | null; next_run: string | null };
+export type Round = { id: string; title: string; when: string; phase: string; active: boolean; enabled: boolean; last_run: string | null; next_run: string | null };
 export type Settings = {
   tasks: Task[];
   models: string[];
@@ -53,6 +53,7 @@ export const api = {
   settings: () => call<Settings>("GET", "/api/settings"),
   setTask: (task: string, model: string, effort: string) => call<Task & { action_id: number }>("PUT", `/api/settings/llm/${task}`, { model, effort }),
   setTheme: (theme: string) => call<{ theme: string }>("PUT", "/api/settings/theme", { theme }),
+  setRound: (id: string, on: boolean) => call<{ round: string; on: boolean; action_id: number }>("PUT", `/api/settings/rounds/${id}`, { on }),
   log: (range: string, group: string) =>
     call<{ items: LogItem[]; groups: { key: string; label: string }[] }>("GET", `/api/log?range=${range}&group=${group}`),
   undo: (id: number) => call<LogItem>("POST", `/api/log/${id}/undo`),

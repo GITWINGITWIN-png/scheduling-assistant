@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type Settings as S } from "../api";
 import { when } from "../format";
 import { Icon, type IconName } from "../icons";
-import { Card, Chip, Phase, Spinner } from "../components/ui";
+import { Card, Chip, Phase, Seg, Spinner } from "../components/ui";
 
 const MODEL_NAMES: Record<string, string> = { sonnet: "Sonnet", opus: "Opus" };
 
@@ -77,10 +77,14 @@ export function Settings() {
           </Card>
           <Card title="นาฬิกาเลขา">
             {s.clock.map((r) => (
-              <Row key={r.id} icon="clock" title={r.when} sub={r.title + (r.active ? ` · ครั้งถัดไป ${when(r.next_run)}` : "")} dim={!r.active}
-                side={r.active ? <Chip tone="ok">ทำงาน</Chip> : <Phase phase={r.phase} />} />
+              <Row key={r.id} icon="clock" title={r.when}
+                sub={r.title + (r.active && r.enabled ? ` · ครั้งถัดไป ${when(r.next_run)}` : r.active ? " · ปิดอยู่" : "")} dim={!r.active || !r.enabled}
+                side={r.active
+                  ? <Seg options={[{ key: "on", label: "เปิด" }, { key: "off", label: "ปิด" }]} value={r.enabled ? "on" : "off"}
+                      onChange={(v) => api.setRound(r.id, v === "on").then(load, (e) => setNote((e as Error).message))} />
+                  : <Phase phase={r.phase} />} />
             ))}
-            <p className="text-xs text-muted pt-2">เครื่องดับแล้วเปิดใหม่ เลขาทำรอบที่พลาดทันที (ครั้งเดียว ไม่ว่าพลาดกี่รอบ)</p>
+            <p className="text-xs text-muted pt-2">เครื่องดับแล้วเปิดใหม่ เลขาทำรอบที่พลาดทันที (ครั้งเดียว ไม่ว่าพลาดกี่รอบ) · รอบใหม่ของแต่ละช่วงเริ่มแบบปิด คุณเปิดเองตอนทดสอบช่วงนั้น · ทุกการเปิดปิดอยู่ในหน้าบันทึกและย้อนกลับได้</p>
           </Card>
         </div>
 

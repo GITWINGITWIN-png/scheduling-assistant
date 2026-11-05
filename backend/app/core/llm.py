@@ -57,6 +57,7 @@ DEFAULT_TASKS: dict[str, dict[str, str]] = {
     "ask": {"model": "sonnet", "effort": "low", "label": "ถามตอบในแชท"},
     "ask_deep": {"model": "opus", "effort": "high", "label": "ให้ Opus คิดต่อ"},
     "plan": {"model": "opus", "effort": "high", "label": "วางแผน · สั่งงาน"},
+    "mail": {"model": "opus", "effort": "medium", "label": "อ่านอีเมลทุกระดับ"},  # B2: you asked for no weak model on mail
 }
 
 TOOL_SERVER = "secretary"  # tools appear to the model as mcp__secretary__<name>
