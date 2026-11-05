@@ -12,9 +12,11 @@ Each run, per connected account:
 4. read the flagged ones in full right away with the model; everything else waits for
    the 00:00 / 12:00 rounds (rounds.py), which is what keeps the token use low
 
-The first run doesn't alert about old mail. It sets the starting point, and files the
-last 7 days' senders and threads (stage "old"), so the people page and follow-ups
-start with something.
+The first run on an account doesn't alert about old mail. It sets the starting point, and
+files the last 7 days' senders and threads (stage "old"), so the people page and
+follow-ups start with something. Mail from the last 15 minutes (FRESH) is the exception:
+it is handled like any new mail, because the first run happens up to 5 minutes after you
+switch the watch on or connect an account, and what arrives in between is new to you.
 
 Features hook into AFTER_READ (appointments and tasks from the email, the #ด่วน card),
 so this file only decides *what* to read.
@@ -24,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import timedelta
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -42,6 +45,7 @@ STATE_KEY = "state.mail"  # {account: {"history_id": "...", "me": "you@..."}}
 KEYWORDS_KEY = "mail.keywords"
 DEFAULT_KEYWORDS = ["ด่วน", "urgent", "deadline", "สอบ", "ยกเลิก", "เลื่อน"]
 BACKFILL = "newer_than:7d"
+FRESH = timedelta(minutes=15)  # on a first run, mail this recent is new, not "old"
 
 # One mail job at a time: the 00:00/12:00 rounds and the watch both fire at minute 0.
 lock = asyncio.Lock()
@@ -168,9 +172,10 @@ def _new_headers(account: str) -> tuple[list[gmail.Header], bool]:
 def sync(account: str) -> tuple[int, list[str]]:
     """New mail on one account into the store. -> (how many new, ids flagged to read now)."""
     headers, first = _new_headers(account)
+    fresh_from = now() - FRESH
     flagged, count = [], 0
     for h in sorted(headers, key=lambda x: x.sent_at):
-        row = _store(account, h, stage="old" if first else "seen")
+        row = _store(account, h, stage="old" if first and h.sent_at < fresh_from else "seen")
         if row is not None:
             count += 1
             if row.flagged:

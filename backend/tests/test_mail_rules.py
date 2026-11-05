@@ -5,7 +5,7 @@ throwaway database (conftest.py points the data folder at a temp dir).
 """
 
 import itertools
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -24,10 +24,10 @@ def database():
 _ids = itertools.count(1)  # each test email gets its own message id
 
 
-def mail(sender: str, *labels: str, subject: str = "สวัสดี") -> Header:
+def mail(sender: str, *labels: str, subject: str = "สวัสดี", at: datetime | None = None) -> Header:
     i = next(_ids)
-    return Header(id=f"m{i}", thread_id=f"t{i}", sender=sender, sender_name="", to=["me@example.com"],
-                  subject=subject, snippet="", sent_at=datetime(2026, 11, 5, tzinfo=timezone.utc), labels={"INBOX", *labels})
+    return Header(id=f"m{i}", thread_id=f"t{i}", sender=sender, sender_name="", to=["me@example.com"], subject=subject,
+                  snippet="", sent_at=at or datetime(2026, 11, 5, tzinfo=timezone.utc), labels={"INBOX", *labels})
 
 
 def level_of(address: str) -> tuple[str, str]:
@@ -81,3 +81,18 @@ def test_no_person_is_created_twice():
     watch._store("gmail", mail("TWICE@example.com"))
     with session() as s:
         assert s.query(Person).filter(Person.name == "twice").count() == 1
+
+
+def test_first_run_handles_mail_that_arrived_while_waiting_for_it(monkeypatch):
+    """The 2026-11-05 check: watch switched on 18:40, a test email at 18:42, first run 18:45.
+    The test email must alert; last week's mail is filed quietly."""
+    people.add("earth@example.com", "Earth", days=90)
+    just_now = datetime.now(timezone.utc) - timedelta(minutes=3)
+    last_week = datetime.now(timezone.utc) - timedelta(days=2)
+    headers = [mail("earth@example.com", subject="ประชุมแผนงาน", at=just_now),
+               mail("earth@example.com", subject="เรื่องเก่า", at=last_week)]
+    monkeypatch.setattr(watch, "_new_headers", lambda account: (headers, True))  # True: the account's first run
+    monkeypatch.setattr(watch, "after_sync", lambda account, headers: None)
+    count, flagged = watch.sync("gmail")
+    assert count == 2
+    assert flagged == [headers[0].id]
