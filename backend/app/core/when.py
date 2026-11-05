@@ -67,24 +67,25 @@ def _month_day(year: int | None, month: int, day: int, ref: date) -> date | None
         return None
 
 
-def _find_date(text: str, ref: date) -> tuple[date | None, str]:
-    """-> (the date, the text with the date removed so its numbers aren't read as a time)."""
+def _find_date(text: str, ref: date) -> tuple[date | None, str, bool]:
+    """-> (the date, the text with the date removed so its numbers aren't read as a time,
+    whether a date was written at all: "31 ก.พ." is written but doesn't exist)."""
     def cut(m: re.Match) -> str:
         return text[:m.start()] + " " + text[m.end():]
 
     if m := re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", text):
-        return _month_day(_year(m.group(1), ref), int(m.group(2)), int(m.group(3)), ref), cut(m)
+        return _month_day(_year(m.group(1), ref), int(m.group(2)), int(m.group(3)), ref), cut(m), True
     if m := re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b", text):  # day/month/year, as written in Thailand
-        return _month_day(_year(m.group(3), ref), int(m.group(2)), int(m.group(1)), ref), cut(m)
+        return _month_day(_year(m.group(3), ref), int(m.group(2)), int(m.group(1)), ref), cut(m), True
     for i, (full, short) in enumerate(THAI_MONTHS):
         pattern = rf"(\d{{1,2}})\s*(?:{re.escape(full)}|{re.escape(short)}|{re.escape(short.replace('.', ''))})\.?\s*(?:พ\.ศ\.\s*)?(\d{{4}}|\d{{2}}(?!\s*[:.]\d))?"
         if m := re.search(pattern, text):
-            return _month_day(_year(m.group(2), ref), i + 1, int(m.group(1)), ref), cut(m)
+            return _month_day(_year(m.group(2), ref), i + 1, int(m.group(1)), ref), cut(m), True
     for i, name in enumerate(EN_MONTHS):
         if m := re.search(rf"\b{name}[a-z]*\.?\s+(\d{{1,2}})(?!\d)(?:st|nd|rd|th)?(?:,?\s+(\d{{4}}))?", text):  # Nov 7, 2026 (not the "20" of 2026)
-            return _month_day(_year(m.group(2), ref), i + 1, int(m.group(1)), ref), cut(m)
+            return _month_day(_year(m.group(2), ref), i + 1, int(m.group(1)), ref), cut(m), True
         if m := re.search(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?{name}[a-z]*\.?(?:,?\s+(\d{{4}}))?", text):  # 7 Nov 2026
-            return _month_day(_year(m.group(2), ref), i + 1, int(m.group(1)), ref), cut(m)
+            return _month_day(_year(m.group(2), ref), i + 1, int(m.group(1)), ref), cut(m), True
 
     nxt = bool(re.search(r"หน้า|\bnext\b", text))
     for names in (THAI_DAYS, EN_DAYS):
@@ -92,13 +93,13 @@ def _find_date(text: str, ref: date) -> tuple[date | None, str]:
             if re.search(rf"(?<![a-z]){name}" if names is EN_DAYS else name, text):
                 ahead = (i - ref.weekday()) % 7
                 if nxt:  # "ศุกร์หน้า" / "next Friday": that day in the coming calendar week
-                    return ref + timedelta(days=7 - ref.weekday() + i), text
-                return ref + timedelta(days=ahead), text
+                    return ref + timedelta(days=7 - ref.weekday() + i), text, True
+                return ref + timedelta(days=ahead), text, True
     for words, days in ((("มะรืน", "day after tomorrow"), 2), (("พรุ่งนี้", "tomorrow"), 1),
                         (("วันนี้", "คืนนี้", "today", "tonight", "เย็นนี้", "บ่ายนี้", "เช้านี้"), 0)):
         if any(w in text for w in words):
-            return ref + timedelta(days=days), text
-    return None, text
+            return ref + timedelta(days=days), text, True
+    return None, text, False
 
 
 def _find_time(text: str) -> time | None:
@@ -143,7 +144,9 @@ def parse(text: str, ref: datetime) -> When | None:
     tz = get_config().tz
     ref_local = ref.astimezone(tz)
     clean = " ".join(text.translate(THAI_DIGITS).lower().replace("ค.ศ.", " ").replace("เวลา", " ").split())
-    day, rest = _find_date(clean, ref_local.date())
+    day, rest, written = _find_date(clean, ref_local.date())
+    if written and day is None:
+        return None  # a date that doesn't exist: don't fall back to "today"
     at = _find_time(rest)
     if day is None:
         if at is None:

@@ -18,4 +18,13 @@ dependencies = [
     "uvicorn[standard]>=0.54.0",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
 # Run from backend/:  uv run uvicorn app.main:app --reload --port 8000
+
+[tool.pytest.ini_options]
+pythonpath = ["."]  # so tests can `import app...` from backend/
+testpaths = ["tests"]
