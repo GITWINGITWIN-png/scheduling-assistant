@@ -33,6 +33,10 @@ log = logging.getLogger(__name__)
 PLACED: list = []  # hooks: async fn(event_id, action_id, email) after an event goes in the calendar
 PROPOSED: list = []  # hooks: async fn(event_id, decision_id, email) after a proposal is made
 
+# What was done for each email, for the #ด่วน card's "เลขาทำให้แล้ว" and its ย้อนกลับ:
+# {email id: [(in your words, action id), ...]}. The card takes (pops) its email's entry.
+DONE: dict[str, list[tuple[str, int]]] = {}
+
 
 def gmail_link(e: Email) -> str:
     me = next(iter(my_addresses()), "")
@@ -97,6 +101,7 @@ async def on_read(r: ReadEmail) -> None:
                 decision_id = d.id
         if _direct(e):
             action_id = await place(event_id, via=(f"อีเมลจาก {e.sender_name or e.sender}", gmail_link(e)))
+            DONE.setdefault(e.id, []).append((f"ลงนัด {thai_datetime(w.start) if w.has_time else thai_datetime(w.start).split(' ')[0]}: {title}", action_id))
             for hook in PLACED:
                 await hook(event_id, action_id, e)
         else:
@@ -107,7 +112,14 @@ async def on_read(r: ReadEmail) -> None:
         with session() as s:
             if s.scalar(select(Task.id).where(Task.source_ref == e.id, Task.title == title)):
                 continue
-            s.add(Task(title=title, due_at=due.start if due else None, source="email", source_ref=e.id))
+            task = Task(title=title, due_at=due.start if due else None, source="email", source_ref=e.id)
+            s.add(task)
+            s.flush()
+            task_id = task.id
+        due_words = f" ส่ง {thai_datetime(due.start)}" if due else ""
+        action_id = actions.record("task.add", f"เพิ่มงาน: {title}", due_words.strip(), source_label=f"อีเมลจาก {e.sender_name or e.sender}",
+                                   source_url=gmail_link(e), undo={"task_id": task_id})
+        DONE.setdefault(e.id, []).append((f"เพิ่มงาน “{title}”{due_words}", action_id))
 
 
 async def decide(decision_id: int, accept: bool, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> tuple[Decision, int | None]:
@@ -132,7 +144,14 @@ async def decide(decision_id: int, accept: bool, *, via: tuple[str, str] = ("ห
         return s.get(Decision, decision_id), action_id
 
 
+async def _undo_task(undo: dict) -> None:
+    with session() as s:
+        if task := s.get(Task, undo["task_id"]):
+            task.status = "dropped"
+
+
 actions.register_undo("calendar.place", _undo_place)
+actions.register_undo("task.add", _undo_task)
 
 
 def setup() -> None:

@@ -103,10 +103,12 @@ def status() -> dict:
 
 @router.get("/decisions")
 def decisions(status: str = "pending") -> dict:
-    """What waits for you (the bell). B1 has plans; later phases add their kinds."""
+    """What waits for you (the bell): plans (B1), appointments from email (B2); later phases add more."""
     with session() as s:
         rows = s.scalars(select(Decision).where(Decision.status == status).order_by(Decision.created_at.desc()).limit(50)).all()
     return {"items": [{"id": d.id, "kind": d.kind, "title": d.title, "plan": d.detail.get("plan", ""),
                        "request": d.detail.get("request", ""), "model": d.detail.get("model", ""),
                        "effort": d.detail.get("effort", ""), "tokens": d.detail.get("tokens"),
+                       "when": d.detail.get("when", ""), "from": d.detail.get("from", ""),  # appointment (B2)
+                       "subject": d.detail.get("subject", ""),
                        "created_at": d.created_at.isoformat()} for d in rows]}

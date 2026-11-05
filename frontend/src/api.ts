@@ -25,6 +25,7 @@ export type LogItem = {
 export type Decision = {
   id: number; kind: string; title: string; plan: string; request: string;
   model: string; effort: string; tokens: number | null; created_at: string;
+  when: string; from: string; subject: string; // appointment (B2)
 };
 
 export type Answer = {
@@ -58,6 +59,8 @@ export const api = {
     call<{ items: LogItem[]; groups: { key: string; label: string }[] }>("GET", `/api/log?range=${range}&group=${group}`),
   undo: (id: number) => call<LogItem>("POST", `/api/log/${id}/undo`),
   decisions: () => call<{ items: Decision[] }>("GET", "/api/decisions?status=pending"),
+  answerAppointment: (id: number, accept: boolean) =>
+    call<{ id: number; status: string; action_id: number | null }>("POST", `/api/appointments/${id}`, { accept }),
   decide: (id: number, action: "approve" | "reject") => call<{ id: number; status: string; action_id: number }>("POST", `/api/decisions/${id}`, { action }),
   revise: (id: number, change: string) => call<Answer>("POST", `/api/decisions/${id}/revise`, { change }),
 };
