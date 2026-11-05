@@ -36,7 +36,9 @@ from app.core.tables import Setting
 
 log = logging.getLogger(__name__)
 
-# The work a round does. It returns a short result for the log ("37 ฉบับ"), or None.
+# The work a round does. It returns a short result for the log ("37 ฉบับ"), or None when
+# there is nothing to tell: then the run leaves no row in สิ่งที่เลขาทำ (the 5-minute rounds
+# would otherwise write ~290 empty rows a day). Its last-run time is still saved and shown.
 Handler = Callable[[], Awaitable[str | None]]
 
 STATE_KEY = "state.clock"  # {round id: ISO time of its last run}
@@ -179,8 +181,9 @@ class Clock:
         try:
             result = await rnd.handler()
             _save_last_run(round_id, now())
-            actions.record(f"round.{round_id}", rnd.title + (" · ทำรอบที่พลาด" if caught_up else ""),
-                           result or "", source_label="นาฬิกาเลขา")
+            if result or caught_up:  # a caught-up run is always worth a line, even a quiet one
+                actions.record(f"round.{round_id}", rnd.title + (" · ทำรอบที่พลาด" if caught_up else ""),
+                               result or "", source_label="นาฬิกาเลขา")
             log.info("round %s done%s: %s", round_id, " (catch-up)" if caught_up else "", result or "")
             return result
         except Exception:

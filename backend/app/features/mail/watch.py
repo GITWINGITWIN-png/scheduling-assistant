@@ -215,8 +215,8 @@ async def read_now(email_id: str) -> Reading | None:
     return reading
 
 
-async def run() -> str:
-    """The watch round. Returns a short line for the action log."""
+async def run() -> str | None:
+    """The watch round. Returns a short line for the action log, or None if nothing happened."""
     async with lock:
         new, read, skipped = 0, 0, []
         for account in google.ACCOUNTS:
@@ -229,6 +229,8 @@ async def run() -> str:
             for email_id in flagged:
                 if await read_now(email_id):
                     read += 1
+    if not (new or read or skipped):
+        return None  # a quiet run: no row in the log (see clock.Handler)
     parts = [f"ใหม่ {new} ฉบับ"] + ([f"อ่านทันที {read}"] if read else [])
     if skipped:
         parts.append(f"ข้ามบัญชี {', '.join(skipped)} (ยังไม่ได้เชื่อม)")
