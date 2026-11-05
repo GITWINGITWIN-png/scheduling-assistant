@@ -41,9 +41,16 @@ class Config(BaseSettings):
     discord_guild_id: int = 0  # your private server
     discord_owner_id: int = 0  # your own user id: the only person the bot listens to
 
+    # Google (B2). The OAuth client file is v1's, already outside git; tokens live in data_dir.
+    google_client_file: Path = BACKEND_DIR / "credentials.json"
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "secretary.db"
+
+    @property
+    def google_dir(self) -> Path:
+        return self.data_dir / "google"  # one token file per account, mode 0600
 
     @property
     def tz(self) -> ZoneInfo:

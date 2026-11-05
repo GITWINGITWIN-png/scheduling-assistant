@@ -107,6 +107,11 @@ export function Settings() {
           <Card title="ช่องทางและบริการ">
             <Row icon="chat" title="Discord" sub={dc.connected ? `${dc.user} · ${dc.channels.join(" ")}` : dc.problem}
               side={dc.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn">{dc.configured ? "มีปัญหา" : "รอตั้งค่า"}</Chip>} />
+            {s.google.map((g) => (
+              <Row key={g.id} icon="mail" title={`Google · ${g.label}`}
+                sub={g.connected ? (g.id === "personal" ? "Gmail อ่านอย่างเดียว · ปฏิทิน อ่านและเขียน" : "Gmail อ่านอย่างเดียว · Classroom (B3)") : g.problem}
+                side={g.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn">รอเชื่อม</Chip>} />
+            ))}
             {s.services.map((x) => (
               <Row key={x.name} icon={x.icon as IconName} title={x.name} sub={x.detail} dim side={<Phase phase={x.phase} />} />
             ))}

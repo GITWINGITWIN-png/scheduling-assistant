@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
-from app.connectors import discord_bot
+from app.connectors import discord_bot, google
 from app.core import llm, themes
 from app.core.clock import clock
 from app.core.db import now, session
@@ -26,8 +26,6 @@ PLANNED_TASKS = [
 
 # Connections and the phase each arrives in (W10 ④); Discord's status is live
 SERVICES = [
-    {"icon": "mail", "name": "Gmail", "detail": "อ่านอย่างเดียว · ทุกฉบับ", "phase": "B2"},
-    {"icon": "calendar", "name": "Google Calendar", "detail": "อ่านและเขียน", "phase": "B3"},
     {"icon": "eye", "name": "ActivityWatch", "detail": "บนเครื่องนี้ + ตัวกรอง", "phase": "B6"},
     {"icon": "robot", "name": "OmniRoute", "detail": "API แบบ OpenAI · งานเล็ก", "phase": "B6"},
 ]
@@ -46,6 +44,7 @@ def get_settings() -> dict:
         "themes": [{"id": k, "name": n, "sub": sub} for k, (n, sub, _) in themes.THEMES.items()],
         "clock": clock.status(),
         "discord": discord_bot.status(),
+        "google": google.status(),  # live since B2: Gmail (both accounts) + Calendar (personal)
         "services": SERVICES,
     }
 
