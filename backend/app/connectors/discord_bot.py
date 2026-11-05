@@ -89,6 +89,7 @@ class SecretaryBot(discord.Client):
         self.dynamic_items: list[type[discord.ui.DynamicItem]] = []
         self.ready_event = asyncio.Event()
         self.problem = ""  # why it isn't working, in your words (shown on the settings page)
+        self._pointed_to_dm: set[int] = set()  # server channels where we already said "talk to me in DM"
 
     async def setup_hook(self) -> None:
         self.add_dynamic_items(*self.dynamic_items)
@@ -129,12 +130,25 @@ class SecretaryBot(discord.Client):
             key = next((k for k, c in self.channels.items() if c.id == message.channel.id), None)
             handler = self.on_channel_message.get(key) if key else None
         if handler is None:
+            await self._point_to_dm(message)
             return
         try:
             await handler(message)
         except Exception:
             log.exception("handling a Discord message failed")
             await message.channel.send("ขอโทษครับ เลขาเจอปัญหาตอนทำเรื่องนี้ · ดูรายละเอียดใน log ของเซิร์ฟเวอร์")
+
+    async def _point_to_dm(self, message: discord.Message) -> None:
+        """You wrote in a server channel nothing listens to (e.g. #general). Say where the chat
+        is instead of staying silent, which looks like the bot is broken. Once per channel per
+        run, so a channel you also use for other things doesn't fill up with the same hint."""
+        if message.guild is None or message.channel.id in self._pointed_to_dm:
+            return
+        self._pointed_to_dm.add(message.channel.id)
+        log.info("owner wrote in #%s, which the secretary doesn't read; pointed them to DM", message.channel.name)
+        sent = await message.reply("เลขาคุยทางแชทส่วนตัวครับ · คลิกชื่อ **Secretary** ในรายชื่อสมาชิก แล้วกด Message",
+                                   mention_author=False)
+        self.record(f"#{message.channel.name}", sent, kind="hint")
 
     async def _target(self, channel: str) -> discord.abc.Messageable:
         if channel == "dm":
