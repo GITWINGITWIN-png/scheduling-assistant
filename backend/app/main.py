@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.core import db
+from app.core.clock import clock
 
 VERSION = "2.0.0.dev0"
 
@@ -22,7 +23,9 @@ VERSION = "2.0.0.dev0"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.migrate()  # new tables/columns from a fresh `git pull` are created here
+    await clock.start()  # schedules the rounds and runs any missed while the machine was off
     yield
+    clock.stop()
 
 
 app = FastAPI(title="my_secretary", version=VERSION, lifespan=lifespan)
