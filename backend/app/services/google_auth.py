@@ -86,15 +86,24 @@ def get_credentials(account: str, scopes: list[str]) -> Credentials:
     """
     token_file = _token_path(account)
     creds: Credentials | None = None
+    granted = _granted_scopes(token_file)
 
     if os.path.exists(token_file):
-        creds = Credentials.from_authorized_user_file(token_file, scopes)
+        # Load with the UNION of what this caller needs and what the file already
+        # records as granted. `creds.scopes` becomes that union, so when a refresh
+        # re-writes the token (creds.to_json()), it persists the full grant rather
+        # than shrinking it to this caller's subset. Without this, e.g. the
+        # calendar service (which requests only `calendar`) would, on refresh, drop
+        # `gmail.readonly` from the shared token.json — forcing Gmail to re-consent,
+        # which then drops calendar's view, and so on: a browser prompt every hour.
+        creds = Credentials.from_authorized_user_file(
+            token_file, sorted(set(scopes) | granted)
+        )
 
     # Drop the token if Google's *granted* scopes don't cover what we need now
     # (accepting Google's known scope substitutions, so we don't re-consent in a
     # loop). A genuinely new scope we've never been granted still triggers consent.
     if creds:
-        granted = _granted_scopes(token_file)
         if not all(_scope_satisfied(s, granted) for s in scopes):
             creds = None
 
