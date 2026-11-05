@@ -23,7 +23,7 @@ from app.api import ask as ask_api
 from app.api import log as log_api
 from app.api import settings as settings_api
 from app.connectors import discord_bot
-from app.core import db
+from app.core import backup, db
 from app.core.clock import clock
 from app.core.config import REPO_DIR
 from app.features import actions_discord, ask_discord
@@ -37,6 +37,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.migrate()  # new tables/columns from a fresh `git pull` are created here
+    backup.setup()  # the nightly backup is the clock's first round with work (B1)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button
