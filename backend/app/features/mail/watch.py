@@ -79,6 +79,11 @@ def my_addresses() -> set[str]:
     return {st["me"] for st in _get(STATE_KEY, {}).values() if st.get("me")}
 
 
+def address_of(account: str) -> str:
+    """Your address on one account ("" until its first watch), e.g. to open its mailbox."""
+    return (_get(STATE_KEY, {}).get(account) or {}).get("me", "")
+
+
 # ------------------------------------------------------------------ flagging
 def flag(*, level: str, subject: str, snippet: str, awaiting: bool) -> str:
     """Why this email should be read now, or "" if it can wait for the round."""

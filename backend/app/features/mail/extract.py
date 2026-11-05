@@ -30,7 +30,7 @@ from app.core.db import now, session
 from app.core.tables import Decision, Event, Task
 from app.core.timefmt import thai_datetime
 from app.features.mail.tables import Email
-from app.features.mail.watch import AFTER_READ, ReadEmail, my_addresses
+from app.features.mail.watch import AFTER_READ, ReadEmail, address_of
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +48,8 @@ _deciding = asyncio.Lock()  # one answer at a time, so a double click can't plac
 
 
 def gmail_link(e: Email) -> str:
-    me = next(iter(my_addresses()), "")
+    """Opens the email in the mailbox that received it (authuser picks the signed-in account)."""
+    me = address_of(e.account)
     return f"https://mail.google.com/mail/?authuser={me}#all/{e.id}" if me else f"https://mail.google.com/mail/#all/{e.id}"
 
 
