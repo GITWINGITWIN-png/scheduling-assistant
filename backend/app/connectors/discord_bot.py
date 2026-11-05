@@ -5,11 +5,13 @@ gateway and keeps it open. Nothing on this machine is exposed to the internet:
 no public URL, no open port.
 
 What it sets up: in your private server it makes sure a category "เลขา" with
-four channels exists, and creates whatever is missing:
+five channels exists, and creates whatever is missing:
 
-    #ด่วน (urgent) · #สรุป (summary) · #อนุมัติ (approve) · #ไอเดีย (ideas)
+    #คุยกับเลขา (chat) · #ด่วน (urgent) · #สรุป (summary) · #อนุมัติ (approve) · #ไอเดีย (ideas)
 
-plus your private chat (DM) with the bot.
+Everything happens in the server, so one place holds the whole history (your
+choice, 2026-11-05). A DM to the bot, or a message in a channel nothing reads
+(like #general), gets a pointer to #คุยกับเลขา instead of silence.
 
 Who it listens to: only you (SECRETARY_DISCORD_OWNER_ID). Messages from anyone
 else are ignored, so nobody else can ask your secretary anything.
@@ -18,7 +20,7 @@ What features use (this module is only the connector; *what* to say is the
 features' job):
 - `bot.send(channel, ...)` posts and records the message in the `messages` table
 - `embed(...)` builds a message card in the theme's colour
-- `bot.on_dm` / `bot.on_channel_message[...]` receive your messages
+- `bot.on_channel_message["chat"]` (and later "ideas") receive your messages
 - `register_buttons(...)` registers button classes that keep working after a
   restart. They are DynamicItems: a button's custom_id carries what it acts on
   (for example "ask:deep:42"), so it needs no memory from before the restart.
@@ -40,9 +42,9 @@ from app.core.themes import accent
 log = logging.getLogger(__name__)
 
 CATEGORY = "เลขา"
-CHANNELS = {"urgent": "ด่วน", "summary": "สรุป", "approve": "อนุมัติ", "ideas": "ไอเดีย"}
+CHANNELS = {"chat": "คุยกับเลขา", "urgent": "ด่วน", "summary": "สรุป", "approve": "อนุมัติ", "ideas": "ไอเดีย"}
 # What the bot needs in your server: see and post in channels, post cards, read history,
-# and create its four channels the first time.
+# and create (and order) its channels the first time.
 PERMISSIONS = discord.Permissions(view_channel=True, send_messages=True, embed_links=True,
                                   read_message_history=True, manage_channels=True)
 
@@ -84,12 +86,11 @@ class SecretaryBot(discord.Client):
         intents.message_content = True  # to read #ไอเดีย (B6); DMs to the bot are readable anyway
         super().__init__(intents=intents)
         self.channels: dict[str, discord.TextChannel] = {}
-        self.on_dm: MessageHandler | None = None
         self.on_channel_message: dict[str, MessageHandler] = {}
         self.dynamic_items: list[type[discord.ui.DynamicItem]] = []
         self.ready_event = asyncio.Event()
         self.problem = ""  # why it isn't working, in your words (shown on the settings page)
-        self._pointed_to_dm: set[int] = set()  # server channels where we already said "talk to me in DM"
+        self._pointed: set[int] = set()  # channels/DMs where we already said "talk to me in #คุยกับเลขา"
 
     async def setup_hook(self) -> None:
         self.add_dynamic_items(*self.dynamic_items)
@@ -118,19 +119,18 @@ class SecretaryBot(discord.Client):
             channel = discord.utils.get(guild.text_channels, name=name)
             if channel is None:
                 channel = await guild.create_text_channel(name, category=category)
+                if key == "chat":  # the one you use most goes first (it's new on servers set up before it existed)
+                    await channel.move(beginning=True)
                 log.info("created #%s", name)
             self.channels[key] = channel
 
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot or message.author.id != get_config().discord_owner_id:
             return  # only you
-        if isinstance(message.channel, discord.DMChannel):
-            handler = self.on_dm
-        else:
-            key = next((k for k, c in self.channels.items() if c.id == message.channel.id), None)
-            handler = self.on_channel_message.get(key) if key else None
+        key = next((k for k, c in self.channels.items() if c.id == message.channel.id), None)
+        handler = self.on_channel_message.get(key) if key else None  # a DM matches no channel
         if handler is None:
-            await self._point_to_dm(message)
+            await self._point_to_chat(message)
             return
         try:
             await handler(message)
@@ -138,28 +138,27 @@ class SecretaryBot(discord.Client):
             log.exception("handling a Discord message failed")
             await message.channel.send("ขอโทษครับ เลขาเจอปัญหาตอนทำเรื่องนี้ · ดูรายละเอียดใน log ของเซิร์ฟเวอร์")
 
-    async def _point_to_dm(self, message: discord.Message) -> None:
-        """You wrote in a server channel nothing listens to (e.g. #general). Say where the chat
-        is instead of staying silent, which looks like the bot is broken. Once per channel per
+    async def _point_to_chat(self, message: discord.Message) -> None:
+        """You wrote somewhere nothing listens (a DM, #general, #ด่วน...). Say where the chat is
+        instead of staying silent, which looks like the bot is broken. Once per channel per
         run, so a channel you also use for other things doesn't fill up with the same hint."""
-        if message.guild is None or message.channel.id in self._pointed_to_dm:
+        if message.channel.id in self._pointed:
             return
-        self._pointed_to_dm.add(message.channel.id)
-        log.info("owner wrote in #%s, which the secretary doesn't read; pointed them to DM", message.channel.name)
-        sent = await message.reply("เลขาคุยทางแชทส่วนตัวครับ · คลิกชื่อ **Secretary** ในรายชื่อสมาชิก แล้วกด Message",
+        self._pointed.add(message.channel.id)
+        where = "dm" if isinstance(message.channel, discord.DMChannel) else f"#{message.channel.name}"
+        log.info("owner wrote in %s, which the secretary doesn't read; pointed them to the chat channel", where)
+        chat = self.channels.get("chat")
+        sent = await message.reply(f"เลขาคุยในห้อง {chat.mention if chat else '#' + CHANNELS['chat']} ครับ · พิมพ์ถามที่นั่นได้เลย",
                                    mention_author=False)
-        self.record(f"#{message.channel.name}", sent, kind="hint")
+        self.record(where, sent, kind="hint")
 
     async def _target(self, channel: str) -> discord.abc.Messageable:
-        if channel == "dm":
-            owner = self.get_user(get_config().discord_owner_id) or await self.fetch_user(get_config().discord_owner_id)
-            return owner.dm_channel or await owner.create_dm()
         return self.channels[channel]
 
     async def send(self, channel: str, *, content: str | None = None, embed: discord.Embed | None = None,
                    view: discord.ui.View | None = None, kind: str = "note", ref: str = "",
                    text_copy: str = "", reply_to: discord.Message | None = None) -> tuple[Message, discord.Message]:
-        """Post to a channel ("urgent", "summary", "approve", "ideas" or "dm") and record it.
+        """Post to a channel ("chat", "urgent", "summary", "approve" or "ideas") and record it.
 
         reply_to: answer as a reply to that message, so a button pressed later can find what it
         was about (message.reference) without the secretary storing anything extra.

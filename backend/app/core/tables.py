@@ -85,7 +85,7 @@ class Message(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
-    channel: Mapped[str] = mapped_column(String(20))  # urgent · summary · approve · ideas · dm
+    channel: Mapped[str] = mapped_column(String(20))  # chat · urgent · summary · approve · ideas (or where a hint went: dm, #general)
     discord_id: Mapped[int] = mapped_column(BigInteger, index=True)  # Discord's id (a large integer)
     kind: Mapped[str] = mapped_column(String(50))  # "answer", "plan", "did", ...
     ref: Mapped[str] = mapped_column(String(100), default="")  # what its buttons act on: "decision:12"

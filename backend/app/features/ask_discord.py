@@ -1,6 +1,8 @@
-"""Ask the secretary in your private Discord chat (D7).
+"""Ask the secretary in #คุยกับเลขา on your Discord server (D7).
 
-- You write in the DM, and the answer comes back as a *reply* to your message,
+(Planned as a DM; moved into the server on 2026-11-05 so everything is in one place.)
+
+- You write in #คุยกับเลขา, and the answer comes back as a *reply* to your message,
   with the model, effort, time and sources underneath.
 - "ให้ Opus คิดต่อ" under a quick answer: Opus answers the same question.
   The button finds the question through the reply link, so it still works
@@ -41,13 +43,13 @@ def answer_card(a: ask.Answer, deep_button: bool = True) -> tuple[discord.Embed,
     return card, (dc.buttons(DeepButton()) if deep_button else None)
 
 
-async def on_dm(message: discord.Message) -> None:
+async def on_chat(message: discord.Message) -> None:
     if not message.content.strip():
         return
     async with message.channel.typing():  # "เลขากำลังพิมพ์…" while Sonnet/Opus works
         a = await ask.ask(message.content, await _history(message), via=_via(message))
     card, view = answer_card(a)
-    await dc.bot.send("dm", content=f"✨ {ask.HANDOFF_NOTE}" if a.kind == "plan" else None, embed=card, view=view,
+    await dc.bot.send("chat", content=f"✨ {ask.HANDOFF_NOTE}" if a.kind == "plan" else None, embed=card, view=view,
                       kind=a.kind, ref=f"decision:{a.decision_id}" if a.decision_id else "ask",
                       reply_to=message, text_copy=a.text)
 
@@ -82,7 +84,7 @@ class DeepButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ask:deep"
         card, view = answer_card(a, deep_button=False)  # already Opus
         kwargs = {"view": view} if view else {}
         sent = await interaction.followup.send(embed=card, wait=True, **kwargs)
-        dc.bot.record("dm", sent, kind=a.kind, ref=f"decision:{a.decision_id}" if a.decision_id else "ask_deep", text_copy=a.text)
+        dc.bot.record("chat", sent, kind=a.kind, ref=f"decision:{a.decision_id}" if a.decision_id else "ask_deep", text_copy=a.text)
 
 
 PLAN_ACTIONS = {
@@ -138,12 +140,12 @@ class EditPlanModal(discord.ui.Modal, title="แก้แผน"):
             await interaction.message.edit(content="✏️ แก้แล้ว · ดูแผนใหม่ด้านล่าง", view=None)
         card, view = answer_card(a)
         sent = await interaction.followup.send(content="✏️ แผนที่แก้แล้ว", embed=card, view=view, wait=True)
-        dc.bot.record("dm", sent, kind="plan", ref=f"decision:{a.decision_id}", text_copy=a.text)
+        dc.bot.record("chat", sent, kind="plan", ref=f"decision:{a.decision_id}", text_copy=a.text)
 
 
 def _via(message: discord.Message | None) -> ask.Via:
     """"ที่มา" for the action log: a link straight back to the Discord message."""
-    return ("แชทส่วนตัว", message.jump_url if message else "")
+    return ("#คุยกับเลขา", message.jump_url if message else "")
 
 
 async def _plan_reopened(a: Action) -> tuple[str, discord.ui.View]:
@@ -158,6 +160,6 @@ async def _plan_reopened(a: Action) -> tuple[str, discord.ui.View]:
 
 def setup() -> None:
     """Hook the chat into the bot. Called by main.py before the bot connects."""
-    dc.bot.on_dm = on_dm
+    dc.bot.on_channel_message["chat"] = on_chat
     dc.register_buttons(DeepButton, PlanButton)
     after_undo["plan.approve"] = after_undo["plan.reject"] = _plan_reopened

@@ -19,7 +19,7 @@ export function Soon({ page }: { page: NavItem }) {
       </Card>
       <Card title="ตอนนี้ (B1) ใช้ได้แล้ว">
         <ul className="flex flex-col gap-2 text-sm">
-          <li className="flex gap-2"><Icon name="search" size={16} className="text-accent mt-0.5" />ถามเลขาที่ช่องด้านบน (กด <kbd className="border border-line-2 rounded px-1 text-xs">/</kbd>) หรือในแชทส่วนตัวของ Discord</li>
+          <li className="flex gap-2"><Icon name="search" size={16} className="text-accent mt-0.5" />ถามเลขาที่ช่องด้านบน (กด <kbd className="border border-line-2 rounded px-1 text-xs">/</kbd>) หรือในห้อง #คุยกับเลขา ของ Discord</li>
           <li className="flex gap-2"><Icon name="log" size={16} className="text-accent mt-0.5" /><Link to="/log" className="text-accent-strong hover:underline">สิ่งที่เลขาทำ</Link> ทุกอย่างพร้อมที่มาและปุ่มย้อนกลับ</li>
           <li className="flex gap-2"><Icon name="gear" size={16} className="text-accent mt-0.5" /><Link to="/settings" className="text-accent-strong hover:underline">ตั้งค่า</Link> โมเดลและ effort ต่องาน นาฬิกาเลขา ช่องทาง</li>
           <li className="flex gap-2"><Icon name="palette" size={16} className="text-accent mt-0.5" />เปลี่ยนธีมสีที่ปุ่มจานสีด้านบน</li>

@@ -95,7 +95,7 @@ export function Settings() {
           <Card title="เสียงแจ้งเตือน">
             <Row icon="bell" title="#ด่วน · #อนุมัติ" sub="ทุกข้อความ" side={<Chip tone="acc">เด้ง</Chip>} />
             <Row icon="bell" title="#สรุป · #ไอเดีย" sub="สรุปเช้า-เย็น · จัดกลุ่มไอเดีย" side={<Chip tone="acc">เด้ง</Chip>} />
-            <Row icon="bell" title="แชทส่วนตัว" sub="ทุกข้อความ" side={<Chip tone="acc">เด้ง</Chip>} />
+            <Row icon="bell" title="#คุยกับเลขา" sub="ทุกคำตอบ" side={<Chip tone="acc">เด้ง</Chip>} />
             <p className="text-xs text-muted pt-2">ตามที่ตกลง: ทุกห้องเด้งเสียง · ตั้งในแอป Discord ของแต่ละเครื่อง: คลิกขวาที่เซิร์ฟเวอร์ → Notification Settings → All Messages · กลางคืนใช้โหมดห้ามรบกวนของมือถือได้</p>
           </Card>
           <Card title="เตือนก่อนถึงกำหนด" right={<Phase phase="B3" />}>
@@ -105,7 +105,7 @@ export function Settings() {
 
         <div className="flex flex-col gap-4">
           <Card title="ช่องทางและบริการ">
-            <Row icon="chat" title="Discord" sub={dc.connected ? `${dc.user} · ${dc.channels.join(" ")} · แชทส่วนตัว` : dc.problem}
+            <Row icon="chat" title="Discord" sub={dc.connected ? `${dc.user} · ${dc.channels.join(" ")}` : dc.problem}
               side={dc.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn">{dc.configured ? "มีปัญหา" : "รอตั้งค่า"}</Chip>} />
             {s.services.map((x) => (
               <Row key={x.name} icon={x.icon as IconName} title={x.name} sub={x.detail} dim side={<Phase phase={x.phase} />} />
