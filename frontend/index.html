@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>เลขา</title>
+    <script>
+      // Put the last theme on before anything draws, so the page doesn't flash the default colours.
+      // The secretary's settings are the real source; the page re-reads them right after loading.
+      try { document.documentElement.dataset.theme = localStorage.getItem("theme") || "cs"; } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

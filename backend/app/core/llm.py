@@ -37,6 +37,7 @@ from claude_agent_sdk import (
     query,
 )
 
+from app.core import actions
 from app.core.config import get_config
 from app.core.db import session
 from app.core.tables import LLMUsage, Setting
@@ -180,3 +181,31 @@ def _record(task: str, model: str, effort: str, usage: dict, duration_ms: int, o
     with session() as s:
         s.add(LLMUsage(task=task, model=model, effort=effort, tokens_in=tokens_in,
                        tokens_out=tokens_out, duration_ms=duration_ms, ok=ok))
+
+
+# ------------------------------------------------------------------ changing it from the settings page
+def set_task(task: str, model: str, effort: str) -> int:
+    """Save a task's model and effort; logged with undo. Returns the action id."""
+    if task not in DEFAULT_TASKS or model not in MODELS or effort not in EFFORTS:
+        raise ValueError("งาน โมเดล หรือ effort ไม่ถูกต้อง")
+    old = {k: task_settings(task)[k] for k in ("model", "effort")}
+    with session() as s:
+        row = s.get(Setting, "llm.tasks")
+        saved = dict(row.value) if row and row.value else {}
+        saved[task] = {"model": model, "effort": effort}
+        s.merge(Setting(key="llm.tasks", value=saved))
+    label = DEFAULT_TASKS[task]["label"]
+    return actions.record("settings.llm", f"เปลี่ยนโมเดล: {label}",
+                          f"{old['model']}/{old['effort']} → {model}/{effort}",
+                          source_label="หน้าตั้งค่า", undo={"task": task, "old": old})
+
+
+async def _undo_set_task(data: dict) -> None:
+    with session() as s:
+        row = s.get(Setting, "llm.tasks")
+        saved = dict(row.value) if row and row.value else {}
+        saved[data["task"]] = data["old"]
+        s.merge(Setting(key="llm.tasks", value=saved))
+
+
+actions.register_undo("settings.llm", _undo_set_task)

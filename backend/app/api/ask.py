@@ -74,3 +74,19 @@ def decide(decision_id: int, body: DecideIn) -> dict:
     except ask.DecisionError as exc:
         raise HTTPException(409, str(exc)) from exc
     return {"id": d.id, "status": d.status, "action_id": action_id}
+
+
+class ReviseIn(BaseModel):
+    change: str = Field(min_length=1, max_length=1000)
+
+
+@router.post("/decisions/{decision_id}/revise")
+async def revise(decision_id: int, body: ReviseIn) -> dict:
+    """แก้: Opus rewrites the plan with your change (takes a while; the page shows a spinner)."""
+    try:
+        a = await ask.revise(decision_id, body.change)
+    except ask.DecisionError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except llm.LLMError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    return {**asdict(a), "footer": a.footer}

@@ -30,3 +30,10 @@ def current_theme() -> str:
 
 def accent() -> int:
     return THEMES[current_theme()][2]
+
+
+def set_theme(theme: str) -> None:
+    if theme not in THEMES:
+        raise ValueError(f"ไม่มีธีม {theme}")
+    with session() as s:
+        s.merge(Setting(key=THEME_KEY, value=theme))
