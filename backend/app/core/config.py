@@ -35,6 +35,8 @@ class Config(BaseSettings):
     # committed by mistake and survives branch switches: secretary.db, backups/, later inbox/.
     data_dir: Path = Path.home() / ".secretary"
     timezone: str = "Asia/Bangkok"
+    # Your projects and course folders (Classroom materials go into a course folder here; B5 scans it).
+    projects_dir: Path = Path.home() / "Projects"
 
     # Discord (step 6). Empty = the bot stays off and the rest still runs.
     discord_token: str = ""

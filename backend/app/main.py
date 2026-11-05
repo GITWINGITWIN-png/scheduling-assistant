@@ -33,6 +33,8 @@ from app.core import backup, db, worker
 from app.core.clock import clock
 from app.core.config import REPO_DIR
 from app.features import actions_discord, ask_discord
+from app.features.classroom import cards as classroom_cards
+from app.features.classroom import sync as classroom_sync
 from app.features.mail import cards as mail_cards
 from app.features.mail import extract as mail_extract
 from app.features.mail import followups as mail_followups
@@ -58,6 +60,8 @@ async def start_background() -> None:
     mail_cards.setup()  # #ด่วน · #อนุมัติ · #สรุป cards (after extract, so they can say what was done)
     schedule_sync.setup()  # B3: plan blocks and sync with Google Calendar every 15 min (off until B3's check)
     schedule_remind.setup()  # B3: "tomorrow" / "in an hour" in #ด่วน every 5 min (off until the check)
+    classroom_sync.setup()  # B3: Classroom deadlines and materials every 2 h (off until the check)
+    classroom_cards.setup()  # "ติดตามวิชานี้ไหม" in #อนุมัติ
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button
