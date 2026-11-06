@@ -1,19 +1,20 @@
 // W5 ตาราง (B3), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w5): the week on the
 // left (schedule/Week.tsx) with its colour key under it; on the right ⑤ ทำตามแผนได้ and ⑥ ข้อสังเกต
-// (both B6) and ⑦ นัดที่รอคุณรับ. Below, three cards that aren't in the mockup but B3 needs: the task
-// list the planner works from, Classroom courses, and the planner's rules.
+// (both B6) and ⑦ นัดที่รอคุณรับ. Below, two cards that aren't in the mockup but B3 needs: the task
+// list the planner works from, and Classroom courses. The planner's rules are on the settings page.
 // Adding and changing things works like Google Calendar: click or drag on the calendar (or press
 // สร้าง) for a card with two tabs, กิจกรรม and งาน (schedule/EditCard.tsx); click anything on
 // the calendar to see what it is (schedule/DetailCard.tsx).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type CourseRow, type Decision, type ScheduleRules, type TaskRow } from "../api";
+import { Link } from "react-router";
 import { AppointmentActions, CourseActions } from "../components/Bell";
 import { Avatar, Banner, Button, Card, Chip, Phase, Spinner } from "../components/ui";
 import { duration, when } from "../format";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
 import { DetailCard, type Picked } from "./schedule/DetailCard";
-import { EditCard, field, type Done, type Draft, type Ghost } from "./schedule/EditCard";
+import { EditCard, type Done, type Draft, type Ghost } from "./schedule/EditCard";
 import { Toast, type Anchor, type ToastMsg } from "./schedule/Floating";
 import { sourceLabel } from "./schedule/links";
 import { Week, type Create } from "./schedule/Week";
@@ -138,62 +139,6 @@ function Courses({ reloadKey }: { reloadKey: number }) {
   );
 }
 
-// ------------------------------------------------------------------ rules
-function Rules({ onSaved }: { onSaved: () => void }) {
-  const [r, setR] = useState<ScheduleRules | null>(null);
-  const [open, setOpen] = useState(false);
-  const [msg, setMsg] = useState("");
-  useEffect(() => { if (open) api.rules().then(setR, () => setR(null)); }, [open]);
-  const set = (k: keyof ScheduleRules["rules"], v: string | number) => r && setR({ ...r, rules: { ...r.rules, [k]: v } });
-  const save = async () => {
-    if (!r) return;
-    setMsg("");
-    try {
-      await api.saveRules({ day_start: r.rules.day_start, day_end: r.rules.day_end, max_block: r.rules.max_block,
-        per_task_per_day: r.rules.per_task_per_day, gap: r.rules.gap, estimates: r.estimates, reminders: r.reminders });
-      setMsg("บันทึกแล้ว · ตารางจะวางตามกติกาใหม่ในรอบถัดไป · ย้อนกลับได้ในหน้าสิ่งที่เลขาทำ"); onSaved();
-    } catch (e) { setMsg((e as Error).message); }
-  };
-  const num = (k: "max_block" | "per_task_per_day" | "gap", opts: number[]) => (
-    <select className={field} value={r?.rules[k]} onChange={(e) => set(k, Number(e.target.value))}>
-      {opts.map((m) => <option key={m} value={m}>{m === 0 ? "ไม่เว้น" : duration(m)}</option>)}
-    </select>
-  );
-  return (
-    <Card title="กติกาตาราง" right={<Button sm kind="ghost" onClick={() => setOpen((o) => !o)}>{open ? "ซ่อน" : "ดูและแก้"}</Button>}>
-      {!open && <p className="text-xs text-muted">วางเฉพาะช่วงเวลาทำงาน เว้นระยะจากนัด จำกัดเวลาต่องานต่อวัน และเตือนก่อน 1 วันกับ 1 ชั่วโมง</p>}
-      {open && !r && <Spinner />}
-      {open && r && (
-        <div className="flex flex-col gap-2.5 text-sm">
-          <label className="flex items-center gap-2">วางบล็อกช่วง
-            <input type="time" className={field} value={r.rules.day_start} onChange={(e) => set("day_start", e.target.value)} />–
-            <input type="time" className={field} value={r.rules.day_end} onChange={(e) => set("day_end", e.target.value)} /></label>
-          <label className="flex items-center gap-2">บล็อกยาวไม่เกิน {num("max_block", [60, 90, 120, 180])}</label>
-          <label className="flex items-center gap-2">งานละไม่เกินวันละ {num("per_task_per_day", [120, 180, 240, 360])}</label>
-          <label className="flex items-center gap-2">เว้นห่างจากนัด และพักระหว่างบล็อกงานเดียวกัน {num("gap", [0, 10, 15, 30])}</label>
-          <div className="flex flex-col gap-1">เวลาที่ใช้เมื่องานไม่ได้บอก (นาที)
-            <div className="flex flex-wrap gap-2">
-              {Object.entries({ classroom: "Classroom", email: "อีเมล", you: "คุณเพิ่ม" }).map(([k, label]) => (
-                <label key={k} className="flex items-center gap-1 text-xs">{label}
-                  <input type="number" min={15} max={1440} step={15} className={`${field} w-20`} value={r.estimates[k] ?? 60}
-                    onChange={(e) => setR({ ...r, estimates: { ...r.estimates, [k]: Number(e.target.value) } })} /></label>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">เตือนใน #ด่วน
-            {[["1d", "ก่อน 1 วัน"], ["1h", "ก่อน 1 ชั่วโมง"]].map(([k, label]) => (
-              <label key={k} className="flex items-center gap-1 text-xs">
-                <input type="checkbox" checked={r.reminders.includes(k)}
-                  onChange={(e) => setR({ ...r, reminders: e.target.checked ? [...r.reminders, k] : r.reminders.filter((x) => x !== k) })} />{label}</label>
-            ))}
-          </div>
-          <div className="flex items-center gap-2"><Button kind="p" sm onClick={save}>บันทึกกติกา</Button>{msg && <span className="text-xs text-muted">{msg}</span>}</div>
-        </div>
-      )}
-    </Card>
-  );
-}
-
 // ------------------------------------------------------------------ the page
 /** The next half hour from now, for "+ สร้าง" with no slot picked. */
 function nextHalfHour(): Date {
@@ -269,7 +214,8 @@ export function Schedule() {
         <Tasks items={tasks} onAdd={() => create(null, null, "task")} onEdit={edit} onFinish={finish} />
         <div className="flex flex-col gap-4 min-w-0">
           <Courses reloadKey={key} />
-          <Rules onSaved={changed} />
+          <Link to="/settings#rules" className="text-xs text-muted hover:text-ink px-1">
+            เวลาทำงาน ความยาวบล็อก และเวลาต่อวัน: <span className="font-semibold text-accent-strong whitespace-nowrap">กติกาตาราง →</span></Link>
         </div>
       </div>
       {editing && <EditCard key={JSON.stringify(editing.draft)} draft={editing.draft} anchor={editing.anchor} rules={rules}

@@ -12,6 +12,8 @@ function Dot({ ok }: { ok: boolean }) {
   return <span className={`size-2 rounded-full shrink-0 ${ok ? "bg-ok" : "bg-bad"}`} />;
 }
 
+const COUNT_TITLE = { people: "อีเมลจากคนสำคัญวันนี้" } as const;
+
 function Side() {
   const { status, online } = useStatus();
   return (
@@ -34,6 +36,12 @@ function Side() {
               <Icon name={n.icon} />
               <span className="grow">{n.label}</span>
               {!n.ready && <span className="text-[11px] text-muted" title={`มาในช่วง ${n.phase}`}>{n.phase}</span>}
+              {n.ready && n.count && !!status?.counts?.[n.count] && (
+                // the plan's .cnt: a red number for what needs a look
+                <span title={`${COUNT_TITLE[n.count]} ${status.counts[n.count]} ฉบับ`}
+                  className="min-w-[18px] rounded-full bg-bad px-[5px] text-center font-mono text-[11px] font-semibold leading-[18px] text-white">
+                  {status.counts[n.count]}</span>
+              )}
             </NavLink>
           ),
         )}

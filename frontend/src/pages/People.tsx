@@ -1,8 +1,9 @@
 // W2 คนและอีเมล: the people registry by level, what each person sent (one line each, and what the
-// secretary did about it), follow-ups, and the mail settings (keywords, interests, reminder days).
+// secretary did about it), follow-ups, and setting someone important ahead of time. The mail
+// settings (keywords, interests, reminder days) are on the settings page.
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router";
-import { api, type Followup, type Level, type MailSettings, type Person, type PersonDetail } from "../api";
+import { Link, useSearchParams } from "react-router";
+import { api, type Followup, type Level, type Person, type PersonDetail } from "../api";
 import { when } from "../format";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
@@ -98,9 +99,8 @@ export function People() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <AddPerson onDone={(id) => { go({ tab: "important", p: id }); changed(); }} />
-        <MailSettingsCard />
       </div>
     </div>
   );
@@ -253,41 +253,8 @@ function AddPerson({ onDone }: { onDone: (id: number) => void }) {
           <Button kind="p" sm disabled={!address.includes("@")} onClick={add}>เพิ่ม</Button>
           {msg && <span className="text-xs text-bad">{msg}</span>}
         </div>
-      </div>
-    </Card>
-  );
-}
-
-function MailSettingsCard() {
-  const [s, setS] = useState<MailSettings | null>(null);
-  const [kw, setKw] = useState("");
-  const [interests, setInterests] = useState("");
-  const [days, setDays] = useState(3);
-  const [msg, setMsg] = useState("");
-  const fill = (x: MailSettings) => { setS(x); setKw(x.keywords.join(", ")); setInterests(x.interests.join(", ")); setDays(x.followup_days); };
-  useEffect(() => { api.mailSettings().then(fill, (e) => setMsg((e as Error).message)); }, []);
-  const split = (t: string) => t.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
-  const save = () => api.saveMailSettings({ keywords: split(kw), interests: split(interests), followup_days: days })
-    .then((x) => { fill(x); setMsg("บันทึกแล้ว"); }, (e) => setMsg((e as Error).message));
-  const input = "w-full bg-panel border border-line rounded-lg px-2 py-1.5 text-sm";
-  if (!s) return <Card title="ตั้งค่าอีเมล"><Spinner /></Card>;
-  return (
-    <Card title="ตั้งค่าอีเมล" right={<span className="text-xs text-muted">{s.emails_week} ฉบับใน 7 วัน{s.last_watch ? ` · เฝ้าล่าสุด ${when(s.last_watch)}` : ""}</span>}>
-      <div className="flex flex-col gap-2.5 text-sm">
-        {s.accounts.map((a) => (
-          <div key={a.id} className="flex items-center gap-2">
-            <Icon name="mail" size={16} />
-            <span className="grow truncate">Google · {a.label}{a.address && <span className="text-muted"> · {a.address}</span>}</span>
-            {a.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn" title={a.problem}>รอเชื่อม</Chip>}
-          </div>
-        ))}
-        <label className="flex flex-col gap-1"><span>คีย์เวิร์ดที่แจ้งทันที (ไม่ว่าใครส่ง) · คั่นด้วย ,</span>
-          <input className={input} value={kw} onChange={(e) => setKw(e.target.value)} /></label>
-        <label className="flex flex-col gap-1"><span>เรื่องที่สนใจช่วงนี้ (ใช้ตอนอ่านหัวข้อจากผู้ส่งที่ไม่สนใจ)</span>
-          <input className={input} value={interests} onChange={(e) => setInterests(e.target.value)} placeholder="เช่น ฝึกงาน, time-series, ทุน" /></label>
-        <label className="flex items-center gap-2"><span className="grow">เตือนเรื่องค้างเมื่อเกิน</span>
-          <input type="number" min={1} max={30} value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-16 bg-panel border border-line rounded-lg px-2 py-1" /> วัน</label>
-        <div className="flex items-center gap-2"><Button kind="p" sm onClick={save}>บันทึก</Button>{msg && <span className="text-xs text-muted">{msg}</span>}</div>
+        <Link to="/settings#mail" className="text-xs text-muted hover:text-ink pt-1">
+          คีย์เวิร์ดที่แจ้งทันที เรื่องที่สนใจ และวันเตือนเรื่องค้าง: <span className="font-semibold text-accent-strong whitespace-nowrap">ตั้งค่าอีเมล →</span></Link>
       </div>
     </Card>
   );

@@ -1,6 +1,6 @@
 """The settings page (W10), the theme (W11), and the small status the shell shows on every page."""
 
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -10,8 +10,12 @@ from app.connectors import discord_bot, google
 from app.core import codestamp, llm, themes
 from app.core import clock as clock_mod
 from app.core.clock import clock
+from app.core.config import get_config
 from app.core.db import now, session
 from app.core.tables import Decision, LLMUsage
+from app.core.timefmt import local
+from app.features.mail import watch
+from app.features.mail.tables import Email
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -44,7 +48,9 @@ def get_settings() -> dict:
         "themes": [{"id": k, "name": n, "sub": sub} for k, (n, sub, _) in themes.THEMES.items()],
         "clock": clock.status(),
         "discord": discord_bot.status(),
-        "google": google.status(),  # live since B2: Gmail (every account) + Calendar (google.CALENDAR_ACCOUNT)
+        # live since B2: Gmail (every account) + Calendar (google.CALENDAR_ACCOUNT), with your address
+        # on each (the mail settings card that listed them moved here, W10)
+        "google": [{**g, "address": watch.address_of(g["id"])} for g in google.status()],
         "services": SERVICES,
     }
 
@@ -93,13 +99,20 @@ def put_theme(body: ThemeIn) -> dict:
 @router.get("/status")
 def status() -> dict:
     """For the shell on every page: the bell's count, this week's tokens, whether Discord is up,
-    and whether the backend code on disk is newer than the running one (restart banner)."""
+    whether the backend code on disk is newer than the running one (restart banner), and the
+    side menu's counts (the plan's W screens: the red number next to a page).
+
+    counts.people: emails from important people today, the ones the today page's
+    "เรื่องสำคัญ" lists (the user's reading of the plan's "คนและอีเมล 2", 2026-11-06)."""
+    midnight = datetime.combine(local(now()).date(), time(0), get_config().tz)
     with session() as s:
         pending = s.scalar(select(func.count()).select_from(Decision).where(Decision.status == "pending")) or 0
         week = s.scalar(select(func.sum(LLMUsage.tokens_in + LLMUsage.tokens_out))
                         .where(LLMUsage.at >= now() - timedelta(days=7))) or 0
+        important_today = s.scalar(select(func.count()).select_from(Email).where(
+            Email.from_me.is_(False), Email.level == "important", Email.sent_at >= midnight)) or 0
     return {"pending": pending, "tokens_week": int(week), "discord": discord_bot.status()["connected"],
-            "theme": themes.current_theme(), "stale": codestamp.stale()}
+            "theme": themes.current_theme(), "stale": codestamp.stale(), "counts": {"people": important_today}}
 
 
 @router.get("/decisions")

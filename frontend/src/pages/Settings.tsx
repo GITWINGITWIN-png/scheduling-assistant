@@ -1,10 +1,13 @@
 // W10 ตั้งค่า: models and effort per task, the secretary's clock, notification sounds, channels.
 // Parts that arrive in later phases are shown greyed with their phase, as agreed in stage 2.
 import { useCallback, useEffect, useState } from "react";
-import { api, type ScheduleRules, type Settings as S } from "../api";
+import { useLocation } from "react-router";
+import { api, type Settings as S } from "../api";
 import { when } from "../format";
 import { Icon, type IconName } from "../icons";
 import { Card, Chip, Phase, Seg, Spinner } from "../components/ui";
+import { MailSettingsCard } from "./settings/MailSettings";
+import { Reminders, RulesCard, useScheduleRules } from "./settings/ScheduleRules";
 
 const MODEL_NAMES: Record<string, string> = { sonnet: "Sonnet", opus: "Opus" };
 
@@ -30,47 +33,17 @@ function Row({ icon, title, sub, side, dim = false }: { icon: IconName; title: s
   );
 }
 
-/** W10 ⑤: how long before an appointment or a due date #ด่วน reminds you. The same setting as in
- *  the schedule page's กติกาตาราง; a press saves it (recorded, ย้อนกลับ in สิ่งที่เลขาทำ). */
-function Reminders() {
-  const [r, setR] = useState<ScheduleRules | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => { api.rules().then(setR, (e) => setError((e as Error).message)); }, []);
-  const toggle = async (lead: string) => {
-    if (!r) return;
-    const reminders = r.reminders.includes(lead) ? r.reminders.filter((x) => x !== lead) : [...r.reminders, lead];
-    setError("");
-    try {
-      await api.saveRules({ day_start: r.rules.day_start, day_end: r.rules.day_end, max_block: r.rules.max_block,
-        per_task_per_day: r.rules.per_task_per_day, gap: r.rules.gap, estimates: r.estimates, reminders });
-      setR({ ...r, reminders });
-    } catch (e) { setError((e as Error).message); }
-  };
-  return (
-    <Card title="เตือนก่อนถึงกำหนด">
-      {!r ? <Spinner /> : (
-        <div className="flex flex-wrap gap-1.5">
-          {([["1d", "1 วัน"], ["1h", "1 ชั่วโมง"]] as const).map(([lead, label]) => {
-            const on = r.reminders.includes(lead);
-            return (
-              <button key={lead} type="button" aria-pressed={on} onClick={() => toggle(lead)} title={on ? "กดเพื่อปิด" : "กดเพื่อเปิด"}
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold cursor-pointer
-                  ${on ? "bg-accent-soft text-accent-strong" : "bg-panel-2 text-muted line-through"}`}>{label}</button>
-            );
-          })}
-        </div>
-      )}
-      <p className="text-xs text-muted pt-2">ก่อนนัดและเดดไลน์ ใน #ด่วน · กดเพื่อเปิดหรือปิด · ย้อนกลับได้ในหน้าสิ่งที่เลขาทำ</p>
-      {error && <p className="text-xs text-bad pt-1">{error}</p>}
-    </Card>
-  );
-}
-
 export function Settings() {
   const [s, setS] = useState<S | null>(null);
   const [note, setNote] = useState("");
+  const rules = useScheduleRules(); // shared by กติกาตาราง and เตือนก่อนถึงกำหนด
   const load = useCallback(() => { api.settings().then(setS, (e) => setNote((e as Error).message)); }, []);
   useEffect(load, [load]);
+  // /settings#rules and #mail (links from the schedule and people pages) scroll to their card
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (s && hash) document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [s, hash]);
 
   const setTask = async (task: string, model: string, effort: string) => {
     try {
@@ -138,7 +111,8 @@ export function Settings() {
             <Row icon="bell" title="#คุยกับเลขา" sub="ทุกคำตอบ" side={<Chip tone="acc">เด้ง</Chip>} />
             <p className="text-xs text-muted pt-2">ตามที่ตกลง: ทุกห้องเด้งเสียง · ตั้งในแอป Discord ของแต่ละเครื่อง: คลิกขวาที่เซิร์ฟเวอร์ → Notification Settings → All Messages · กลางคืนใช้โหมดห้ามรบกวนของมือถือได้</p>
           </Card>
-          <Reminders />
+          <Reminders {...rules} />
+          <RulesCard {...rules} />
         </div>
 
         <div className="flex flex-col gap-4">
@@ -147,7 +121,7 @@ export function Settings() {
               side={dc.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn">{dc.configured ? "มีปัญหา" : "รอตั้งค่า"}</Chip>} />
             {s.google.map((g) => (
               <Row key={g.id} icon="mail" title={`Google · ${g.label}`}
-                sub={g.connected ? g.does : g.problem}
+                sub={g.connected ? [g.address, g.does].filter(Boolean).join(" · ") : g.problem}
                 side={g.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn">รอเชื่อม</Chip>} />
             ))}
             {s.services.map((x) => (
@@ -155,6 +129,7 @@ export function Settings() {
             ))}
             {!dc.connected && <p className="text-xs text-muted pt-2">วิธีตั้งค่า Discord: docs/setup/discord.md</p>}
           </Card>
+          <MailSettingsCard />
           <Card title="เปิดหน้าเว็บจาก">
             <Row icon="monitor" title="คอมเครื่องนี้" sub={window.location.host} side={<Chip tone="ok">ใช้อยู่</Chip>} />
             <Row icon="tablet" title="iPad" sub="ผ่าน Tailscale · my-pc:8000" dim side={<Phase phase="B8" />} />

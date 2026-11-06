@@ -3,6 +3,7 @@
 export type Status = {
   pending: number; tokens_week: number; discord: boolean; theme: string;
   stale?: boolean; // the backend code on disk is newer than the running one: restart (older backends don't send it)
+  counts?: { people?: number }; // the side menu's red numbers (people: emails from important people today)
 };
 
 export type Task = { task: string; label: string; model: string; effort: string; default_model: string; default_effort: string };
@@ -16,7 +17,7 @@ export type Settings = {
   themes: { id: string; name: string; sub: string }[];
   clock: Round[];
   discord: { configured: boolean; connected: boolean; user: string; channels: string[]; problem: string };
-  google: { id: string; label: string; does: string; connected: boolean; problem: string }[];
+  google: { id: string; label: string; does: string; connected: boolean; problem: string; address: string }[];
   services: { icon: string; name: string; detail: string; phase: string }[];
 };
 

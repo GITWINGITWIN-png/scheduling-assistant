@@ -51,7 +51,7 @@ const QUARTERS = Array.from({ length: 96 }, (_, i) => toTime(i * 15));
 /** A 24-hour time picked from quarter hours, like Google Calendar's (the browser's own time
  *  box follows the computer's language and may show "05:00 PM"). `from` lists only later times,
  *  each with how long it is after `from`: the end of an appointment. */
-function TimeSelect({ value, onChange, label, from, disabled }: {
+export function TimeSelect({ value, onChange, label, from, disabled }: {
   value: string; onChange: (v: string) => void; label: string; from?: string; disabled?: boolean;
 }) {
   const times = [...new Set([...QUARTERS, value])].sort().filter((t) => !from || t > from);

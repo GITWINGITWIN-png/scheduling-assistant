@@ -12,6 +12,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import { api, type BlockItem, type CalItem, type DeadlineItem } from "../../api";
 import { Banner, Button, Card, Seg } from "../../components/ui";
 import { DAYS_SHORT, MONTHS, MONTHS_LONG, duration, hm, shortDay, when, ymd } from "../../format";
@@ -197,7 +198,8 @@ export function Week({ reloadKey, ghost, onPlanned, onCreate, onPick }: {
           {!!plan?.short.length && (
             <Banner icon="clock">
               <b>เวลาไม่พอก่อนกำหนดส่ง:</b> {plan.short.map((s) => `${s.title} ขาด ${duration(s.minutes)}`).join(" · ")}
-              <span className="text-muted"> · ลองลดเวลาที่ใช้ เพิ่มเวลาต่อวันของงาน เปลี่ยนเวลาทำงานในกติกา หรือย้ายนัดออก</span>
+              <span className="text-muted"> · ลองลดเวลาที่ใช้ เพิ่มเวลาต่อวันของงาน เปลี่ยนเวลาทำงานใน{" "}
+                <Link to="/settings#rules" className="underline hover:text-ink">กติกาตาราง</Link> หรือย้ายนัดออก</span>
             </Banner>
           )}
           <div className="schedule-cal">
@@ -207,6 +209,7 @@ export function Week({ reloadKey, ghost, onPlanned, onCreate, onPick }: {
               slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
               allDaySlot={anyAllDay} allDayText="ทั้งวัน" dayHeaderContent={dayHeader} dayHeaderFormat={{ weekday: "short" }}
               eventContent={eventContent} displayEventTime={false} eventMinHeight={18} dayMaxEvents={3} nowIndicator
+              stickyHeaderDates={false}
               selectable selectMirror selectLongPressDelay={300} select={select}
               events={events} eventClick={click} datesSet={dates} />
           </div>
