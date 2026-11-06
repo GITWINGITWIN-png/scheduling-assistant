@@ -15,7 +15,7 @@ from app.api import projects as api
 from app.core import actions, db
 from app.core.config import REPO_DIR
 from app.core.db import session
-from app.core.tables import Decision
+from app.core.tables import Decision, Task
 from app.features.projects import progress, scan
 from app.features.projects.tables import Project
 
@@ -135,3 +135,33 @@ def test_urgency_five_comes_first_and_hidden_last(root):
 def test_progress_reading_skips_checks_left_under_finished_items():
     text = "- [x] **B1 · พื้นฐาน**\n  - [ ] เช็กว่าเสร็จ (deferred)\n- [ ] **B2 · อีเมล**\n  - [ ] 1. ทะเบียนคน\n"
     assert progress.parse(text)["next"] == "B2 · อีเมล › 1. ทะเบียนคน"
+
+
+# ------------------------------------------------------------------ advice from PROGRESS.md
+def test_advice_says_which_projects_stood_still_and_which_matter_but_got_nothing(root):
+    from app.features.projects import advice
+    from app.features.schedule import tasks
+    found = rows()
+    with session() as s:
+        alpha = s.get(Project, found["alpha"].id)  # 5 days ago, still has steps: not stale yet
+        alpha.last_activity = NOW - timedelta(days=9)  # now it stood still for 9 days
+        delta = s.get(Project, found["delta"].id)
+        delta.potential, delta.commits_14d = "S", 0  # matters, but no commit in two weeks
+    tasks.add("ส่ง alpha", due_at=NOW + timedelta(days=11))
+    with session() as s:
+        s.scalar(select(Task).where(Task.title == "ส่ง alpha")).project = "alpha"
+    tips = advice.advice(at=NOW)
+    by = {a.project: a for a in tips}
+    assert by["alpha"].kind == "stale" and by["alpha"].title == "alpha นิ่ง 9 วัน"
+    assert "ขั้นถัดไป: ทำหน้าเว็บ › หน้าตั้งค่า" in by["alpha"].detail and "แต่ส่ง 20 พ.ย." in by["alpha"].detail
+    assert by["delta"].kind == "short"
+    assert [a.project for a in tips].index("delta") < [a.project for a in tips].index("alpha")  # S before C
+    assert "gamma" not in by  # hidden: no advice
+
+
+def test_booking_time_makes_a_task_for_the_next_step(root):
+    from app.features.projects import advice
+    task_id = advice.book(rows()["alpha"].id, 120)
+    with session() as s:
+        t = s.get(Task, task_id)
+        assert (t.title, t.est_minutes, t.project, t.source, t.due_at) == ("alpha: ทำหน้าเว็บ › หน้าตั้งค่า", 120, "alpha", "project", None)

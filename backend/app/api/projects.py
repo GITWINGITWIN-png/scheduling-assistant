@@ -14,7 +14,7 @@ from app.core.config import get_config
 from app.core.db import session
 from app.core.tables import Decision
 from app.features import decisions
-from app.features.projects import scan
+from app.features.projects import advice, scan
 from app.features.projects.tables import POTENTIALS, STATUSES, Project
 
 router = APIRouter(prefix="/api")
@@ -46,7 +46,9 @@ def projects() -> dict:
         items = [_row(p, asked) for p in rows]
     items.sort(key=lambda p: p["last_activity"] or "", reverse=True)  # most recent first within a level (a stable sort)
     items.sort(key=lambda p: (p["hidden"], p["missing"], ORDER.get(p["potential"], 9), -p["urgency"]))
-    return {"items": items, "root": str(get_config().projects_dir), "scanned": bool(rows)}
+    tips = [{"project_id": a.project_id, "project": a.project, "kind": a.kind, "title": a.title, "detail": a.detail,
+             "next": a.next} for a in advice.advice()]
+    return {"items": items, "advice": tips, "root": str(get_config().projects_dir), "scanned": bool(rows)}
 
 
 class Strict(BaseModel):
@@ -115,6 +117,23 @@ async def scan_now() -> dict:
     line = result.line() or "ไม่มีอะไรใหม่"
     actions.record("projects.scan", "สแกนโปรเจค", line, source_label="หน้าโปรเจค")
     return {"line": line}
+
+
+class BookIn(Strict):
+    minutes: int = 120
+
+
+@router.post("/projects/{project_id}/book")
+async def book(project_id: int, body: BookIn) -> dict:
+    """จองเวลา for the project's next step (a task the planner books; ย้อนกลับ removes it)."""
+    if not 15 <= body.minutes <= 600:
+        raise HTTPException(400, "เวลา 15 นาทีถึง 10 ชั่วโมง")
+    try:
+        task_id = advice.book(project_id, body.minutes)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+    from app.api.schedule import _replan_if_on
+    return {"task_id": task_id, "plan": await _replan_if_on()}
 
 
 class LevelIn(Strict):
