@@ -9,8 +9,9 @@ import { PlanActions } from "./PlanActions";
 import { useDismiss } from "./popover";
 import { Button, Markdown, Spinner } from "./ui";
 
-// รับนัด · ไม่ไป for an appointment from someone who isn't important (B2), with ย้อนกลับ after รับนัด.
-export function AppointmentActions({ decisionId }: { decisionId: number }) {
+// รับ · ไม่ไป for an appointment from someone who isn't important (B2), with ย้อนกลับ after รับ.
+// onChange: the page around it re-reads what it shows (the schedule redraws the calendar).
+export function AppointmentActions({ decisionId, onChange }: { decisionId: number; onChange?: () => void }) {
   const { refresh } = useStatus();
   const [state, setState] = useState<"open" | "placed" | "declined" | "undone">("open");
   const [actionId, setActionId] = useState<number | null>(null);
@@ -18,7 +19,7 @@ export function AppointmentActions({ decisionId }: { decisionId: number }) {
   const [error, setError] = useState("");
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setError("");
-    try { await fn(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); refresh(); }
+    try { await fn(); onChange?.(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); refresh(); }
   };
   const answer = (accept: boolean) => run(async () => {
     const r = await api.answerAppointment(decisionId, accept);
@@ -29,7 +30,7 @@ export function AppointmentActions({ decisionId }: { decisionId: number }) {
     <div className="flex flex-col gap-1.5">
       {state === "open" && (
         <div className="flex gap-2">
-          <Button kind="p" sm disabled={busy} onClick={() => answer(true)}>รับนัด</Button>
+          <Button kind="ok" sm disabled={busy} onClick={() => answer(true)}>รับ</Button>
           <Button sm disabled={busy} onClick={() => answer(false)}>ไม่ไป</Button>
         </div>
       )}

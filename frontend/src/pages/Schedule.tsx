@@ -1,19 +1,14 @@
-// W5 ตาราง (B3): the week as the secretary sees it (appointments, work blocks, due dates), the task
-// list the planner works from, appointments waiting for you, Classroom courses, and the planner's rules.
-// The calendar is FullCalendar (v6); its colours follow the theme through the .fc rules in index.css.
+// W5 ตาราง (B3), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w5): the week on the
+// left (schedule/Week.tsx) with its colour key under it; on the right ⑤ ทำตามแผนได้ and ⑥ ข้อสังเกต
+// (both B6) and ⑦ นัดที่รอคุณรับ. Below, three cards that aren't in the mockup but B3 needs: the task
+// list the planner works from, Classroom courses, and the planner's rules.
 // Adding and changing things works like Google Calendar: click or drag on the calendar (or press
-// + สร้าง) for a card with two tabs, กิจกรรม and งาน (schedule/EditCard.tsx); click anything on
+// สร้าง) for a card with two tabs, กิจกรรม and งาน (schedule/EditCard.tsx); click anything on
 // the calendar to see what it is (schedule/DetailCard.tsx).
-import type { DateSelectArg, EventClickArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
-import thLocale from "@fullcalendar/core/locales/th";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import FullCalendar from "@fullcalendar/react";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type CourseRow, type Decision, type ScheduleRules, type TaskRow } from "../api";
 import { AppointmentActions, CourseActions } from "../components/Bell";
-import { Banner, Button, Card, Chip, Phase, Spinner } from "../components/ui";
+import { Avatar, Banner, Button, Card, Chip, Phase, Spinner } from "../components/ui";
 import { duration, when } from "../format";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
@@ -21,104 +16,7 @@ import { DetailCard, type Picked } from "./schedule/DetailCard";
 import { EditCard, field, type Done, type Draft, type Ghost } from "./schedule/EditCard";
 import { Toast, type Anchor, type ToastMsg } from "./schedule/Floating";
 import { sourceLabel } from "./schedule/links";
-
-type Create = (sel: { start: Date; end: Date; allDay: boolean } | null, anchor: Anchor, tab?: "event" | "task") => void;
-
-// ------------------------------------------------------------------ the week
-function Week({ reloadKey, ghost, onPlanned, onCreate, onPick }: {
-  reloadKey: number; ghost: Ghost | null; onPlanned: () => void; onCreate: Create; onPick: (p: Picked, anchor: Anchor) => void;
-}) {
-  const cal = useRef<FullCalendar>(null);
-  const [plan, setPlan] = useState<{ planned_at: string | null; short: { title: string; minutes: number }[] } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState("");
-
-  const events = useCallback((info: EventSourceFuncArg, ok: (e: EventInput[]) => void, fail: (e: Error) => void) => {
-    api.week(info.startStr, info.endStr).then((w) => {
-      setPlan(w.plan);
-      ok([
-        ...w.events.map((e) => ({
-          id: `e${e.id}`, title: e.title + (e.location ? ` · ${e.location}` : ""), start: e.start, end: e.end, allDay: e.all_day,
-          classNames: ["ev-meet", e.recurring ? "ev-recurring" : "", e.source === "email" ? "ev-email" : ""],
-          extendedProps: { picked: { type: "meet", ev: e } satisfies Picked },
-        })),
-        ...w.blocks.map((b) => ({
-          id: `b${b.id}`, title: b.title + (b.pinned ? " · คุณย้ายมา" : ""), start: b.start, end: b.end,
-          classNames: ["ev-block", b.pinned ? "ev-pinned" : "", b.past ? "ev-done" : ""],
-          extendedProps: { picked: { type: "block", block: b } satisfies Picked },
-        })),
-        ...w.deadlines.map((d) => ({
-          id: `d${d.task_id}`, title: `ส่ง ${new Date(d.due).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} · ${d.title}`,
-          start: d.due.slice(0, 10), allDay: true, classNames: ["ev-dead"],
-          extendedProps: { picked: { type: "deadline", d } satisfies Picked },
-        })),
-      ]);
-    }, fail);
-  }, []);
-
-  useEffect(() => { cal.current?.getApi().refetchEvents(); }, [reloadKey]);
-  // While a card for something new is open, its draft sits on the calendar and follows what
-  // you type (Google Calendar's "(ไม่มีชื่อ)"). It is added by hand, so refetching leaves it be.
-  useEffect(() => {
-    const c = cal.current?.getApi();
-    if (!c) return;
-    c.getEventById("ghost")?.remove();
-    if (ghost) c.addEvent({ id: "ghost", title: ghost.title, start: ghost.start, end: ghost.end, allDay: ghost.allDay,
-                            classNames: [ghost.kind === "event" ? "ev-meet" : "ev-dead", "ev-ghost"] });
-  }, [ghost]);
-
-  const select = (arg: DateSelectArg) => {
-    arg.view.calendar.unselect(); // the draft takes the highlight's place
-    onCreate({ start: arg.start, end: arg.end, allDay: arg.allDay }, arg.jsEvent ? { x: arg.jsEvent.clientX, y: arg.jsEvent.clientY } : null);
-  };
-  const click = (arg: EventClickArg) => {
-    arg.jsEvent.preventDefault();
-    const picked = arg.event.extendedProps.picked as Picked | undefined;
-    if (picked) onPick(picked, { x: arg.jsEvent.clientX, y: arg.jsEvent.clientY });
-  };
-  const replan = async () => {
-    setBusy(true); setNote("");
-    try { setNote((await api.replan()).line); onPlanned(); } catch (e) { setNote((e as Error).message); } finally { setBusy(false); }
-  };
-
-  return (
-    <Card title="สัปดาห์นี้" right={<div className="flex items-center gap-2">
-      {plan?.planned_at && <span className="text-xs text-muted">วางล่าสุด {when(plan.planned_at)}</span>}
-      <Button sm icon="refresh" disabled={busy} onClick={replan}>{busy ? "กำลังวาง…" : "วางตารางใหม่"}</Button>
-    </div>}>
-      <div className="flex flex-col gap-3">
-        {note && <p className="text-sm text-ink-2">{note}</p>}
-        {!!plan?.short.length && (
-          <Banner icon="clock">
-            <b>เวลาไม่พอก่อนกำหนดส่ง:</b> {plan.short.map((s) => `${s.title} ขาด ${duration(s.minutes)}`).join(" · ")}
-            <span className="text-muted"> · ลองลดเวลาที่ใช้ เพิ่มเวลาต่อวันของงาน เปลี่ยนเวลาทำงานในกติกา หรือย้ายนัดออก</span>
-          </Banner>
-        )}
-        <div className="schedule-cal">
-          <FullCalendar ref={cal} plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]} locale={thLocale} initialView="timeGridWeek" firstDay={1}
-            customButtons={{ create: { text: "+ สร้าง", click: (_e, el) => {
-              const r = el.getBoundingClientRect();
-              onCreate(null, { x: r.left - 16, y: r.bottom + 64 });
-            } } }}
-            headerToolbar={{ left: "create prev,next today", center: "title", right: "timeGridDay,timeGridWeek,dayGridMonth" }}
-            buttonText={{ today: "วันนี้", day: "วัน", week: "สัปดาห์", month: "เดือน" }}
-            slotMinTime="07:00:00" slotMaxTime="24:00:00" scrollTime="08:00:00" nowIndicator height={720} expandRows
-            allDayText="ทั้งวัน" slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
-            eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
-            selectable selectMirror selectLongPressDelay={300} select={select}
-            events={events} eventClick={click} />
-        </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-          {[["ev-meet", "นัด"], ["ev-dead", "เดดไลน์"], ["ev-block", "บล็อกงาน (ปฏิทิน “เลขา”)"], ["ev-block ev-pinned", "บล็อกที่คุณย้าย"], ["ev-meet ev-recurring", "นัดซ้ำทุกสัปดาห์ (ไม่เตือน)"]].map(([c, label]) => (
-            <span key={label} className="inline-flex items-center gap-1.5"><i className={`legend ${c}`} />{label}</span>
-          ))}
-          <span className="grow" />
-          <span>คลิกหรือลากบนช่องว่างเพื่อเพิ่มกิจกรรมหรืองาน · คลิกของในปฏิทินเพื่อดูรายละเอียด</span>
-        </div>
-      </div>
-    </Card>
-  );
-}
+import { Week, type Create } from "./schedule/Week";
 
 // ------------------------------------------------------------------ tasks
 function TaskLine({ t, onEdit, onFinish }: { t: TaskRow; onEdit: (t: TaskRow, a: Anchor) => void; onFinish: (t: TaskRow) => Promise<void> }) {
@@ -168,22 +66,38 @@ function Tasks({ items, onAdd, onEdit, onFinish }: {
   );
 }
 
-// ------------------------------------------------------------------ waiting for you
-function Pending({ reloadKey }: { reloadKey: number }) {
+// ------------------------------------------------------------------ the right column (W5 ⑤ ⑥ ⑦)
+/** ⑤ and ⑥ arrive with B6 (blocks compared with what you really did, from ActivityWatch). */
+function Later({ title, children }: { title: string; children: string }) {
+  return (
+    <Card title={title} right={<Phase phase="B6" />}>
+      <p className="text-sm text-muted">{children}</p>
+    </Card>
+  );
+}
+
+/** ⑦ Appointments from people you're interested in wait here (and in #อนุมัติ) for รับ / ไม่ไป. */
+function Pending({ reloadKey, onChange }: { reloadKey: number; onChange: () => void }) {
   const [items, setItems] = useState<Decision[] | null>(null);
   useEffect(() => { api.decisions().then((r) => setItems(r.items.filter((d) => d.kind === "appointment")), () => setItems([])); }, [reloadKey]);
-  if (!items?.length) return null;
   return (
     <Card title="นัดที่รอคุณรับ">
-      <ul className="divide-y divide-line">
-        {items.map((d) => (
-          <li key={d.id} className="py-2.5 flex flex-col gap-1.5">
-            <span><span className="font-medium">{d.title}</span>
-              <span className="block text-xs text-muted">{[d.when, d.from && `จาก ${d.from}`].filter(Boolean).join(" · ")}</span></span>
-            <AppointmentActions decisionId={d.id} />
-          </li>
-        ))}
-      </ul>
+      {items === null ? <Spinner /> : items.length === 0 ? (
+        <p className="text-sm text-muted">ไม่มีนัดที่รอ · นัดจากคนที่คุณสนใจจะมารอให้กดรับที่นี่ก่อนลงปฏิทิน</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {items.map((d) => (
+            <li key={d.id} className="py-2.5 flex items-center gap-2.5">
+              <Avatar name={d.from || d.title} size="sm" />
+              <span className="grow min-w-0">
+                <span className="block font-semibold text-[13.5px] truncate">{d.title}</span>
+                <span className="block text-xs text-ink-2 truncate">{[d.from, d.when].filter(Boolean).join(" · ")}</span>
+              </span>
+              <AppointmentActions decisionId={d.id} onChange={onChange} />
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }
@@ -342,24 +256,25 @@ export function Schedule() {
         <Banner icon="clock">รอบ <b>วางและซิงก์ตาราง</b> ยังปิดอยู่: เลขายังไม่วางบล็อกเอง · กด <b>วางตารางใหม่</b> เพื่อวางครั้งเดียว
           หรือเปิดรอบในหน้าตั้งค่า (นาฬิกาเลขา)</Banner>
       )}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(320px,1.15fr)]">
+      <div className="grid gap-4 items-start xl:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)]">
+        <Week reloadKey={key} ghost={ghost} onPlanned={changed} onCreate={create}
+          onPick={(p, anchor) => { setEditing(null); setPicked({ picked: p, anchor }); }} />
         <div className="flex flex-col gap-4 min-w-0">
-          <Week reloadKey={key} ghost={ghost} onPlanned={changed} onCreate={create}
-            onPick={(p, anchor) => { setEditing(null); setPicked({ picked: p, anchor }); }} />
-          <Card title="ทำตามแผนได้" right={<Phase phase="B6" />}>
-            <p className="text-sm text-muted">เทียบบล็อกกับสิ่งที่ทำจริงจาก ActivityWatch และข้อสังเกตเพื่อปรับวิธีวาง มาในช่วง B6 · ตอนนี้บล็อกที่ผ่านไปแล้วนับว่าทำแล้ว</p>
-          </Card>
+          <Later title="ทำตามแผนได้">เทียบบล็อกในตารางกับสิ่งที่ทำจริงจาก ActivityWatch เป็นเปอร์เซ็นต์ต่อสัปดาห์ เทียบกับเป้าที่คุณตั้ง</Later>
+          <Later title="ข้อสังเกต">จากบล็อกที่หลุดบ่อย เลขาเสนอวิธีวางตารางแบบใหม่ คุณกดใช้หรือไม่ก็ได้ · ที่ใช้แล้วเก็บในสมุดกติกา</Later>
+          <Pending reloadKey={key} onChange={changed} />
         </div>
+      </div>
+      <div className="grid gap-4 items-start xl:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)]">
+        <Tasks items={tasks} onAdd={() => create(null, null, "task")} onEdit={edit} onFinish={finish} />
         <div className="flex flex-col gap-4 min-w-0">
-          <Tasks items={tasks} onAdd={() => create(null, null, "task")} onEdit={edit} onFinish={finish} />
-          <Pending reloadKey={key} />
           <Courses reloadKey={key} />
           <Rules onSaved={changed} />
         </div>
       </div>
       {editing && <EditCard key={JSON.stringify(editing.draft)} draft={editing.draft} anchor={editing.anchor} rules={rules}
         onClose={closeEditor} onDone={done} onPreview={setGhost} />}
-      {picked && <DetailCard picked={picked.picked} anchor={picked.anchor} onClose={closeDetail} onDone={done}
+      {picked && <DetailCard picked={picked.picked} anchor={picked.anchor} onClose={closeDetail} onDone={done} onChanged={changed}
         task={picked.picked.type === "meet" ? undefined : byId.get(picked.picked.type === "block" ? picked.picked.block.task_id : picked.picked.d.task_id)}
         onEdit={(t) => edit(t, picked.anchor)} />}
       <Toast key={toast?.key} msg={toast} onUndo={undo} onClose={closeToast} />

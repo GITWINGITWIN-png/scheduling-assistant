@@ -42,8 +42,12 @@ export type CalItem = {
   id: number; title: string; start: string; end: string; all_day: boolean; location: string;
   description: string; // รายละเอียด: what you typed, or its description in Google Calendar
   source: string; source_name: string; recurring: boolean; link: string; mail: string; // link: Google Calendar · mail: the email it came from
+  status: "placed" | "proposed"; decision_id: number | null; from: string; // proposed: waiting for you to รับ (who asked)
 };
-export type BlockItem = { id: number; task_id: number; title: string; start: string; end: string; pinned: boolean; past: boolean };
+export type BlockItem = {
+  id: number; task_id: number; title: string; start: string; end: string; pinned: boolean; past: boolean;
+  running: boolean; task_status: "open" | "done" | "dropped";
+};
 export type DeadlineItem = { task_id: number; title: string; due: string; source: string; link: string };
 export type Week = { events: CalItem[]; blocks: BlockItem[]; deadlines: DeadlineItem[]; plan: { planned_at: string | null; short: { task_id: number; title: string; minutes: number }[] } };
 export type PlanMode = "early" | "late";

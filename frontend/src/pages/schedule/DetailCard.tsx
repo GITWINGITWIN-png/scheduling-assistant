@@ -3,6 +3,7 @@
 // changed in Google Calendar itself; blocks and due dates lead to their task (แก้งาน, ทำเสร็จแล้ว).
 import { useState, type ReactNode } from "react";
 import { api, type BlockItem, type CalItem, type DeadlineItem, type TaskRow } from "../../api";
+import { AppointmentActions } from "../../components/Bell";
 import { Button } from "../../components/ui";
 import { duration, hm, shortDay, when, ymd } from "../../format";
 import { Icon, type IconName } from "../../icons";
@@ -41,9 +42,9 @@ function LinkButton({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-export function DetailCard({ picked, task, anchor, onClose, onEdit, onDone }: {
+export function DetailCard({ picked, task, anchor, onClose, onEdit, onDone, onChanged }: {
   picked: Picked; task: TaskRow | undefined; anchor: Anchor; onClose: () => void;
-  onEdit: (t: TaskRow) => void; onDone: (d: Done) => void;
+  onEdit: (t: TaskRow) => void; onDone: (d: Done) => void; onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -55,9 +56,19 @@ export function DetailCard({ picked, task, anchor, onClose, onEdit, onDone }: {
 
   let swatch: string, title: string, time: string;
   let body: ReactNode;
-  if (picked.type === "meet") {
+  if (picked.type === "meet" && picked.ev.status === "proposed") {
+    // waiting for you: the same รับ / ไม่ไป as in the bell and #อนุมัติ (W5 ④ ⑦)
     const e = picked.ev;
-    [swatch, title, time] = ["ev-meet", e.title, span(e.start, e.end, e.all_day)];
+    [swatch, title, time] = ["miss", `${e.title}?`, span(e.start, e.end, e.all_day)];
+    body = <>
+      <Line icon="mail">รอคุณรับ{e.from ? ` · ${e.from} ส่งมา` : ""}{e.location ? ` · ${e.location}` : ""}</Line>
+      {e.description && <Line icon="notes"><Linked text={e.description} className="max-h-48 overflow-y-auto text-ink" /></Line>}
+      {e.decision_id != null && <AppointmentActions decisionId={e.decision_id} onChange={onChanged} />}
+      {e.mail && <div className="pt-1"><LinkButton href={e.mail}>เปิดอีเมล</LinkButton></div>}
+    </>;
+  } else if (picked.type === "meet") {
+    const e = picked.ev;
+    [swatch, title, time] = ["meet", e.title, span(e.start, e.end, e.all_day)];
     body = <>
       {e.location && <Line icon="pin">{e.location}</Line>}
       {e.description && <Line icon="notes"><Linked text={e.description} className="max-h-48 overflow-y-auto text-ink" /></Line>}
@@ -72,7 +83,7 @@ export function DetailCard({ picked, task, anchor, onClose, onEdit, onDone }: {
   } else {
     const b = picked.type === "block" ? picked.block : null;
     const dl = picked.type === "deadline" ? picked.d : null;
-    swatch = b ? `ev-block${b.pinned ? " ev-pinned" : ""}` : "ev-dead";
+    swatch = b ? (b.task_status === "done" ? "done" : "") : "dead";
     title = b?.title ?? dl!.title;
     time = b ? span(b.start, b.end, false) : `ส่ง ${shortDay(new Date(dl!.due))} ${hm(new Date(dl!.due))}`;
     const need = task ? task.est_minutes ?? task.est_default : 0;
@@ -98,7 +109,7 @@ export function DetailCard({ picked, task, anchor, onClose, onEdit, onDone }: {
     <Floating anchor={anchor} onClose={onClose} width={380}>
       <div className="p-4 pt-3 flex flex-col gap-2.5">
         <div className="flex items-start gap-3">
-          <i className={`legend ${swatch} mt-2 shrink-0`} />
+          <i className={`swatch ${swatch} mt-2 shrink-0`} />
           <div className="grow min-w-0">
             <h3 className="text-lg font-semibold leading-snug break-words">{title}</h3>
             <p className="text-sm text-ink-2">{time}</p>

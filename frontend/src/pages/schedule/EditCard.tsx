@@ -12,6 +12,7 @@ import { duration, hm, shortDay, ymd } from "../../format";
 import { Icon } from "../../icons";
 import { Floating, type Anchor } from "./Floating";
 import { findLinks, shortLink, sourceLabel } from "./links";
+import { dueSpan } from "./Week";
 
 export const field = "bg-panel border border-line-2 rounded-lg px-2.5 py-1.5 text-sm text-ink min-w-0";
 
@@ -41,7 +42,7 @@ function at(date: string, time: string): Date {
 }
 
 /** What the calendar shows while the card is open: Google Calendar's "(ไม่มีชื่อ)" draft. */
-export type Ghost = { start: Date; end: Date; allDay: boolean; title: string; kind: "event" | "task" };
+export type Ghost = { start: Date; end: Date; allDay: boolean; title: string; kind: "event" | "task"; sub?: string };
 
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 const toTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
@@ -185,10 +186,12 @@ export function EditCard({ draft, anchor, rules, onClose, onDone, onPreview }: {
     if (tab === "event") {
       const s = allDay ? at(date, "00:00") : at(date, startTime);
       const e = allDay ? addDays(at(endDate, "00:00"), 1) : at(date, endTime);
-      if (!isNaN(s.getTime()) && e > s) g = { start: s, end: e, allDay, title: title.trim() || "(ไม่มีชื่อ)", kind: "event" };
-    } else if (!noDue && !isNaN(at(dueDate, "00:00").getTime())) {
-      const day = at(dueDate, "00:00");
-      g = { start: day, end: addDays(day, 1), allDay: true, title: `ส่ง ${dueTime} · ${title.trim() || "(ไม่มีชื่อ)"}`, kind: "task" };
+      if (!isNaN(s.getTime()) && e > s) g = { start: s, end: e, allDay, title: title.trim() || "(ไม่มีชื่อ)", kind: "event",
+                                              sub: allDay ? "ทั้งวัน" : `${startTime}–${endTime}` };
+    } else if (!noDue && !isNaN(at(dueDate, dueTime || "23:59").getTime())) {
+      // drawn where the due date will be (Week.dueSpan)
+      const [start, end] = dueSpan(at(dueDate, dueTime || "23:59"));
+      g = { start, end, allDay: false, title: title.trim() || "(ไม่มีชื่อ)", kind: "task", sub: `เดดไลน์ ${dueTime || "23:59"}` };
     }
     onPreview(g);
   }, [onPreview, editing, tab, allDay, date, endDate, startTime, endTime, title, noDue, dueDate, dueTime]);

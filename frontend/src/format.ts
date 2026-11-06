@@ -1,7 +1,7 @@
 // How dates, times and token counts read on the page (the same style as the mockups).
 
 const DAYS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"]; // Date.getDay(): 0 = Sunday
-const MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+export const MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
 /** "พุธ 5 พ.ย. 2569" (Buddhist-era year, as in the mockups). */
 export function thaiDate(d: Date = new Date()): string {
@@ -23,7 +23,9 @@ export function duration(min: number): string {
   return m ? `${h} ชม. ${m} นาที` : `${h} ชม.`;
 }
 
-const DAYS_SHORT = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+export const DAYS_SHORT = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+export const MONTHS_LONG = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
+  "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
 /** "พฤ. 12 พ.ย." */
 export function shortDay(d: Date): string {
