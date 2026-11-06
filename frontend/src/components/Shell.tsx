@@ -17,7 +17,7 @@ function Side() {
   return (
     <aside className="bg-side border-r border-line flex flex-col min-h-0">
       <div className="flex items-center gap-2.5 px-5 pt-5 pb-4">
-        <span className="size-9 rounded-full bg-accent text-accent-ink grid place-items-center font-semibold">ล</span>
+        <span className="size-8 rounded-[10px] bg-accent text-accent-ink grid place-items-center font-bold">ล</span>
         <span className="flex flex-col leading-tight">
           <span className="font-semibold">เลขา</span>
           <span className="text-xs text-muted">my_secretary v2</span>
@@ -56,9 +56,9 @@ function Top() {
   const page = PAGES.find((p) => p.path === pathname);
   return (
     <header className="bg-top border-b border-line flex items-center gap-4 px-6 py-3">
-      <div className="flex flex-col grow min-w-0">
-        <h1 className="text-xl font-semibold truncate">{page?.label ?? "เลขา"}</h1>
-        <span className="text-xs text-muted">{thaiDate()}</span>
+      <div className="flex items-baseline gap-3 grow min-w-0">
+        <h1 className="text-[19px] font-semibold truncate">{page?.label ?? "เลขา"}</h1>
+        <span className="text-[13px] text-muted whitespace-nowrap">{thaiDate()}</span>
       </div>
       <AskBox />
       <Bell />
@@ -80,7 +80,7 @@ function Restart() {
     <div className="flex items-start gap-2.5 rounded-s border border-warn/40 bg-warn-soft px-4 py-3 mb-4 text-sm text-ink">
       <Icon name="refresh" className="text-warn mt-0.5 shrink-0" />
       <span><b>เลขากำลังรันโค้ดรุ่นก่อน</b> โค้ดบนเครื่องใหม่กว่า สิ่งที่เพิ่งเพิ่มในหน้านี้อาจยังไม่ทำงานหรือไม่ถูกบันทึก ·
-        รีสตาร์ทเลขา: <code className="font-mono text-[13px] bg-panel rounded px-1.5 py-0.5">systemctl --user restart my-secretary</code></span>
+        รีสตาร์ทเลขา: <code className="font-mono text-[13px] bg-panel rounded px-1.5 py-0.5 whitespace-nowrap">systemctl --user restart my-secretary</code></span>
     </div>
   );
 }

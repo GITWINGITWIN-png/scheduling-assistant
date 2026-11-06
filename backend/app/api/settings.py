@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api", tags=["settings"])
 
 # Model choices agreed for later phases: shown greyed out until their phase (W10 ①)
 PLANNED_TASKS = [
-    {"label": "เตือนนัด · ซิงก์ปฏิทิน", "model": "สคริปต์", "effort": "—", "phase": "B3"},
+    {"label": "เตือนนัด · ซิงก์ปฏิทิน", "model": "สคริปต์", "effort": "—", "phase": ""},  # built in B3: no phase, not greyed
     {"label": "งานเบื้องหลัง", "model": "Opus", "effort": "ต่อแผน", "phase": "B5"},
     {"label": "ย่อข่าวโปรเจค", "model": "OmniRoute", "effort": "—", "phase": "B5"},
     {"label": "จัดหมวดหน้าต่าง", "model": "กติกา → Omni", "effort": "—", "phase": "B6"},

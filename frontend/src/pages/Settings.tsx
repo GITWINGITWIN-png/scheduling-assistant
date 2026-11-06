@@ -1,7 +1,7 @@
 // W10 ตั้งค่า: models and effort per task, the secretary's clock, notification sounds, channels.
 // Parts that arrive in later phases are shown greyed with their phase, as agreed in stage 2.
 import { useCallback, useEffect, useState } from "react";
-import { api, type Settings as S } from "../api";
+import { api, type ScheduleRules, type Settings as S } from "../api";
 import { when } from "../format";
 import { Icon, type IconName } from "../icons";
 import { Card, Chip, Phase, Seg, Spinner } from "../components/ui";
@@ -27,6 +27,42 @@ function Row({ icon, title, sub, side, dim = false }: { icon: IconName; title: s
       </div>
       {side}
     </div>
+  );
+}
+
+/** W10 ⑤: how long before an appointment or a due date #ด่วน reminds you. The same setting as in
+ *  the schedule page's กติกาตาราง; a press saves it (recorded, ย้อนกลับ in สิ่งที่เลขาทำ). */
+function Reminders() {
+  const [r, setR] = useState<ScheduleRules | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => { api.rules().then(setR, (e) => setError((e as Error).message)); }, []);
+  const toggle = async (lead: string) => {
+    if (!r) return;
+    const reminders = r.reminders.includes(lead) ? r.reminders.filter((x) => x !== lead) : [...r.reminders, lead];
+    setError("");
+    try {
+      await api.saveRules({ day_start: r.rules.day_start, day_end: r.rules.day_end, max_block: r.rules.max_block,
+        per_task_per_day: r.rules.per_task_per_day, gap: r.rules.gap, estimates: r.estimates, reminders });
+      setR({ ...r, reminders });
+    } catch (e) { setError((e as Error).message); }
+  };
+  return (
+    <Card title="เตือนก่อนถึงกำหนด">
+      {!r ? <Spinner /> : (
+        <div className="flex flex-wrap gap-1.5">
+          {([["1d", "1 วัน"], ["1h", "1 ชั่วโมง"]] as const).map(([lead, label]) => {
+            const on = r.reminders.includes(lead);
+            return (
+              <button key={lead} type="button" aria-pressed={on} onClick={() => toggle(lead)} title={on ? "กดเพื่อปิด" : "กดเพื่อเปิด"}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold cursor-pointer
+                  ${on ? "bg-accent-soft text-accent-strong" : "bg-panel-2 text-muted line-through"}`}>{label}</button>
+            );
+          })}
+        </div>
+      )}
+      <p className="text-xs text-muted pt-2">ก่อนนัดและเดดไลน์ ใน #ด่วน · กดเพื่อเปิดหรือปิด · ย้อนกลับได้ในหน้าสิ่งที่เลขาทำ</p>
+      {error && <p className="text-xs text-bad pt-1">{error}</p>}
+    </Card>
   );
 }
 
@@ -65,10 +101,10 @@ export function Settings() {
                   </tr>
                 ))}
                 {s.planned_tasks.map((t) => (
-                  <tr key={t.label} className="border-b border-line last:border-0 opacity-60">
-                    <td className="px-4 py-2">{t.label}</td>
+                  <tr key={t.label} className={`border-b border-line last:border-0 ${t.phase ? "opacity-60" : ""}`}>
+                    <td className={`px-4 py-2 ${t.phase ? "" : "font-semibold"}`}>{t.label}</td>
                     <td className="px-2 py-2">{t.model}</td>
-                    <td className="px-2 py-2"><span className="font-mono text-xs mr-2">{t.effort}</span><Phase phase={t.phase} /></td>
+                    <td className="px-2 py-2"><span className="font-mono text-xs mr-2">{t.effort}</span>{t.phase && <Phase phase={t.phase} />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -102,9 +138,7 @@ export function Settings() {
             <Row icon="bell" title="#คุยกับเลขา" sub="ทุกคำตอบ" side={<Chip tone="acc">เด้ง</Chip>} />
             <p className="text-xs text-muted pt-2">ตามที่ตกลง: ทุกห้องเด้งเสียง · ตั้งในแอป Discord ของแต่ละเครื่อง: คลิกขวาที่เซิร์ฟเวอร์ → Notification Settings → All Messages · กลางคืนใช้โหมดห้ามรบกวนของมือถือได้</p>
           </Card>
-          <Card title="เตือนก่อนถึงกำหนด" right={<Phase phase="B3" />}>
-            <div className="flex gap-1.5 opacity-60"><Chip tone="acc">1 วัน</Chip><Chip tone="acc">1 ชั่วโมง</Chip></div>
-          </Card>
+          <Reminders />
         </div>
 
         <div className="flex flex-col gap-4">
