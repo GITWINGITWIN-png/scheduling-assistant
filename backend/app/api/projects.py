@@ -15,7 +15,9 @@ from app.core.db import session
 from app.core.tables import Decision
 from app.features import decisions
 from app.features.projects import advice, scan
-from app.features.projects.tables import POTENTIALS, STATUSES, Project
+from app.features.jobs import queue
+from app.features.jobs.tables import Job
+from app.features.projects.tables import POTENTIALS, STATUSES, Project, ProjectNews
 
 router = APIRouter(prefix="/api")
 
@@ -24,8 +26,11 @@ def _iso(dt) -> str | None:
     return dt.isoformat() if dt else None
 
 
-def _row(p: Project, asked: dict[int, int]) -> dict:
-    return {"id": p.id, "name": p.name, "path": p.path, "status": p.status, "status_name": STATUSES.get(p.status, p.status),
+def _row(p: Project, asked: dict[int, int], news: dict[int, ProjectNews] | None = None, jobs: dict[int, Job] | None = None) -> dict:
+    n = (news or {}).get(p.id)
+    j = (jobs or {}).get(p.id)
+    return {"news": {"title": n.title, "at": _iso(n.at), "urgent": n.urgent, "kind": n.kind} if n else None,
+            "job": {"id": j.id, "status": j.status, "title": j.title or j.stuck_at} if j else None,"id": p.id, "name": p.name, "path": p.path, "status": p.status, "status_name": STATUSES.get(p.status, p.status),
             "potential": p.potential, "urgency": p.urgency, "level_set": p.level_set, "hidden": p.hidden,
             "allow_jobs": p.allow_jobs, "can_work": p.is_git and not scan.is_self(p.path) and not p.missing,
             "is_self": scan.is_self(p.path), "is_git": p.is_git, "last_activity": _iso(p.last_activity),
@@ -43,7 +48,11 @@ def projects() -> dict:
         rows = s.scalars(select(Project)).all()
         asked = {d.detail.get("project_id"): d.id for d in s.scalars(
             select(Decision).where(Decision.kind == "project_level", Decision.status == "pending"))}
-        items = [_row(p, asked) for p in rows]
+        news: dict[int, ProjectNews] = {}
+        for n in s.scalars(select(ProjectNews).where(ProjectNews.project_id.is_not(None)).order_by(ProjectNews.at)):
+            news[n.project_id] = n  # the newest wins
+        jobs = {j.project_id: j for j in s.scalars(select(Job).where(Job.status.in_(queue.OPEN)))}
+        items = [_row(p, asked, news, jobs) for p in rows]
     items.sort(key=lambda p: p["last_activity"] or "", reverse=True)  # most recent first within a level (a stable sort)
     items.sort(key=lambda p: (p["hidden"], p["missing"], ORDER.get(p["potential"], 9), -p["urgency"]))
     tips = [{"project_id": a.project_id, "project": a.project, "kind": a.kind, "title": a.title, "detail": a.detail,

@@ -221,6 +221,32 @@ def project_news(since: datetime, until: datetime, limit: int = 8) -> list[tuple
     return [(n.project, n.title, n.urgent) for n, _, _ in rows[:limit]]
 
 
+def job_line(result: str) -> str:
+    """A job's result, first part: "ทำเสร็จ · 2 commit บน secretary/7-finance" (the tokens are on the jobs page)."""
+    first = (result or "").split("\n", 1)[0]
+    return first.split(" · ใช้ ", 1)[0]
+
+
+def jobs_finished(since: datetime, until: datetime) -> list[str]:
+    """งานเบื้องหลังที่จบในช่วงนี้ (B5): "finance: ทำ backtest ต่อ · ทำเสร็จ · 2 commit บน secretary/7-finance"."""
+    from app.features.jobs.tables import Job
+
+    with session() as s:
+        rows = s.scalars(select(Job).where(Job.status.in_(("done", "stopped", "failed")), Job.finished_at >= since,
+                                           Job.finished_at < until).order_by(Job.finished_at)).all()
+        return [f"{j.project}: {j.title or j.stuck_at} · {job_line(j.result)}" for j in rows]
+
+
+def jobs_waiting() -> str:
+    """What the background work will do next, in queue order: "ทำ: finance · รอคุณอนุมัติ: datacom · รอวางแผน: research-lab"."""
+    from app.features.jobs import queue
+
+    jobs = queue.ordered()
+    groups = [("ทำ", "ready"), ("รอคุณอนุมัติ", "asking"), ("รอวางแผน", "queued")]
+    return " · ".join(f"{word}: {', '.join(j.project for j in jobs if j.status == st)}" for word, st in groups
+                      if any(j.status == st for j in jobs))
+
+
 def new_materials(since: datetime, until: datetime) -> list[str]:
     """สื่อการเรียนใหม่ (U1: "บอกในสรุปเช้า"): what Classroom's round downloaded, per course."""
     with session() as s:

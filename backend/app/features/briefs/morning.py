@@ -4,7 +4,8 @@ What it says, as the plan's mockup: a line with the day's numbers, เรื่�
 secretary did), ใครส่งอะไรมา by the three levels, today's appointments and blocks, new
 Classroom files, what waits for you (the requests themselves stay in #อนุมัติ), and in the
 footer how much mail was read and what that reading cost. No model call: the mail rounds
-already wrote every summary (the user's choice, 2026-11-06). Project news comes with B5.
+already wrote every summary (the user's choice, 2026-11-06). B5 adds project news and the night's
+background work.
 
 The window is "since the last morning brief" (or a day back), so nothing between two briefs
 is missed. Mail that arrived after the 00:00 round and isn't important is only counted: it is
@@ -57,9 +58,12 @@ def compose(at: datetime) -> dict:
     meets = day.appointments(items)
     due_today = sum(1 for i in items if i.kind == "dead")
 
+    jobs = day.jobs_finished(since, at)
     numbers = [f"เรื่องสำคัญ {len(important)}", f"นัดวันนี้ {meets}", f"รอคุณตัดสิน {len(waiting)}"]
     if due_today:
         numbers.append(f"งานส่งวันนี้ {due_today}")
+    if jobs:
+        numbers.append(f"งานเบื้องหลังทำต่อ {len(jobs)} งาน")
     fields: list[list[str]] = []
     if important:
         fields.append(["เรื่องสำคัญ", "\n".join(f"• {m.line()}" for m in important[:8])
@@ -69,6 +73,8 @@ def compose(at: datetime) -> dict:
     fields.append(["นัดวันนี้", " · ".join(i.words() for i in items) or "ไม่มีนัดและบล็อกงานวันนี้"])
     if news := day.project_news(since, at):
         fields.append(["ข่าวโปรเจค", " · ".join(f"{p}: {day.short(t, 70)}" + (" (แจ้งใน #ด่วน แล้ว)" if u else "") for p, t, u in news)])
+    if jobs:
+        fields.append(["งานเบื้องหลัง", "\n".join(f"• {j}" for j in jobs) + "\n(ดูและรวม branch ได้ที่หน้างานเบื้องหลัง)"])
     if materials:
         fields.append(["สื่อการเรียนใหม่", " · ".join(materials)])
     if waiting:

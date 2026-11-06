@@ -116,9 +116,22 @@ def status() -> dict:
     reading = quota.latest(max_age=None)
     return {"pending": pending, "tokens_week": int(week), "discord": discord_bot.status()["connected"],
             "theme": themes.current_theme(), "stale": codestamp.stale(),
-            "counts": {"people": briefs_day.important_today(), "decisions": pending},
+            "counts": {"people": briefs_day.important_today(), "decisions": pending, **work_counts()},
             "quota": {"week_left": reading.week_left, "at": reading.at.isoformat(), "line": rules_book.line(),
                       "auto": rules_book.auto()} if reading else None}
+
+
+def work_counts() -> dict:
+    """counts.jobs: background plans waiting for you (red, W4) · counts.projects: projects on the go
+    (grey, W3: กำลังทำ and รันอัตโนมัติ, not hidden)."""
+    from app.features.jobs.tables import Job
+    from app.features.projects.tables import Project
+
+    with session() as s:
+        asking = s.scalar(select(func.count()).select_from(Job).where(Job.status == "asking")) or 0
+        going = s.scalar(select(func.count()).select_from(Project).where(Project.status.in_(("active", "auto")),
+                                                                         Project.hidden.is_(False), Project.missing.is_(False))) or 0
+    return {"jobs": asking, "projects": going}
 
 
 @router.get("/decisions")
@@ -133,6 +146,9 @@ def decisions(status: str = "pending") -> dict:
                        "effort": d.detail.get("effort", ""), "tokens": d.detail.get("tokens"),
                        "when": d.detail.get("when", ""), "from": d.detail.get("from", ""),  # appointment (B2)
                        "subject": d.detail.get("subject", ""),
+                       "job_id": d.detail.get("job_id"), "budget": d.detail.get("budget"),  # background plan (B5)
+                       "risks": d.detail.get("risks", []), "why": d.detail.get("why", ""), "stuck_at": d.detail.get("stuck_at", ""),
+                       "project_id": d.detail.get("project_id"),  # new project (B5)
                        "folder": d.detail.get("folder", ""), "exists": d.detail.get("exists", False),  # course (B3)
                        "link": d.detail.get("link", ""), "clash": clash.get(d.id), "rule": against.get(d.id, ""),
                        "created_at": d.created_at.isoformat()} for d in rows]}

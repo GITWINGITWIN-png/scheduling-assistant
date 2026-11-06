@@ -7,8 +7,9 @@
   that ran today, and the ones still to come). ทำจริง (ActivityWatch) comes in B6.
 - เรื่องสำคัญ (W1 ⑤): today's mail from important people or matching a keyword, with what
   the secretary did; the same count as the side menu's number.
-What waits for you comes from /api/decisions (the bell's rows); background work and project
-news come with B5.
+- งานเบื้องหลัง and ข่าวโปรเจค (W1 ⑥ ⑦, B5): what runs and waits, today's runs on the เลขา row,
+  and the projects' news.
+What waits for you comes from /api/decisions (the bell's rows).
 """
 
 from datetime import datetime, time, timedelta
@@ -87,6 +88,26 @@ def _news(at: datetime) -> list[dict]:
              "urgent": n.urgent, "failed": n.failed, "needs_you": n.needs_you, "link": n.link} for n, pot in rows[:5]]
 
 
+def _jobs(at: datetime) -> dict:
+    """งานเบื้องหลัง (W1 ⑥): what's running with its budget, the queue, and what ran today (B5)."""
+    from app.features.jobs import queue
+    from app.features.jobs.tables import Job
+
+    start = day.day_start(day.today(at))
+    with session() as s:
+        running = s.scalar(select(Job).where(Job.status == "running"))
+        ran = s.scalars(select(Job).where(Job.started_at >= start - timedelta(hours=8), Job.started_at < at,
+                                          Job.status.in_(("running", "done", "stopped", "failed"))).order_by(Job.started_at)).all()
+        view = ({"id": running.id, "project": running.project, "title": running.title, "used": running.used,
+                 "budget": running.budget, "started_at": _iso(running.started_at), "model": running.model,
+                 "effort": running.effort} if running else None)
+        runs = [{"id": j.id, "project": j.project, "title": j.title, "status": j.status, "start": _iso(j.started_at),
+                 "end": _iso(j.finished_at or at), "line": day.job_line(j.result)} for j in ran]
+    waiting = [{"id": j.id, "project": j.project, "title": j.title or j.stuck_at, "status": j.status,
+                "approved_until": _iso(j.approved_until)} for j in queue.ordered()[:5]]
+    return {"running": view, "queue": waiting, "runs": runs, "round_on": clock.enabled("jobs")}
+
+
 @router.get("/today")
 def today_page() -> dict:
     at = now()
@@ -103,6 +124,7 @@ def today_page() -> dict:
         "important": [{"id": m.id, "who": m.who, "summary": m.summary, "at": _iso(m.sent_at), "done": m.done, "link": m.link}
                       for m in day.important_mail(day.day_start(d), at)],
         "news": _news(at),
+        "jobs": _jobs(at),
         "hours": [7, 23],
         "web": get_config().web_url,
         "day_start": _iso(datetime.combine(d, time(0), get_config().tz)),
