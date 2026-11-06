@@ -54,10 +54,11 @@ def project(tmp_path):
         s.get(Project, project_id).allow_jobs = False
 
 
-def ready_job(project_id: int, *, budget: int = 100_000, risks: list[str] | None = None, approved: bool = True) -> int:
+def ready_job(project_id: int, *, budget: int = 100_000, risks: list[str] | None = None, approved: bool = True,
+              stuck: str = "เขียน hello") -> int:
     with session() as s:
         p = s.get(Project, project_id)
-        job = Job(project_id=p.id, project=p.name, stuck_at="เขียน hello", status="ready", title="เขียน hello",
+        job = Job(project_id=p.id, project=p.name, stuck_at=stuck, status="ready", title=stuck,
                   steps=["เขียน hello.py", "commit"], model="sonnet", effort="low", estimate=budget, budget=budget,
                   risks=risks or [], planned_at=now(), approved_until=now() + timedelta(days=3) if approved else None)
         s.add(job)
@@ -115,6 +116,8 @@ def test_the_project_moving_on_means_planning_again(project, monkeypatch):
     root, project_id = project
     job_id = ready_job(project_id)
     (root / "PROGRESS.md").write_text("- [x] เริ่ม\n- [x] เขียน hello\n- [ ] เขียนเทสต์\n")  # you did it meanwhile
+    git(root, "add", "PROGRESS.md")
+    git(root, *GIT, "commit", "-q", "-m", "did hello myself")
     with pytest.raises(runner.RunError) as exc:
         asyncio.run(runner.start(job_id))
     assert "ไปต่อแล้ว (ขั้นถัดไป: เขียนเทสต์)" in str(exc.value)
@@ -269,3 +272,106 @@ def test_an_approved_kind_is_allowed_but_only_that_kind(project, monkeypatch):
     assert FakeClient.last.ran == ["curl --version > /dev/null"] and [n for n, _ in FakeClient.last.denied] == ["Bash"]
     assert "WebFetch" in FakeClient.last.options.tools  # the web too, with download approved
     assert job.status == "done"
+
+
+
+# ------------------------------------------------------------------ one branch per project: jobs go on from each other
+def commit_on_main(root: Path, name: str, text: str, message: str) -> None:
+    (root / name).write_text(text)
+    git(root, "add", name)
+    git(root, *GIT, "commit", "-q", "-m", message)
+
+
+STEP_ONE = [("tool", "Write", {"file_path": "hello.py", "content": "def hello():\n    return 'hi'\n"}, 2_000),
+            ("tool", "Write", {"file_path": "PROGRESS.md", "content": "- [x] เริ่ม\n- [x] เขียน hello\n- [ ] เขียนเทสต์\n"}, 1_000)]
+
+
+def test_the_next_job_goes_on_from_the_last_one_instead_of_doing_it_again(project, monkeypatch):
+    from app.features.jobs import base
+    root, project_id = project
+    with session() as s:
+        name = s.get(Project, project_id).name
+    first = run_job(ready_job(project_id), monkeypatch, STEP_ONE)
+    assert first.status == "done" and first.branch == f"secretary/{base.slug(name)}"
+    assert base.next_step(root, name)[0] == "เขียนเทสต์"  # read where the next job starts: the step it did is ticked there
+    assert git(root, "show", "main:PROGRESS.md").count("[x]") == 1  # main is untouched
+    second = run_job(ready_job(project_id, stuck="เขียนเทสต์"), monkeypatch,
+                     [("tool", "Bash", {"command": "test -f hello.py && echo yes > saw-hello.txt"}, 1_000)])
+    assert second.status == "done" and second.branch == first.branch and "ต่อจากงานเดิมบน" in second.result
+    assert git(root, "show", f"{first.branch}:saw-hello.txt") == "yes"  # it had the first job's work
+    assert git(root, "log", "--format=%s", f"main..{first.branch}").count("งานค้างของงาน") == 2  # both jobs, one branch
+
+
+def test_your_new_commits_come_into_the_secretarys_branch_first(project, monkeypatch):
+    root, project_id = project
+    first = run_job(ready_job(project_id), monkeypatch, STEP_ONE)
+    commit_on_main(root, "mine.txt", "ของคุณ\n", "my own work")
+    mine = git(root, "rev-parse", "main")
+    second = run_job(ready_job(project_id, stuck="เขียนเทสต์"), monkeypatch,
+                     [("tool", "Bash", {"command": "test -f mine.txt && test -f hello.py && echo both > saw.txt"}, 1_000)])
+    assert second.status == "done" and "รวม commit ใหม่ของคุณจาก main 1 อันเข้ามาก่อน" in second.result
+    assert git(root, "show", f"{first.branch}:saw.txt") == "both"
+    assert git(root, "rev-parse", "main") == mine  # main only ever moves when you move it
+
+
+def test_a_clash_with_your_work_stops_the_job_and_asks_you_to_merge(project, monkeypatch):
+    root, project_id = project
+    first = run_job(ready_job(project_id), monkeypatch,
+                    [("tool", "Write", {"file_path": "notes.txt", "content": "ของเลขา\n"}, 1_000)])
+    tip = git(root, "rev-parse", first.branch)
+    git(root, "checkout", "-q", "--", "notes.txt")
+    commit_on_main(root, "notes.txt", "ของคุณ แก้บรรทัดเดียวกัน\n", "my edit")
+    job = run_job(ready_job(project_id), monkeypatch, [("tool", "Bash", {"command": "echo should-not-run > x.txt"}, 1_000)])
+    assert job.status == "stopped" and "ชนกับงานของเลขา" in job.result and "รวม" in job.result
+    assert git(root, "rev-parse", first.branch) == tip  # the secretary's branch as it was, the half merge undone (nothing ran)
+    assert git(root, "worktree", "list").count("\n") == 0
+
+
+def test_once_you_merge_the_next_job_starts_from_your_head(project, monkeypatch):
+    from app.features.jobs import base
+    root, project_id = project
+    first = run_job(ready_job(project_id), monkeypatch, STEP_ONE)
+    git(root, "stash", "-q")  # your uncommitted note aside, to merge
+    git(root, *GIT, "merge", "-q", "--no-edit", first.branch)
+    git(root, "stash", "pop", "-q")
+    with session() as s:
+        name = s.get(Project, project_id).name
+    assert not base.find(root, name).on_branch  # merged: nothing of the secretary's is waiting
+    second = run_job(ready_job(project_id, stuck="เขียนเทสต์"), monkeypatch, [("tool", "Bash", {"command": "echo x > y.txt"}, 1_000)])
+    assert second.status == "done" and "เริ่มจาก main" in second.result
+
+
+def test_the_secretarys_branch_open_in_your_folder_stops_the_job_before_it_starts(project, monkeypatch):
+    root, project_id = project
+    first = run_job(ready_job(project_id), monkeypatch, STEP_ONE)
+    git(root, "stash", "-q")
+    git(root, "checkout", "-q", first.branch)
+    with pytest.raises(runner.RunError) as exc:
+        asyncio.run(runner.start(ready_job(project_id, stuck="เขียนเทสต์")))
+    assert "สลับกลับไป branch ของคุณก่อน" in str(exc.value)
+    git(root, "checkout", "-q", "main")
+    git(root, "stash", "pop", "-q")
+
+
+# ------------------------------------------------------------------ the budget counts what Claude writes as it writes
+def test_writing_counted_as_it_streams_stops_it_over_budget(project, monkeypatch):
+    _, project_id = project
+    script = [("stream", "msg_1", 6_000, 100), ("stream", "msg_1", 6_000, 5_000),  # the same call: 11k once it has written 5k
+              ("tool", "Write", {"file_path": "late.py", "content": "x\n"}, 1)]
+    job = run_job(ready_job(project_id, budget=10_000), monkeypatch, script)
+    assert job.status == "stopped" and job.result.startswith("หยุด: เกินงบ") and job.used == 11_000
+
+
+def test_a_job_that_ends_a_little_over_budget_says_so(project, monkeypatch):
+    _, project_id = project
+    monkeypatch.setattr(FakeClient, "extra", 300)  # the final report counts the last call's words in full
+    job = run_job(ready_job(project_id, budget=4_000), monkeypatch,
+                  [("tool", "Write", {"file_path": "a.py", "content": "a = 1\n"}, 3_900)])
+    assert job.status == "done" and job.result.startswith("ทำเสร็จ (เกินงบ +200 ตอนจบ)")
+
+
+def test_the_job_is_told_this_machine_has_python3(project, monkeypatch):
+    _, project_id = project
+    monkeypatch.setattr(runner.shutil, "which", lambda name: None if name == "python" else f"/usr/bin/{name}")
+    run_job(ready_job(project_id), monkeypatch, [("tool", "Write", {"file_path": "a.py", "content": "a\n"}, 100)])
+    assert "เครื่องนี้มีคำสั่ง python3 ไม่มีคำสั่ง python" in FakeClient.last.options.system_prompt["append"]

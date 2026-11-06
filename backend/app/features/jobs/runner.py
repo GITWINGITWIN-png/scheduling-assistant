@@ -1,9 +1,12 @@
 """The runner (3.2, B5.7): Claude Code does a planned job in its project, on a branch of its own.
 
-Where: a git worktree under ~/.secretary/worktrees/, on the branch secretary/<job>-<project>,
-made from the project's current commit. Your own folder isn't touched (your uncommitted changes
-aren't in the job either), nor main, nothing is pushed; the commits wait on that branch for you
-to look at and merge. The worktree is removed afterwards, the branch stays.
+Where: a git worktree under ~/.secretary/worktrees/, on the project's one branch for the
+secretary, secretary/<project> (base.py): from the branch's tip while its work isn't merged, so
+each job goes on from the last one; from your HEAD once you've merged it. Your new commits are
+merged into the secretary's branch first (a clash stops the job and asks you). Your own folder
+isn't touched (your uncommitted changes aren't in the job either), nor main, nothing is pushed;
+the commits wait on that branch for you to look at and merge. The worktree is removed afterwards,
+the branch stays.
 
 How: the Agent SDK with Claude Code's own instructions plus the job's and the project's
 CLAUDE.md (read by us: the project's .claude settings and hooks, and yours, are not loaded, so no
@@ -16,9 +19,11 @@ window (06:00) or MAX_MINUTES, or when you press หยุด. Whatever it stopp
 committed on the branch ("งานค้าง") so nothing is lost.
 
 Before a job starts it is checked again: the project still open to the secretary, the step in
-PROGRESS.md the same (else it's planned again), the rules (core/rules/check.py: an approval
-older than 3 days, or a quota now below the line, asks you), and the 5-hour window not nearly
-spent (FIVE_HOUR_FLOOR). One job at a time.
+PROGRESS.md where the job starts the same (else it's planned again), the rules
+(core/rules/check.py: an approval older than 3 days, or a quota now below the line, asks you),
+the 5-hour window not nearly spent (FIVE_HOUR_FLOOR), and the secretary's branch not open in
+your folder. One job at a time. Its tokens are counted as Claude writes them (the stream's own
+events); a job that still ends a little over says so.
 
 The "jobs" round (01:00–06:00, every 15 minutes, starts switched off): start the first ready
 job, or else plan the first queued one. ทำเลย starts a ready job at any time.
@@ -42,18 +47,18 @@ from datetime import datetime, time, timedelta
 from pathlib import Path
 
 from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions, ClaudeSDKClient, PermissionResultAllow,
-                              PermissionResultDeny, RateLimitEvent, ResultMessage, TextBlock, ToolUseBlock)
+                              PermissionResultDeny, RateLimitEvent, ResultMessage, StreamEvent, TextBlock, ToolUseBlock)
 
 from sqlalchemy import select
 
 from app.core import actions, llm
 from app.core.config import get_config
 from app.core.db import now, session
+from app.features.jobs import base, queue, quota
 from app.features.jobs import plan as plans
-from app.features.jobs import queue, quota
+from app.features.jobs.base import slug
 from app.features.jobs.guard import Budget, Loop, judge
 from app.features.jobs.tables import Job
-from app.features.projects import progress
 from app.features.projects.tables import Project
 
 log = logging.getLogger(__name__)
@@ -96,10 +101,6 @@ def in_night(at: datetime) -> bool:
 def night_end(at: datetime) -> datetime:
     local = at.astimezone(get_config().tz)
     return datetime.combine(local.date(), NIGHT[1], get_config().tz)
-
-
-def slug(name: str) -> str:
-    return re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-.").lower()[:40] or "project"
 
 
 def worktrees() -> Path:
@@ -153,7 +154,12 @@ APPEND = """\n\n# งานเบื้องหลังจากเลขา
 - ขั้นใน PROGRESS.md ที่ทำเสร็จ ให้ติ๊ก [x] ในไฟล์นั้นด้วย
 - ถ้าเจอเรื่องที่ต้องให้ผู้ใช้ตัดสิน ให้หยุดแล้วเขียนว่าค้างตรงไหน เพราะอะไร
 - ทำให้น้อยที่สุดที่แก้ได้ครบ (ponytail)
-- จบแล้วเขียนสรุปสั้นๆ: ทำอะไรไป commit อะไร เหลืออะไร"""
+- จบแล้วเขียนสรุปสั้นๆ: ทำอะไรไป commit อะไร เหลืออะไร{python}"""
+
+
+def python_hint() -> str:
+    """This machine has python3 but no python (two of the check's jobs lost turns to it)."""
+    return "\n- เครื่องนี้มีคำสั่ง python3 ไม่มีคำสั่ง python" if shutil.which("python") is None and shutil.which("python3") else ""
 
 
 def _prompt(job: Job) -> str:
@@ -180,13 +186,14 @@ async def start(job_id: int, *, night: bool = False, via: tuple[str, str] = ("�
         if job.status != "ready":
             raise RunError("งานนี้ยังไม่พร้อม: ต้องมีแผนที่ผ่านกฎหรือคุณอนุมัติแล้ว")
         p = s.get(Project, job.project_id)
+        root = Path(p.path)
         why = queue.blocked(p)
         if why:
             job.status, job.result = "paused", why
             queue.close_ask(s, job)
         moved, nxt = False, ""
         if not why and job.source == "progress":
-            nxt = progress.read(Path(p.path)).get("next", "")
+            nxt = base.next_step(Path(p.path), p.name)[0]
             if nxt != job.stuck_at:  # you (or a merged branch) did that step meanwhile
                 moved = True
                 queue.replan(job)
@@ -196,6 +203,8 @@ async def start(job_id: int, *, night: bool = False, via: tuple[str, str] = ("�
         name = job.project
     if why:
         raise RunError(why)
+    if not moved and (where := base.find(root, name)).head_name == where.branch:  # git keeps a branch in one folder at a time
+        raise RunError(f"โฟลเดอร์โปรเจคเปิด {where.branch} อยู่ · สลับกลับไป branch ของคุณก่อน แล้วค่อยสั่งใหม่")
     if moved:
         raise RunError(f"{name} ไปต่อแล้ว" + (f" (ขั้นถัดไป: {nxt}) · จะวางแผนใหม่" if nxt else " · ไม่มีขั้นที่ค้างแล้ว"))
     verdict = await plans.decide(job_id)
@@ -224,34 +233,67 @@ def stop(job_id: int) -> None:
 
 
 # ------------------------------------------------------------------ the run
+class Clash(RunError):
+    """Your new commits clash with the secretary's branch: you merge it yourself first."""
+
+
+def _prepare(project_root: Path, wt: Path, job: Job) -> tuple[str, str]:
+    """The job's worktree on the project's branch (base.py). -> (the commit the job starts from,
+    where it starts, in words). Raises RunError when it can't."""
+    where = base.find(project_root, job.project)
+    _git(project_root, "worktree", "prune", check=False)  # a worktree folder removed by hand
+    if not where.on_branch:  # none yet, or you merged it: (re)made at your HEAD, nothing is lost
+        _git(project_root, "branch", "-f", where.branch, where.head)
+    worktrees().mkdir(parents=True, exist_ok=True)
+    _git(project_root, "worktree", "add", str(wt), where.branch)
+    words = f"เริ่มจาก {where.head_name} ({where.head[:7]})"
+    if where.on_branch:
+        words = f"ต่อจากงานเดิมบน {where.branch} ({where.ahead} commit ที่ยังไม่รวม)"
+        if where.behind:  # your new commits come in first, on the secretary's branch only
+            merged = subprocess.run(["git", "-C", str(wt), *_ident(wt), "merge", "--no-edit", "-m",
+                                     f"เลขา: รวมงานใหม่จาก {where.head_name} ก่อนเริ่มงาน #{job.id}", where.head],
+                                    capture_output=True, text=True, timeout=120)
+            if merged.returncode:
+                _git(wt, "merge", "--abort", check=False)
+                raise Clash(f"งานใหม่บน {where.head_name} ชนกับงานของเลขาบน {where.branch} · รวม {where.branch} เองก่อน แล้วค่อยสั่งใหม่")
+            words += f" · รวม commit ใหม่ของคุณจาก {where.head_name} {where.behind} อันเข้ามาก่อน"
+    return _git(wt, "rev-parse", "HEAD"), words
+
+
+def _ident(wt: Path) -> list[str]:
+    """Commit as you (the repo's or your git settings); a name of its own only when none is set."""
+    return [] if _git(wt, "config", "user.email", check=False) else ["-c", "user.name=my_secretary", "-c", "user.email=secretary@localhost"]
+
+
 async def _run(job_id: int, run: Run, via: tuple[str, str]) -> None:
     with session() as s:
         job = s.get(Job, job_id)
         p = s.get(Project, job.project_id)
         project_root = Path(p.path)
-        job.branch = f"secretary/{job.id}-{slug(job.project)}"
+        job.branch = base.branch_name(job.project)
         job.status, job.started_at, job.used, job.result = "running", now(), 0, ""
         s.flush()
         s.expunge(job)
     wt = worktrees() / f"{slug(job.project)}-{job.id}"
-    base = ""
+    first = ""
     summary, status, used, denied, cached = "", "failed", 0, [], 0
     try:
-        base = _git(project_root, "rev-parse", "HEAD")
-        base_branch = _git(project_root, "rev-parse", "--abbrev-ref", "HEAD")
-        worktrees().mkdir(parents=True, exist_ok=True)
-        _git(project_root, "worktree", "add", "-b", job.branch, str(wt), base)
+        first, start = _prepare(project_root, wt, job)
         summary, used, denied, finished, cached = await _drive(job, wt, run)
         status = "stopped" if run.why else ("done" if finished else "failed")
         # its own paragraph: Claude's words below are Markdown (the jobs page shows them so)
-        summary = f"เริ่มจาก {base_branch} ({base[:7]})" + (f"\n\n{summary}" if summary else "")
+        summary = start + (f"\n\n{summary}" if summary else "")
+    except Clash as exc:
+        run.why, status, summary = str(exc), "stopped", ""
     except Exception as exc:
         log.exception("job %s failed", job_id)
         summary = f"ทำไม่สำเร็จ: {exc}"
     finally:
-        commits = _wrap_up(project_root, wt, job, base, run.why)
+        commits = _wrap_up(project_root, wt, job, first, run.why)
         RUNNING.pop(job_id, None)
     words = {"done": "ทำเสร็จ", "stopped": f"หยุด: {run.why}", "failed": "ไม่สำเร็จ"}[status]
+    if status == "done" and used > job.budget:  # its last words were counted only at the end
+        words = f"ทำเสร็จ (เกินงบ +{used - job.budget:,} ตอนจบ)"
     tail = f" · ถูกห้าม {len(denied)} ครั้ง" if denied else ""
     # most of a run's tokens are Claude Code reading its own instructions again from the cache; they
     # seem to count far less against your plan (four such jobs on 2026-11-06 didn't move the week by
@@ -292,11 +334,12 @@ async def _drive(job: Job, wt: Path, run: Run) -> tuple[str, int, list[str], boo
     options = ClaudeAgentOptions(
         model=job.model or None, effort=job.effort or None,
         system_prompt={"type": "preset", "preset": "claude_code",
-                       "append": APPEND.format(branch=job.branch)
+                       "append": APPEND.format(branch=job.branch, python=python_hint())
                        + (f"\n\n# CLAUDE.md ของโปรเจค\n{project_rules}" if project_rules else "")},
         tools=TOOLS + (["WebFetch", "WebSearch"] if "download" in allowed else []),
         setting_sources=[], plugins=ponytail(), strict_mcp_config=True, mcp_servers={},
-        permission_mode="default", can_use_tool=can_use_tool, max_turns=MAX_TURNS, cwd=str(wt), env=env)
+        permission_mode="default", can_use_tool=can_use_tool, max_turns=MAX_TURNS, cwd=str(wt), env=env,
+        include_partial_messages=True)  # the stream's own counts: what Claude writes, as it writes it
     last_words, result = "", None
     async with Client(options=options) as client:
 
@@ -321,19 +364,27 @@ async def _drive(job: Job, wt: Path, run: Run) -> tuple[str, int, list[str], boo
 
         await client.query(_prompt(job))
         watcher = asyncio.create_task(watch())
-        saved = 0
+        saved, call = 0, ""
         try:
             async for m in client.receive_response():
-                if isinstance(m, AssistantMessage):
+                used = budget.used
+                if isinstance(m, StreamEvent):  # each call's tokens as they come (the messages carry only its start)
+                    ev = m.event or {}
+                    if ev.get("type") == "message_start":
+                        call = (ev.get("message") or {}).get("id") or call
+                        used = budget.add(call, (ev.get("message") or {}).get("usage"))
+                    elif ev.get("type") == "message_delta" and call:
+                        used = budget.add(call, ev.get("usage"))
+                elif isinstance(m, AssistantMessage):
                     used = budget.add(m.message_id or m.uuid or str(id(m)), m.usage)
                     for block in m.content:
                         if isinstance(block, TextBlock) and block.text.strip():
                             last_words = block.text.strip()
                         elif isinstance(block, ToolUseBlock) and loop.see(block.name, block.input) and not run.why:
                             await halt("วนซ้ำ: เรียกคำสั่งเดิมซ้ำหลายครั้ง")
-                    if budget.over and not run.why:
-                        await halt("เกินงบ")
-                    if used - saved > 5_000:  # the jobs page shows it filling up
+                if budget.over and not run.why:
+                    await halt("เกินงบ")
+                if isinstance(m, (StreamEvent, AssistantMessage)) and used - saved > 5_000:  # the jobs page shows it filling up
                         saved = used
                         with session() as s:
                             s.get(Job, job.id).used = used
@@ -361,9 +412,8 @@ def _wrap_up(project_root: Path, wt: Path, job: Job, base: str, why: str) -> int
     try:
         if _git(wt, "status", "--porcelain", check=False):
             _git(wt, "add", "-A")
-            ident = [] if _git(wt, "config", "user.email", check=False) else ["-c", "user.name=my_secretary", "-c", "user.email=secretary@localhost"]
             message = f"เลขา: งานค้างของงาน #{job.id}" + (f" (หยุดเพราะ{why})" if why else "")
-            subprocess.run(["git", "-C", str(wt), *ident, "commit", "-q", "-m", message], capture_output=True, timeout=60)
+            subprocess.run(["git", "-C", str(wt), *_ident(wt), "commit", "-q", "-m", message], capture_output=True, timeout=60)
         count = int(_git(wt, "rev-list", "--count", f"{base}..HEAD", check=False) or 0) if base else 0
         _git(project_root, "worktree", "remove", "--force", str(wt), check=False)
         return count

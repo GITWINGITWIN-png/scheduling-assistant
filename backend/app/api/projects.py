@@ -38,6 +38,18 @@ def _row(p: Project, asked: dict[int, int], news: dict[int, ProjectNews] | None 
             "decision_id": asked.get(p.id)}
 
 
+def _waiting_work(p: Project) -> dict | None:
+    """{"branch", "ahead"} when secretary/<project> has commits you haven't merged."""
+    from pathlib import Path
+
+    from app.features.jobs import base
+    try:
+        where = base.find(Path(p.path), p.name)
+    except Exception:
+        return None
+    return {"branch": where.branch, "ahead": where.ahead} if where.on_branch else None
+
+
 ORDER = {"S": 0, "A": 1, "B": 2, "C": 3, "D": 4, "F": 5}
 
 
@@ -52,7 +64,10 @@ def projects() -> dict:
         for n in s.scalars(select(ProjectNews).where(ProjectNews.project_id.is_not(None)).order_by(ProjectNews.at)):
             news[n.project_id] = n  # the newest wins
         jobs = {j.project_id: j for j in s.scalars(select(Job).where(Job.status.in_(queue.OPEN)))}
+        worked = set(s.scalars(select(Job.project_id).distinct()))
         items = [_row(p, asked, news, jobs) for p in rows]
+        for item, p in zip(items, rows):  # the secretary's work waiting for you to merge (one branch per project)
+            item["secretary"] = _waiting_work(p) if (p.allow_jobs or p.id in worked) and p.is_git and not p.missing else None
     items.sort(key=lambda p: p["last_activity"] or "", reverse=True)  # most recent first within a level (a stable sort)
     items.sort(key=lambda p: (p["hidden"], p["missing"], ORDER.get(p["potential"], 9), -p["urgency"]))
     tips = [{"project_id": a.project_id, "project": a.project, "kind": a.kind, "title": a.title, "detail": a.detail,

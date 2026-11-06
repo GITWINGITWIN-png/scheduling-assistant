@@ -128,6 +128,7 @@ export type JobRow = {
   approved_until: string | null; branch: string; result: string; plan_tokens: number;
   planned_at: string | null; started_at: string | null; finished_at: string | null;
   efforts: Record<string, number>; // the budget at each effort (the − + stepper)
+  start_from?: string; // waiting jobs: where the job will start (the secretary's unmerged branch, or your HEAD)
 };
 export type JobsPage = {
   quota: { week_left?: number; week_resets_at?: string | null; five_left?: number | null; at?: string; line: number; auto: boolean };
@@ -143,6 +144,7 @@ export type ProjectRow = {
   progress: { next?: string; done?: number; todo?: number };
   news: { title: string; at: string; urgent: boolean; kind: string } | null;
   job: { id: number; status: JobStatus; title: string } | null;
+  secretary?: { branch: string; ahead: number } | null; // the secretary's work waiting for you to merge
 };
 export type Advice = { project_id: number; project: string; kind: "stale" | "short"; title: string; detail: string; next: string };
 export type ProjectsPage = { items: ProjectRow[]; advice: Advice[]; root: string; scanned: boolean };

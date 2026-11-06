@@ -2,8 +2,10 @@
 go on; then the rule checker decides whether the plan may start by itself.
 
 The planner (task "job_plan": Opus, effort high, changeable in settings) gets the stuck step,
-your note, your rules for the background work (the rule book's notes) and the high-risk kinds,
-and may look at the project through three read-only tools (tools.py). It answers with the
+your note (it sets how far the job goes), where the job starts (base.py: the secretary's own
+branch while its work isn't merged), your rules for the background work (the rule book's notes)
+and the high-risk kinds, and may look at the project as it is there, through three read-only
+tools (tools.py). It answers with the
 steps, the model and effort to do them with, the tokens it expects, and the high-risk kinds the
 plan has. The plan's own words are checked against the 7 agreed kinds too (book.flags), so a
 kind the planner left out still asks.
@@ -32,7 +34,7 @@ from app.core.rules import book, learn
 from app.core.rules.check import APPROVAL_DAYS, Verdict, check
 from app.core.tables import Decision
 from app.core.timefmt import thai_datetime
-from app.features.jobs import quota
+from app.features.jobs import base, quota
 from app.features.jobs.queue import blocked, close_ask
 from app.features.jobs.tables import Job
 from app.features.jobs.tools import project_tools
@@ -56,7 +58,8 @@ SYSTEM = """วางแผนงานเบื้องหลังหนึ�
 {"title": "ชื่องานสั้นๆ", "steps": ["ขั้นที่ทำได้จริง 1–6 ข้อ"], "model": "sonnet" หรือ "opus",
  "effort": "low" | "medium" | "high" | "xhigh" | "max", "estimate": โทเคนทั้งงาน (จำนวนเต็ม),
  "risks": ["รหัสงานเสี่ยงสูงที่แผนนี้มี"], "why": "ทำไมเลือกโมเดล effort และงบนี้ หนึ่งบรรทัด"}
-- ทำเฉพาะขั้นที่ค้าง ไม่ทำเกินกว่านั้น
+- ถ้าผู้ใช้สั่งมา ทำตามที่สั่ง (สั่งให้ทำทุกขั้นที่เหลือ ก็วางหลายขั้นได้ในงบที่สมเหตุผล) · ถ้าไม่ได้สั่งอะไร หรือสั่งแค่ "ทำต่อ" ทำเฉพาะขั้นที่ค้าง
+- งานเริ่มจากจุดที่บอกใน [เริ่มจาก] ไฟล์ที่อ่านได้คือไฟล์ ณ จุดนั้น ขั้นที่ติ๊กแล้วใน PROGRESS.md ตรงนั้นคือทำเสร็จแล้ว ห้ามทำซ้ำ
 - ในขั้นตอนเขียนแต่สิ่งที่จะทำ ไม่ต้องเขียนข้อห้าม (เช่น ห้าม push ห้ามติดตั้ง) ระบบกันไว้ให้แล้ว
 - เลือกโมเดลและ effort ที่พอดีกับงาน ไม่เกินจำเป็น: งานตรงไปตรงมาใช้ sonnet · งานที่ต้องคิดเยอะใช้ opus
 - estimate นับทุกโทเคนที่อ่านและเขียนตลอดงาน รวมการอ่านไฟล์และรันเทสต์ซ้ำ · ทุกครั้งที่ Claude Code คิด จะอ่านคำสั่งของระบบราว 10k โทเคนซ้ำ (นับด้วย): งานเล็กมาก (ไฟล์เดียว) ราว 50k · งานกลางราว 150k–300k
@@ -120,8 +123,10 @@ def read_plan(text: str, known: set[str]) -> Plan:
                 risks, str(data.get("why") or "").strip()[:300])
 
 
-def _prompt(job: Job, risks: list[dict], change: str) -> str:
+def _prompt(job: Job, risks: list[dict], change: str, start: str = "") -> str:
     lines = [f"[โปรเจค] {job.project}"]
+    if start:
+        lines.append(f"[เริ่มจาก] {start}")
     if job.stuck_at:
         lines.append(f"[ขั้นที่ค้างใน PROGRESS.md] {job.stuck_at}")
     if job.note:
@@ -161,8 +166,9 @@ async def make(job_id: int, *, change: str = "", via: Via = WEB) -> Verdict:
     if why:
         raise PlanError(why)
     risks = book.risks()
-    reply = await llm.run("job_plan", _prompt(job, risks, change), system=SYSTEM + book.prompt_block("jobs"),
-                          tools=project_tools(root), max_turns=16)
+    where = base.find(root, job.project)  # what the job will start from: the planner reads the same
+    reply = await llm.run("job_plan", _prompt(job, risks, change, where.words()), system=SYSTEM + book.prompt_block("jobs"),
+                          tools=project_tools(root, where.ref), max_turns=16)
     tokens = reply.tokens_in + reply.tokens_out
     try:
         plan = read_plan(reply.text, {r["key"] for r in risks})
@@ -285,23 +291,32 @@ def set_effort(job_id: int, model: str, effort: str, *, via: Via = WEB) -> Job:
     return job
 
 
-def set_budget(job_id: int, tokens: int, *, via: Via = WEB) -> Job:
-    """Before you approve: a budget of your own (the plan's is its estimate × 1.2). The runner
-    stops past it, whatever the estimate said."""
+async def set_budget(job_id: int, tokens: int, *, via: Via = WEB) -> Job:
+    """A budget of your own, before the job starts (the plan's is its estimate × 1.2); the runner
+    stops past it. On a plan waiting for you or ready to go. Lowering is always fine; raising the
+    budget of a plan you approved takes the approval back, and the rules decide again (it may ask
+    you again)."""
     lo, hi = 1_000, ESTIMATE_RANGE[1]
     if not lo <= tokens <= hi:
         raise PlanError(f"งบต้องอยู่ระหว่าง {lo:,}–{hi:,} โทเคน")
     with session() as s:
         job = s.get(Job, job_id)
-        if job is None or job.status != "asking":
-            raise PlanError("ปรับได้เฉพาะแผนที่รอคุณอนุมัติ")
+        if job is None or job.status not in ("asking", "ready"):
+            raise PlanError("ตั้งงบได้เฉพาะแผนที่ยังไม่เริ่ม")
         before, job.budget = job.budget, tokens
-        if d := s.get(Decision, job.decision_id):
+        again = job.status == "ready" and job.approved_until is not None and tokens > before
+        if again:
+            job.approved_until = None
+        if job.decision_id and (d := s.get(Decision, job.decision_id)) is not None and d.status == "pending":
             d.detail = {**d.detail, "budget": tokens}
-        s.flush()
-        s.expunge(job)
-    actions.record("job.budget", "ตั้งงบของแผนเอง", f"{job.project}: {before:,} → {tokens:,} โทเคน", source_label=via[0],
+        project = job.project
+    actions.record("job.budget", "ตั้งงบของแผนเอง", f"{project}: {before:,} → {tokens:,} โทเคน", source_label=via[0],
                    source_url=via[1])
+    if again:
+        await decide(job_id)
+    with session() as s:
+        job = s.get(Job, job_id)
+        s.expunge(job)
     return job
 
 

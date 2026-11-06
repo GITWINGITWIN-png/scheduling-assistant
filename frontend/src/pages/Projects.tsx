@@ -91,6 +91,7 @@ function ProjectCard({ p, anchor, onClose, say }: { p: ProjectRow; anchor: Ancho
             {p.progress.todo ? <span className="text-xs text-muted"> · เสร็จ {p.progress.done ?? 0} เหลือ {p.progress.todo}</span> : null}</span>
           <span className="text-ink-2">ล่าสุด {ago(p.last_activity)}{p.is_git ? ` · ${p.commits_14d} commit ใน 14 วัน` : ""}</span>
           {p.news && <span><span className="text-ink-2">ข่าวล่าสุด:</span> {p.news.title}</span>}
+          {p.secretary && <span className="text-accent-strong">งานของเลขารอคุณรวม: <code>{p.secretary.branch}</code> ({p.secretary.ahead} commit) · งานถัดไปทำต่อจากตรงนั้น</span>}
         </div>
         <div className="flex flex-wrap gap-1.5 border-t border-line pt-3">
           <Button sm icon="calendar" disabled={busy} onClick={() => { setBusy(true); api.bookProject(p.id).then(() => say(`จองเวลา 2 ชม. ให้ ${p.name} แล้ว · ตัววางตารางหาช่องว่างให้`), (e) => say((e as Error).message)).finally(() => setBusy(false)); }}>จองเวลา 2 ชม.</Button>

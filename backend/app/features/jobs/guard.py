@@ -14,8 +14,8 @@ job's folder (Claude Code asks about those; reads inside the folder it allows by
 - the web tools count as downloading; any tool not listed here is refused.
 
 The budget (`Budget`) adds up the tokens of each model call once (a call's usage arrives with
-each of its content blocks), the way core/llm.py counts them: everything read, cached or not,
-plus everything written. The loop check (`Loop`) catches the same call repeated: 3 times in a
+each of its content blocks, and in the stream's own events as it's written), the way
+core/llm.py counts them: everything read, cached or not, plus everything written. The loop check (`Loop`) catches the same call repeated: 3 times in a
 row, or 5 times in all.
 """
 
@@ -137,9 +137,13 @@ class Budget:
         return sum(int((usage or {}).get(k) or 0) for k in cls.KEYS)
 
     def add(self, call_id: str, usage: dict | None) -> int:
-        """A message's usage (the same call's usage may come several times: the largest counts). -> the total."""
-        if usage and self.tokens(usage) >= self.tokens(self._calls.get(call_id)):
-            self._calls[call_id] = {k: int(usage.get(k) or 0) for k in self.KEYS}
+        """Part of a call's usage. The same call is reported several times and in pieces (its
+        start with what it read, then what it wrote as it writes): each number keeps its largest.
+        -> the total."""
+        if usage:
+            mine = self._calls.setdefault(call_id, dict.fromkeys(self.KEYS, 0))
+            for k in self.KEYS:
+                mine[k] = max(mine[k], int(usage.get(k) or 0))
         return self.used
 
     @property

@@ -167,7 +167,7 @@ function Queue({ page, picked, pick, say }: { page: JobsPage; picked: number | n
 }
 
 // ------------------------------------------------------------------ the plan panel
-function ModelBox({ j, editable, say }: { j: JobRow; editable: boolean; say: Say }) {
+function ModelBox({ j, editable, budgetEditable = editable, say }: { j: JobRow; editable: boolean; budgetEditable?: boolean; say: Say }) {
   const [budget, setBudget] = useState<string | null>(null); // thousands, while you type a budget of your own
   const i = EFFORTS.indexOf(j.effort);
   const set = (model: string, effort: string) =>
@@ -192,7 +192,7 @@ function ModelBox({ j, editable, say }: { j: JobRow; editable: boolean; say: Say
         {budget === null ? (
           <>
             <b className="font-mono">{kTokens(j.budget)}</b>
-            {editable && <Button sm kind="ghost" icon="edit" title="ตั้งงบเอง (ค่าเริ่มคือค่าประมาณ × 1.2) เช่น ตั้งต่ำๆ เพื่อดูว่าเลขาหยุดเองเมื่อเกินงบ"
+            {budgetEditable && <Button sm kind="ghost" icon="edit" title="ตั้งงบเอง (ค่าเริ่มคือค่าประมาณ × 1.2) เช่น ตั้งต่ำๆ เพื่อดูว่าเลขาหยุดเองเมื่อเกินงบ"
               onClick={() => setBudget(String(Math.round(j.budget / 1000)))}>แก้งบ</Button>}
           </>
         ) : (
@@ -237,7 +237,8 @@ function Plan({ j, page, say, reload }: { j: JobRow | null; page: JobsPage; say:
             <span>{j.high_risk ? `เสี่ยงสูง: ${j.risks.join(" · ")} · ไม่ผ่านกฎ จึงถามคุณ` : j.rule_why}</span>
           </div>
         )}
-        {j.planned_at && <ModelBox j={j} editable={j.status === "asking"} say={say} />}
+        {j.start_from && <span className="text-xs text-ink-2"><Icon name="arrow" size={12} className="inline mr-1" />เริ่มจาก {j.start_from}</span>}
+        {j.planned_at && <ModelBox j={j} editable={j.status === "asking"} budgetEditable={["asking", "ready"].includes(j.status)} say={say} />}
         {j.planned_at && j.why && <span className="text-xs text-muted">คนวางแผน: {j.why} · วางแผนใช้ {kTokens(j.plan_tokens)} โทเคน</span>}
         {j.status === "asking" && <span className="text-xs text-muted">อนุมัติแล้วใช้ได้ {page.approval_days} วัน เฉพาะแผนนี้ · ทำบน branch แยก ไม่ push</span>}
         {revising && (
@@ -280,7 +281,7 @@ function Recent({ rows, say }: { rows: JobRow[]; say: Say }) {
   const [open, setOpen] = useState<number | null>(null);
   if (!rows.length) return null;
   return (
-    <Card title={<span className="flex items-baseline gap-2">งานที่ทำแล้ว<span className="text-xs text-muted font-normal">งานอยู่บน branch ของมัน ดูและรวมเองได้</span></span>}>
+    <Card title={<span className="flex items-baseline gap-2">งานที่ทำแล้ว<span className="text-xs text-muted font-normal">งานของเลขาอยู่บน branch secretary/&lt;โปรเจค&gt; โปรเจคละอัน งานถัดไปทำต่อจากตรงนั้น · รวมเองเมื่อพร้อม</span></span>}>
       <ul className="divide-y divide-line">
         {rows.map((j) => {
           const [tone, word] = DONE_TONE[j.status as keyof typeof DONE_TONE] ?? ["muted", j.status];

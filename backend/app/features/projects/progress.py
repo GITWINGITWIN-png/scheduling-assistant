@@ -77,3 +77,15 @@ def read(folder: Path) -> dict:
         return {}
     updated = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc)
     return {**parse(text), "file": f.name, "updated": updated.isoformat()}
+
+
+def read_at(folder: Path, ref: str) -> dict:
+    """The same, from a commit instead of the folder (B5: the secretary's own branch, where the
+    steps its jobs did are ticked). {} when that commit has no PROGRESS.md."""
+    import subprocess
+
+    for name in NAMES:
+        out = subprocess.run(["git", "-C", str(folder), "show", f"{ref}:{name}"], capture_output=True, text=True, timeout=10)
+        if out.returncode == 0:
+            return {**parse(out.stdout), "file": name}
+    return {}

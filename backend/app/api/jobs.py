@@ -98,6 +98,17 @@ def usage() -> dict:
     return {"today": int(today), "jobs_today": int(jobs), "week": int(week)}
 
 
+def _start_from(path: str | None, project: str) -> str:
+    """Where this project's next job starts, in words (base.py)."""
+    from pathlib import Path
+
+    from app.features.jobs import base
+    try:
+        return base.find(Path(path), project).words() if path else ""
+    except Exception:  # a folder gone or not a repo any more: the page still loads
+        return ""
+
+
 @router.get("/jobs")
 def jobs_page() -> dict:
     queue.refresh()  # a project you just switched on shows its job straight away (no model: cheap)
@@ -111,13 +122,14 @@ def jobs_page() -> dict:
                    if j.result.startswith("หยุด: เกินงบ"))
         everyone = s.scalars(select(Project)).all()
         pot = {p.id: p.potential for p in everyone}
+        paths = {p.id: p.path for p in everyone}
         projects = [{"id": p.id, "name": p.name} for p in everyone if p.allow_jobs and not queue.blocked(p)]
         views = {"running": job_view(running, pot) if running else None, "recent": [job_view(j, pot) for j in recent]}
     return {"quota": {**(quota_view(quota.latest(max_age=None)) or {}), "line": book.line(), "auto": book.auto()},
             "usage": usage(),
             "kpi": {"auto": sum(1 for j in waiting if j.status == "ready"), "asking": sum(1 for j in waiting if j.status == "asking"),
                     "over_budget": over},
-            "queue": [job_view(j, pot) for j in waiting], **views, "projects": sorted(projects, key=lambda p: p["name"].lower()),
+            "queue": [{**job_view(j, pot), "start_from": _start_from(paths.get(j.project_id), j.project)} for j in waiting], **views, "projects": sorted(projects, key=lambda p: p["name"].lower()),
             "round_on": clock_mod.enabled("jobs"), "window": "01:00–06:00", "approval_days": APPROVAL_DAYS}
 
 
@@ -173,10 +185,10 @@ class BudgetIn(Strict):
 
 
 @router.put("/jobs/{job_id}/budget")
-def set_budget(job_id: int, body: BudgetIn) -> dict:
-    """ตั้งงบเอง before approving (e.g. a low one, to see the runner stop by itself)."""
+async def set_budget(job_id: int, body: BudgetIn) -> dict:
+    """ตั้งงบเอง before it starts (e.g. a low one, to see the runner stop by itself)."""
     try:
-        return job_view(plans.set_budget(job_id, body.budget))
+        return job_view(await plans.set_budget(job_id, body.budget))
     except plans.PlanError as exc:
         raise HTTPException(400, str(exc))
 

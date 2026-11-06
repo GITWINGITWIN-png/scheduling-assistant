@@ -7,7 +7,9 @@ A job comes from one of two places (the user's answers at the B5 plan):
 - ทำต่อ, which you press for such a project, with a note on what to do if you like.
 
 One open job per project at a time. The queue is in the order the projects matter: potential
-S first, then urgency 5 first, then the oldest.
+S first, then urgency 5 first, then the oldest. The next step is read where the next job starts
+(base.py): on the secretary's own branch while its work isn't merged, so a step a job already
+did there isn't the next step anymore.
 
 A step is taken up by itself once: when its job ended (done but not merged yet, stopped,
 failed) or you said no (ไม่เอา, or took it out of the queue), the queue doesn't bring the same
@@ -18,12 +20,14 @@ gone, finished) pauses its waiting job, and the job comes back when the project 
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy import select
 
 from app.core import actions
 from app.core.db import now, session
 from app.core.tables import Decision
+from app.features.jobs import base
 from app.features.jobs.tables import Job
 from app.features.projects.scan import is_self
 from app.features.projects.tables import Project
@@ -80,7 +84,7 @@ def refresh(at: datetime | None = None) -> list[int]:
                     job.status, job.result = "paused", why
                     close_ask(s, job)
                 continue
-            nxt = (p.progress or {}).get("next", "")
+            nxt = base.next_step(Path(p.path), p.name)[0]
             if job is None and (paused := paused_by.get(p.id)) is not None:
                 replan(paused)  # the project is back: so is its job (planned again, things may have moved)
                 if paused.source == "progress" and nxt:
@@ -105,9 +109,10 @@ def add(project_id: int, note: str = "", *, via: Via = ("หน้างาน�
             raise ValueError(f"{p.name} มีงานอยู่ในคิวแล้ว")
         for old in s.scalars(select(Job).where(Job.project_id == project_id, Job.status == "paused")):
             old.status, old.result = "dropped", "แทนด้วยคำสั่งทำต่อ"
-        nxt = (p.progress or {}).get("next", "")
+        nxt, where = base.next_step(Path(p.path), p.name)
         if not (nxt or note.strip()):
-            raise ValueError("PROGRESS.md ของโปรเจคนี้ไม่มีขั้นที่ค้าง · บอกด้วยว่าให้ทำอะไร")
+            place = where.branch if where.on_branch else where.head_name
+            raise ValueError(f"PROGRESS.md บน {place} ไม่มีขั้นที่ค้างแล้ว · บอกด้วยว่าให้ทำอะไร")
         job = Job(project_id=p.id, project=p.name, source="you", stuck_at=nxt, note=note.strip()[:1000])
         s.add(job)
         s.flush()

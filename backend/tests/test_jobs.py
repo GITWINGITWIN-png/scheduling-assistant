@@ -67,6 +67,16 @@ def projects(tmp_path_factory):
     return ids
 
 
+def commit_progress(project_id: int, text: str) -> None:
+    """What you'd do: edit PROGRESS.md and commit it (the queue reads the committed steps)."""
+    with session() as s:
+        root = Path(s.get(Project, project_id).path)
+    (root / "PROGRESS.md").write_text(text)
+    subprocess.run(["git", "-C", str(root), "add", "PROGRESS.md"], check=True)
+    subprocess.run(["git", "-C", str(root), "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "progress"],
+                   check=True)
+
+
 def job_of(name: str) -> Job | None:
     with session() as s:
         j = s.scalar(select(Job).where(Job.project == name).order_by(Job.id.desc()))
@@ -118,9 +128,9 @@ def test_tamtor_needs_a_step_or_a_note_and_one_job_at_a_time(projects):
         queue.add(projects["jobs-alpha"])  # it has a job already
     with session() as s:
         s.get(Project, projects["jobs-off"]).allow_jobs = True
-        s.get(Project, projects["jobs-off"]).progress = {}
+    commit_progress(projects["jobs-off"], "- [x] รอ\n")  # every step done
     with pytest.raises(ValueError):
-        queue.add(projects["jobs-off"])  # nothing in PROGRESS.md and no note
+        queue.add(projects["jobs-off"])  # nothing left in PROGRESS.md and no note
     job_id, action_id = queue.add(projects["jobs-off"], "เขียน README")
     assert job_of("jobs-off").note == "เขียน README" and job_of("jobs-off").source == "you"
     asyncio.run(actions.undo(action_id))
@@ -133,17 +143,19 @@ def test_tamtor_needs_a_step_or_a_note_and_one_job_at_a_time(projects):
 def test_the_planner_sees_only_the_project_and_no_secrets(projects):
     with session() as s:
         root = Path(s.get(Project, projects["jobs-alpha"]).path)
-    files = tools.list_files(root).splitlines()
+    files = tools.list_files(root, "HEAD").splitlines()
     assert "src/plot.py" in files and "PROGRESS.md" in files
     assert ".env" not in files and not any(f.startswith("out/") for f in files)  # secrets and ignored files
-    assert tools.read_file(root, "src/plot.py") == "1: def plot():\n2:     return 1"
-    assert tools.read_file(root, "src/plot.py", start=2) == "2:     return 1"
-    for bad in ("../jobs-beta/PROGRESS.md", "/etc/passwd", ".env", str(Path.home() / ".ssh/id_rsa")):
-        assert tools.read_file(root, bad).startswith("อ่านไม่ได้")
+    assert tools.read_file(root, "HEAD", "src/plot.py") == "1: def plot():\n2:     return 1"
+    assert tools.read_file(root, "HEAD", "src/plot.py", start=2) == "2:     return 1"
+    for bad in ("../jobs-beta/PROGRESS.md", "/etc/passwd", ".env", str(Path.home() / ".ssh/id_rsa"), "src"):
+        assert tools.read_file(root, "HEAD", bad).startswith("อ่านไม่ได้")
     os.symlink("/etc", root / "etc-link")
-    assert tools.read_file(root, "etc-link/hostname").startswith("อ่านไม่ได้: อยู่นอกโฟลเดอร์โปรเจค")
-    assert tools.search(root, "return 1") == "src/plot.py:2:    return 1"
-    assert tools.search(root, "SECRET") == "(ไม่พบ)"
+    assert tools.read_file(root, "HEAD", "etc-link/hostname").startswith("อ่านไม่ได้: อยู่นอกโฟลเดอร์โปรเจค")
+    assert tools.search(root, "HEAD", "return 1") == "src/plot.py:2:    return 1"
+    assert tools.search(root, "HEAD", "SECRET") == "(ไม่พบ)"
+    (root / "draft.py").write_text("unsaved = True\n")  # in your folder, not committed: the job won't have it
+    assert "draft.py" not in tools.list_files(root, "HEAD") and tools.read_file(root, "HEAD", "draft.py").startswith("อ่านไม่ได้")
 
 
 # ------------------------------------------------------------------ the plan, checked and budgeted
@@ -215,8 +227,8 @@ def test_changing_the_effort_before_approving_scales_the_budget(projects):
 def test_you_can_set_a_budget_of_your_own_before_approving(projects):
     job = job_of("jobs-beta")
     with pytest.raises(plan.PlanError):
-        plan.set_budget(job.id, 500)  # too small to be a budget
-    plan.set_budget(job.id, 8_000)
+        asyncio.run(plan.set_budget(job.id, 500))  # too small to be a budget
+    asyncio.run(plan.set_budget(job.id, 8_000))
     assert job_of("jobs-beta").budget == 8_000
     plan.set_effort(job.id, "opus", "high")  # the effort's budget again
     assert job_of("jobs-beta").budget == 100_000
@@ -274,8 +286,7 @@ def test_rejecting_takes_the_job_out(projects):
     assert job_of("jobs-beta").id == job_id and job_of("jobs-beta").status == "queued"
     queue.drop(job_id)
     assert queue.refresh() == []  # taken out: not back by itself either
-    with session() as s:
-        s.get(Project, job.project_id).progress = {"next": "บทที่ 2", "todo": 1, "done": 1}
+    commit_progress(job.project_id, "- [x] เขียนบท\n- [ ] บทที่ 2\n")
     assert len(queue.refresh()) == 1  # the project moved on: its new step is taken up
     assert job_of("jobs-beta").stuck_at == "บทที่ 2" and job_of("jobs-beta").status == "queued"
 
@@ -322,3 +333,46 @@ def test_five_approvals_in_a_row_are_offered_as_a_standing_rule(projects):
     learn.refresh(at=at)
     with session() as s:
         assert s.scalar(select(Rule).where(Rule.key == "learned.job_auto.jobs-learn")) is None  # one no: not a pattern
+
+
+
+# ------------------------------------------------------------------ after the check: where the next job starts
+def test_the_planner_reads_the_secretarys_unmerged_work_and_is_told_so(projects, monkeypatch):
+    from app.features.jobs import base
+    with session() as s:
+        root = Path(s.get(Project, projects["jobs-alpha"]).path)
+    branch = base.branch_name("jobs-alpha")
+    subprocess.run(["git", "-C", str(root), "branch", "-f", branch, "HEAD"], check=True)
+    wt = root.parent / "alpha-wt"
+    subprocess.run(["git", "-C", str(root), "worktree", "add", "-q", str(wt), branch], check=True)
+    (wt / "graph.py").write_text("done = True\n")
+    (wt / "PROGRESS.md").write_text("- [x] เริ่ม\n- [x] ทำกราฟ\n- [ ] ทำรายงาน\n")
+    subprocess.run(["git", "-C", str(wt), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(wt), "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "graph"], check=True)
+    subprocess.run(["git", "-C", str(root), "worktree", "remove", str(wt)], check=True)
+    assert base.next_step(root, "jobs-alpha")[0] == "ทำรายงาน"  # main still says ทำกราฟ; the branch has it done
+    seen = []
+    fake_planner(monkeypatch, PLAN, seen)
+    set_week(monkeypatch, 50.0)
+    with session() as s:
+        for j in s.scalars(select(Job).where(Job.project == "jobs-alpha", Job.status.in_(queue.OPEN))):
+            j.status = "dropped"
+    job_id, _ = queue.add(projects["jobs-alpha"])
+    assert job_of("jobs-alpha").stuck_at == "ทำรายงาน"
+    asyncio.run(plan.make(job_id))
+    _, prompt, kw = seen[0]
+    assert f"[เริ่มจาก] {branch}: งานของเลขาที่ยังไม่ได้รวม 1 commit" in prompt
+    files = asyncio.run(kw["tools"][0].handler({"pattern": ""}))["content"][0]["text"]
+    assert "graph.py" in files  # the planner looks at the branch, as the job will
+
+
+def test_a_ready_plan_can_get_a_budget_of_your_own_and_raising_an_approved_one_asks_again(projects, monkeypatch):
+    set_week(monkeypatch, 50.0)  # below the line: a plan without your yes asks
+    job = job_of("jobs-alpha")
+    with session() as s:
+        j = s.get(Job, job.id)
+        j.status, j.approved_until, j.budget = "ready", now() + timedelta(days=3), 60_000
+    lowered = asyncio.run(plan.set_budget(job.id, 5_000))
+    assert (lowered.status, lowered.budget) == ("ready", 5_000) and lowered.approved_until is not None  # lower: still yours
+    raised = asyncio.run(plan.set_budget(job.id, 90_000))
+    assert raised.status == "asking" and raised.approved_until is None  # more than you approved: asks again

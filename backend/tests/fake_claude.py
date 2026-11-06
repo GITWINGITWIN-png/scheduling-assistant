@@ -10,6 +10,10 @@ Script steps:
   ("tool", name, input, usage)  a tool call; usage = tokens of that model call (int)
   ("text", words, usage)        the model's words
   ("wait", seconds)             nothing happens for a while (a long test run)
+  ("stream", call, read, wrote) the stream's own events for a call: its start (what it read) and
+                                a delta (what it wrote so far), as with include_partial_messages
+FakeClient.extra: tokens the final report has on top of what the messages said (the real one
+counts each call's writing in full only at the end).
 """
 
 from __future__ import annotations
@@ -18,11 +22,12 @@ import asyncio
 import subprocess
 from pathlib import Path
 
-from claude_agent_sdk import AssistantMessage, PermissionResultAllow, ResultMessage, TextBlock, ToolUseBlock
+from claude_agent_sdk import AssistantMessage, PermissionResultAllow, ResultMessage, StreamEvent, TextBlock, ToolUseBlock
 
 
 class FakeClient:
     script: list = []
+    extra = 0
     last: "FakeClient | None" = None
 
     def __init__(self, options):
@@ -61,6 +66,13 @@ class FakeClient:
                         break
                     await asyncio.sleep(0.01)
                 continue
+            if step[0] == "stream":
+                _, call, read, wrote = step
+                self.total += read + wrote
+                yield StreamEvent(uuid=f"s{n}a", session_id="fake", event={"type": "message_start", "message": {
+                    "id": call, "usage": {"input_tokens": 5, "cache_read_input_tokens": read - 5, "output_tokens": 1}}})
+                yield StreamEvent(uuid=f"s{n}b", session_id="fake", event={"type": "message_delta", "usage": {"output_tokens": wrote}})
+                continue
             if step[0] == "text":
                 self.total += step[2]
                 yield AssistantMessage(content=[TextBlock(step[1])], model="claude-sonnet-5-5", usage=self._usage(step[2]),
@@ -88,5 +100,5 @@ class FakeClient:
                 subprocess.run(data["command"], shell=True, cwd=self.root, capture_output=True, timeout=60)
         yield ResultMessage(subtype="error_during_execution" if self.interrupted else "success", duration_ms=10, duration_api_ms=10,
                             is_error=self.interrupted, num_turns=len(self.script), session_id="fake",
-                            usage=None if self.interrupted else self._usage(self.total),  # the real one has none after an interrupt
+                            usage=None if self.interrupted else self._usage(self.total + self.extra),  # the real one has none after an interrupt
                             result=None if self.interrupted else "ทำครบตามแผน")
