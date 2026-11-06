@@ -24,6 +24,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
+from app.core import settings
 from app.core.config import REPO_DIR, get_config
 from app.core.db import now, session
 from app.core.tables import Decision
@@ -31,6 +32,7 @@ from app.features.projects import progress
 from app.features.projects.tables import DEFAULT_POTENTIAL, DEFAULT_URGENCY, Project
 
 ACTIVE_DAYS = 14  # a change within this many days: กำลังทำ on the first scan
+STATE_KEY = "state.projects"  # {"first_scan": when}: after it, a new folder is asked about
 
 # Called with (project id, decision id) when a new project's levels are asked (cards.py posts it).
 ASKED: list[Callable[[int, int], Awaitable[None]]] = []
@@ -99,9 +101,9 @@ def scan(root: Path | None = None, at: datetime | None = None) -> Scan:
     root = root or get_config().projects_dir
     at = at or now()
     seen = [look(p) for p in folders(root)]
+    first = not (settings.get(STATE_KEY, {}) or {}).get("first_scan")
     with session() as s:
         known = {p.path: p for p in s.scalars(select(Project))}
-        first = not known
         result = Scan(first=first, total=len(seen))
         for f in seen:
             row = known.get(str(f.path))
@@ -124,6 +126,8 @@ def scan(root: Path | None = None, at: datetime | None = None) -> Scan:
             if path not in found and not row.missing:
                 row.missing = True
                 result.gone.append(row.name)
+    if first:
+        settings.put(STATE_KEY, {"first_scan": at.isoformat()})
     return result
 
 

@@ -73,6 +73,20 @@ def _secretary(at: datetime) -> list[dict]:
     return out
 
 
+def _news(at: datetime) -> list[dict]:
+    """ข่าวโปรเจค (W1 ⑦): the last two days', the projects that matter most first."""
+    from app.features.projects.tables import Project, ProjectNews
+
+    with session() as s:
+        rows = s.execute(select(ProjectNews, Project.potential).outerjoin(Project, Project.id == ProjectNews.project_id)
+                         .where(ProjectNews.at >= at - timedelta(days=2), ProjectNews.kind != "bad")
+                         .order_by(ProjectNews.at.desc()).limit(20)).all()
+    order = {"S": 0, "A": 1, "B": 2, "C": 3, "D": 4, "F": 5}
+    rows.sort(key=lambda r: (not r[0].urgent, order.get(r[1] or "C", 3)))
+    return [{"id": n.id, "project": n.project, "title": n.title, "body": n.body, "at": _iso(n.at), "potential": pot or "",
+             "urgent": n.urgent, "failed": n.failed, "needs_you": n.needs_you, "link": n.link} for n, pot in rows[:5]]
+
+
 @router.get("/today")
 def today_page() -> dict:
     at = now()
@@ -88,6 +102,7 @@ def today_page() -> dict:
         "secretary": _secretary(at),
         "important": [{"id": m.id, "who": m.who, "summary": m.summary, "at": _iso(m.sent_at), "done": m.done, "link": m.link}
                       for m in day.important_mail(day.day_start(d), at)],
+        "news": _news(at),
         "hours": [7, 23],
         "web": get_config().web_url,
         "day_start": _iso(datetime.combine(d, time(0), get_config().tz)),

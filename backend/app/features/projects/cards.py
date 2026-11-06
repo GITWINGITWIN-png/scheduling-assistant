@@ -13,8 +13,8 @@ from app.connectors import discord_bot as dc
 from app.core.db import session
 from app.core.tables import Decision
 from app.core.timefmt import thai_date
-from app.features.projects import scan
-from app.features.projects.tables import POTENTIALS, Project
+from app.features.projects import inbox, scan
+from app.features.projects.tables import POTENTIALS, Project, ProjectNews
 
 URGENCY_WORDS = {5: "5 · เร่งสุด", 4: "4", 3: "3", 2: "2", 1: "1", 0: "0 · ไม่รีบ"}
 
@@ -83,7 +83,31 @@ async def ask_level(project_id: int, decision_id: int) -> None:
         s.get(Decision, decision_id).message_id = row.id
 
 
+async def send_urgent(news_id: int) -> None:
+    """inbox.URGENT hook: a failure or a question from a project that matters, in #ด่วน now (2.3)."""
+    if not _ready():
+        return
+    with session() as s:
+        n = s.get(ProjectNews, news_id)
+        p = s.get(Project, n.project_id) if n.project_id else None
+        why = " · ".join(x for x in ("งานล้ม" if n.failed else "", "ต้องให้คุณตัดสินใจ" if n.needs_you else "") if x)
+        level = f"potential {p.potential} · เร่งด่วน {p.urgency}" if p else ""
+        title, body, link, project = n.title, n.body, n.link, n.project
+    card = dc.embed(title, body, tone="bad", author=f"ข่าวด่วนจากโปรเจค · {project}",
+                    fields=[("ทำไมแจ้งทันที", f"{why}" + (f" ({level})" if level else ""), False)],
+                    footer="ข่าวอื่นของโปรเจครวมในสรุปเช้า")
+    items: list[discord.ui.Item] = []
+    if link.startswith("http"):
+        items.append(discord.ui.Button(label="เปิดดู", style=discord.ButtonStyle.link, url=link))
+    row, _ = await dc.bot.send("urgent", embed=card, view=dc.buttons(*items) if items else None, kind="project_news",
+                               ref=f"news:{news_id}", text_copy=f"{project}: {title}")
+    with session() as s:
+        s.get(ProjectNews, news_id).message_id = row.id
+
+
 def setup() -> None:
     dc.register_buttons(LevelMenu)
     if ask_level not in scan.ASKED:
         scan.ASKED.append(ask_level)
+    if send_urgent not in inbox.URGENT:
+        inbox.URGENT.append(send_urgent)

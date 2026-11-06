@@ -44,6 +44,7 @@ from app.features.classroom import materials as classroom_materials
 from app.features.classroom import sync as classroom_sync
 from app.features.mail import cards as mail_cards
 from app.features.projects import cards as projects_cards
+from app.features.projects import inbox as projects_inbox
 from app.features.projects import scan as projects_scan
 from app.features.mail import extract as mail_extract
 from app.features.mail import followups as mail_followups
@@ -75,7 +76,8 @@ async def start_background() -> None:
     briefs_morning.setup()  # B4: สรุปเช้า 07:00 in #สรุป (off until B4's check)
     briefs_evening.setup()  # B4: ทบทวนเย็น 21:00 in #สรุป (off until B4's check)
     projects_scan.setup()  # B5: the project registry, rescanned 06:30 (off until B5's check)
-    projects_cards.setup()  # "ตั้งระดับโปรเจคใหม่" in #อนุมัติ
+    projects_cards.setup()  # "ตั้งระดับโปรเจคใหม่" in #อนุมัติ, urgent project news in #ด่วน
+    projects_inbox.setup()  # B5: news from ~/.secretary/inbox every 5 min (off until the check)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button

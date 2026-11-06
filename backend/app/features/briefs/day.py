@@ -207,6 +207,20 @@ def waiting_text(rows: list[Decision]) -> str:
     return " · ".join(one(d) for d in rows[:6]) + (f" · และอีก {len(rows) - 6}" if len(rows) > 6 else "")
 
 
+def project_news(since: datetime, until: datetime, limit: int = 8) -> list[tuple[str, str, bool]]:
+    """ข่าวโปรเจค (2.3, D2 ⑤): what projects dropped in the inbox, the ones that matter most first.
+    -> [(project, title, urgent)]"""
+    from app.features.projects.tables import Project, ProjectNews
+
+    order = {"S": 0, "A": 1, "B": 2, "C": 3, "D": 4, "F": 5}
+    with session() as s:
+        rows = s.execute(select(ProjectNews, Project.potential, Project.urgency)
+                         .outerjoin(Project, Project.id == ProjectNews.project_id)
+                         .where(ProjectNews.at >= since, ProjectNews.at < until, ProjectNews.kind != "bad")).all()
+    rows.sort(key=lambda r: (not r[0].urgent, order.get(r[1] or "C", 3), -(r[2] if r[2] is not None else 2), -r[0].at.timestamp()))
+    return [(n.project, n.title, n.urgent) for n, _, _ in rows[:limit]]
+
+
 def new_materials(since: datetime, until: datetime) -> list[str]:
     """สื่อการเรียนใหม่ (U1: "บอกในสรุปเช้า"): what Classroom's round downloaded, per course."""
     with session() as s:

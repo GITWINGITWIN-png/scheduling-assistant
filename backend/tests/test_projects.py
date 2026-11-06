@@ -63,7 +63,7 @@ def rows() -> dict[str, Project]:
 def test_the_first_scan_records_everything_quietly(root):
     result = scan.scan(root, at=NOW)
     assert result.first and result.total == 3 and result.new == []  # nothing asked: 3 folders, no questions
-    found = rows()
+    found = {n: p for n, p in rows().items() if p.path.startswith(str(root))}  # (other tests' rows aside)
     assert set(found) == {"alpha", "beta", "gamma"}
     assert found["alpha"].status == "active" and found["beta"].status == "paused" and found["gamma"].status == "paused"
     assert all((p.potential, p.urgency, p.level_set, p.allow_jobs) == ("C", 2, False, False) for p in found.values())

@@ -67,6 +67,8 @@ def compose(at: datetime) -> dict:
     if text := day.who_sent_text(who, next_round="12:00"):
         fields.append(["ใครส่งอะไรมา", text])
     fields.append(["นัดวันนี้", " · ".join(i.words() for i in items) or "ไม่มีนัดและบล็อกงานวันนี้"])
+    if news := day.project_news(since, at):
+        fields.append(["ข่าวโปรเจค", " · ".join(f"{p}: {day.short(t, 70)}" + (" (แจ้งใน #ด่วน แล้ว)" if u else "") for p, t, u in news)])
     if materials:
         fields.append(["สื่อการเรียนใหม่", " · ".join(materials)])
     if waiting:

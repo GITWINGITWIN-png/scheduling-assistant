@@ -37,3 +37,26 @@ class Project(Base):
     missing: Mapped[bool] = mapped_column(Boolean, default=False)  # the folder isn't there any more
     first_seen: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
     scanned_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
+
+
+class ProjectNews(Base):
+    """project_news · ข่าวโปรเจค (2.3): what projects drop in ~/.secretary/inbox (inbox.py), one row
+    per file. urgent: a failure or a question in a project that matters (potential S–A or urgency
+    4–5): sent to #ด่วน at once; the rest waits for the morning brief."""
+
+    __tablename__ = "project_news"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    project: Mapped[str] = mapped_column(String(200))  # the inbox folder's name
+    kind: Mapped[str] = mapped_column(String(10))  # report · schedule · status · bad (a file that couldn't be read)
+    title: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text, default="")
+    link: Mapped[str] = mapped_column(Text, default="")
+    at: Mapped[datetime] = mapped_column(UTCDateTime, default=now, index=True)  # when it happened (the file says), else when read
+    failed: Mapped[bool] = mapped_column(Boolean, default=False)
+    needs_you: Mapped[bool] = mapped_column(Boolean, default=False)
+    urgent: Mapped[bool] = mapped_column(Boolean, default=False)
+    message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the #ด่วน card, when sent
+    file: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
