@@ -16,6 +16,7 @@ from app.core.db import Base, engine
 # Each later phase that adds tables imports its module here too:
 import app.features.mail.tables  # noqa: F401,E402  B2: people, emails, followups
 import app.features.classroom.tables  # noqa: F401,E402  B3: courses, course_items
+import app.features.briefs.tables  # noqa: F401,E402  B4: briefs
 
 target_metadata = Base.metadata
 
