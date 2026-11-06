@@ -1,17 +1,19 @@
 """B3's web API: the schedule page (W5), tasks, planner rules, and Classroom courses."""
 
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from app.connectors import google
 from app.core import actions, clock, settings
 from app.core.config import get_config
 from app.core.db import now, session
 from app.core.tables import Block, Decision, Event, Task
 from app.features.classroom import sync as classroom
 from app.features.classroom.tables import STATES, Course, CourseItem
+from app.features.mail import extract
 from app.features.mail.extract import gmail_link
 from app.features.mail.tables import Email
 from app.features.schedule import remind, sync, tasks
@@ -53,8 +55,9 @@ def week(start: str, end: str) -> dict:
         due = s.scalars(select(Task).where(Task.status == "open", Task.due_at >= lo, Task.due_at < hi)).all()
         out = {
             "events": [{"id": e.id, "title": e.title, "start": _iso(e.starts_at), "end": _iso(e.ends_at), "all_day": e.all_day,
-                        "location": e.location, "source": e.source, "recurring": e.recurring,
-                        "link": _link(s, "email", e.source_ref) if e.source == "email" else e.link} for e in events],
+                        "location": e.location, "source": e.source, "source_name": SOURCE_NAMES.get(e.source, e.source),
+                        "recurring": e.recurring, "link": e.link,
+                        "mail": _link(s, "email", e.source_ref) if e.source == "email" else ""} for e in events],
             "blocks": [{"id": b.id, "task_id": b.task_id, "title": title, "start": _iso(b.starts_at), "end": _iso(b.ends_at),
                         "pinned": b.status == "pinned", "past": b.ends_at <= now()} for b, title in blocks],
             "deadlines": [{"task_id": t.id, "title": t.title, "due": _iso(t.due_at), "source": SOURCE_NAMES.get(t.source, t.source),
@@ -66,6 +69,50 @@ def week(start: str, end: str) -> dict:
     out["plan"] = {"planned_at": state.get("planned_at"),
                    "short": [{"task_id": int(k), "title": names.get(int(k), ""), "minutes": v} for k, v in state.get("short", {}).items()]}
     return out
+
+
+# ------------------------------------------------------------------ กิจกรรม (appointments you add)
+class EventIn(BaseModel):
+    title: str
+    start: str  # local: "2026-11-12T10:00", or "2026-11-12" for an all-day event
+    end: str  # for an all-day event, the last day (inclusive), as the page shows it
+    all_day: bool = False
+    location: str = ""
+    description: str = ""
+
+
+@router.post("/events")
+async def add_event(body: EventIn) -> dict:
+    """A กิจกรรม from the schedule page goes straight into your main Google Calendar, the same
+    way an appointment from email does (extract.place): recorded in สิ่งที่เลขาทำ, ย้อนกลับ
+    deletes it, the secretary reminds you of it, and blocks are re-planned around it."""
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(400, "ใส่ชื่อกิจกรรมก่อน")
+    try:
+        if body.all_day:  # whole days: local midnight to the midnight after the last day
+            tz = get_config().tz
+            start = datetime.combine(date.fromisoformat(body.start[:10]), time(0), tz)
+            end = datetime.combine(date.fromisoformat(body.end[:10]) + timedelta(days=1), time(0), tz)
+        else:
+            start, end = _local(body.start), _local(body.end)
+    except ValueError:
+        raise HTTPException(400, "วันหรือเวลาไม่ถูกต้อง")
+    if end <= start:
+        raise HTTPException(400, "เวลาจบต้องหลังเวลาเริ่ม")
+    with session() as s:
+        ev = Event(title=title, starts_at=start, ends_at=end, all_day=body.all_day, location=body.location.strip(),
+                   source="you", status="proposed")
+        s.add(ev)
+        s.flush()
+        event_id = ev.id
+    try:
+        action_id = await extract.place(event_id, via=("หน้าตาราง", ""), note=body.description)
+    except Exception as exc:  # not written: forget it, and say why
+        with session() as s:
+            s.delete(s.get(Event, event_id))
+        raise HTTPException(409 if isinstance(exc, google.NeedsConsent) else 502, f"ลงปฏิทินไม่ได้: {exc}")
+    return {"id": event_id, "action_id": action_id, "plan": await _replan_if_on()}
 
 
 @router.post("/schedule/replan")
@@ -101,6 +148,7 @@ def list_tasks() -> dict:
             slot[0 if b.ends_at <= at else 1] += minutes
         items = [{"id": t.id, "title": t.title, "due": _iso(t.due_at), "status": t.status, "source": SOURCE_NAMES.get(t.source, t.source),
                   "est_minutes": t.est_minutes, "est_default": est.get(t.source, 60), "plan_mode": t.plan_mode,
+                  "block_minutes": t.block_minutes, "daily_minutes": t.daily_minutes,
                   "done_minutes": booked.get(t.id, [0, 0])[0], "booked_minutes": booked.get(t.id, [0, 0])[1],
                   "link": _link(s, t.source, t.source_ref)} for t in rows]
     return {"items": items}
@@ -109,42 +157,47 @@ def list_tasks() -> dict:
 class TaskIn(BaseModel):
     title: str
     due: str | None = None  # local time, "2026-11-10T17:00"
-    est_minutes: int | None = None
+    est_minutes: int | None = None  # None: the default for tasks you add (กติกาตาราง)
     plan_mode: str = "early"
+    block_minutes: int | None = None  # None: the rules' longest block
+    daily_minutes: int | None = None  # None: the rules' limit per task per day
 
 
 @router.post("/tasks")
 async def add_task(body: TaskIn) -> dict:
-    if not body.title.strip():
-        raise HTTPException(400, "ใส่ชื่องานก่อน")
     try:
-        task_id = tasks.add(body.title, due_at=_local(body.due), est_minutes=body.est_minutes, plan_mode=body.plan_mode,
-                            via=("หน้าตาราง", ""))
+        task_id, action_id = tasks.add(body.title, due_at=_local(body.due), est_minutes=body.est_minutes,
+                                       plan_mode=body.plan_mode, block_minutes=body.block_minutes,
+                                       daily_minutes=body.daily_minutes, via=("หน้าตาราง", ""))
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return {"id": task_id, "plan": await _replan_if_on()}
+    return {"id": task_id, "action_id": action_id, "plan": await _replan_if_on()}
 
 
 class TaskEdit(BaseModel):
+    """Only the fields sent change. Sending null puts one back to its default: no due date,
+    the default estimate, or the rules' block length and daily limit."""
+
     title: str | None = None
     due: str | None = None
-    clear_due: bool = False
     est_minutes: int | None = None
-    clear_est: bool = False
     plan_mode: str | None = None
+    block_minutes: int | None = None
+    daily_minutes: int | None = None
+
+
+EDIT_FIELDS = {"title": "title", "due": "due_at", "est_minutes": "est_minutes", "plan_mode": "plan_mode",
+               "block_minutes": "block_minutes", "daily_minutes": "daily_minutes"}
 
 
 @router.patch("/tasks/{task_id}")
 async def edit_task(task_id: int, body: TaskEdit) -> dict:
     changes: dict = {}
-    if body.title is not None:
-        changes["title"] = body.title.strip()
-    if body.due is not None or body.clear_due:
-        changes["due_at"] = None if body.clear_due else _local(body.due)
-    if body.est_minutes is not None or body.clear_est:
-        changes["est_minutes"] = None if body.clear_est else body.est_minutes
-    if body.plan_mode is not None:
-        changes["plan_mode"] = body.plan_mode
+    for name in body.model_fields_set:
+        value = getattr(body, name)
+        if value is None and name in ("title", "plan_mode"):
+            raise HTTPException(400, "ชื่องานและวิธีจองเวลาเว้นว่างไม่ได้")
+        changes[EDIT_FIELDS[name]] = _local(value) if name == "due" else value
     if not changes:
         raise HTTPException(400, "ไม่มีอะไรให้แก้")
     try:

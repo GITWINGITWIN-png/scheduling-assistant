@@ -1,0 +1,126 @@
+"""The schedule page's API: adding กิจกรรม and tasks with their own block sizes.
+
+Google Calendar is replaced by a fake that remembers what was written, so nothing here
+reaches your real calendar. The schedule round is treated as off, so nothing re-plans
+(re-planning would read the real calendar).
+"""
+
+import asyncio
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+import pytest
+from fastapi import HTTPException
+from sqlalchemy import select
+
+from app.api import schedule as api
+from app.connectors import gcal, google
+from app.core import actions, clock, db
+from app.core.db import session
+from app.core.tables import Event, Task
+
+BKK = ZoneInfo("Asia/Bangkok")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def database():
+    db.migrate()
+
+
+@pytest.fixture
+def calendar(monkeypatch):
+    """A fake main calendar: {event id: what was written}."""
+    written: dict[str, dict] = {}
+
+    def insert(title, start, end, *, all_day=False, location="", description="", calendar="primary", mark="appointment"):
+        gid = f"g{len(written) + 1}"
+        written[gid] = {"title": title, "start": start, "end": end, "all_day": all_day, "location": location,
+                        "description": description, "calendar": calendar}
+        return gid, f"https://calendar.google.com/event?eid={gid}"
+
+    def delete(event_id, *, calendar="primary"):
+        written.pop(event_id, None)
+
+    monkeypatch.setattr(gcal, "insert", insert)
+    monkeypatch.setattr(gcal, "delete", delete)
+    monkeypatch.setattr(clock, "enabled", lambda name: False)
+    return written
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+# ------------------------------------------------------------------ กิจกรรม
+def test_an_event_goes_into_the_main_calendar_and_undo_takes_it_out(calendar):
+    r = run(api.add_event(api.EventIn(title=" ประชุมแล็บ ", start="2026-11-12T10:00", end="2026-11-12T11:30",
+                                      location="ห้อง 204", description="เอาสไลด์ไปด้วย")))
+    [(gid, w)] = calendar.items()
+    assert w["title"] == "ประชุมแล็บ" and w["calendar"] == "primary" and w["location"] == "ห้อง 204"
+    assert w["start"] == datetime(2026, 11, 12, 10, 0, tzinfo=BKK) and w["end"] == datetime(2026, 11, 12, 11, 30, tzinfo=BKK)
+    assert "เอาสไลด์ไปด้วย" in w["description"] and "ลงโดยเลขา" in w["description"]
+    with session() as s:
+        ev = s.get(Event, r["id"])
+        assert (ev.source, ev.status, ev.gcal_id) == ("you", "placed", gid)
+        assert ev.link.endswith(gid)  # the page can open it in Google Calendar right away
+    run(actions.undo(r["action_id"]))
+    assert calendar == {}
+    with session() as s:
+        assert s.get(Event, r["id"]).status == "removed"
+
+
+def test_an_all_day_event_covers_its_last_day(calendar):
+    run(api.add_event(api.EventIn(title="ไปต่างจังหวัด", start="2026-11-14", end="2026-11-15", all_day=True)))
+    [w] = calendar.values()
+    assert w["all_day"]
+    assert w["start"] == datetime(2026, 11, 14, tzinfo=BKK) and w["end"] == datetime(2026, 11, 16, tzinfo=BKK)
+
+
+@pytest.mark.parametrize("start,end", [("2026-11-12T11:00", "2026-11-12T10:00"), ("2026-11-12T10:00", "2026-11-12T10:00")])
+def test_an_event_that_does_not_end_after_it_starts_is_refused(calendar, start, end):
+    with pytest.raises(HTTPException) as exc:
+        run(api.add_event(api.EventIn(title="ผิด", start=start, end=end)))
+    assert exc.value.status_code == 400 and calendar == {}
+
+
+def test_a_failed_write_leaves_nothing_behind(calendar, monkeypatch):
+    def refuse(*a, **k):
+        raise google.NeedsConsent("gmail", "ยังไม่ได้อนุญาต Calendar")
+
+    monkeypatch.setattr(gcal, "insert", refuse)
+    with pytest.raises(HTTPException) as exc:
+        run(api.add_event(api.EventIn(title="ลงไม่ได้", start="2026-11-12T10:00", end="2026-11-12T11:00")))
+    assert exc.value.status_code == 409 and "connect gmail" in exc.value.detail
+    with session() as s:
+        assert s.scalar(select(Event).where(Event.title == "ลงไม่ได้")) is None
+
+
+# ------------------------------------------------------------------ งาน
+def test_a_task_keeps_its_own_block_sizes_and_null_puts_one_back_to_the_rules(calendar):
+    r = run(api.add_task(api.TaskIn(title="รายงาน datacom", due="2026-11-13T17:00", est_minutes=20 * 60,
+                                    block_minutes=60, daily_minutes=120)))
+    with session() as s:
+        t = s.get(Task, r["id"])
+        assert (t.est_minutes, t.block_minutes, t.daily_minutes) == (1200, 60, 120)  # no 8-hour ceiling any more
+    edit = run(api.edit_task(r["id"], api.TaskEdit(block_minutes=None)))
+    with session() as s:
+        t = s.get(Task, r["id"])
+        assert (t.block_minutes, t.daily_minutes) == (None, 120)  # only the field sent changed
+    run(actions.undo(edit["action_id"]))
+    with session() as s:
+        assert s.get(Task, r["id"]).block_minutes == 60
+
+
+@pytest.mark.parametrize("field,value", [("est_minutes", 0), ("est_minutes", 200 * 60 + 15), ("block_minutes", 10),
+                                         ("block_minutes", 9 * 60), ("daily_minutes", 17 * 60)])
+def test_minutes_outside_the_sensible_range_are_refused(calendar, field, value):
+    with pytest.raises(HTTPException) as exc:
+        run(api.add_task(api.TaskIn(title="ผิด", **{field: value})))
+    assert exc.value.status_code == 400
+
+
+def test_an_edit_cannot_blank_the_title(calendar):
+    r = run(api.add_task(api.TaskIn(title="งานหนึ่ง")))
+    for body in (api.TaskEdit(title=None), api.TaskEdit(title="  ")):
+        with pytest.raises(HTTPException):
+            run(api.edit_task(r["id"], body))

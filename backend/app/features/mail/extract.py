@@ -57,20 +57,25 @@ def _direct(e: Email) -> bool:
     return e.level == "important" or e.flagged == "awaiting"
 
 
-async def place(event_id: int, *, via: tuple[str, str] = ("อีเมล", "")) -> int:
-    """Put a stored event into Google Calendar and record it (undo deletes it). -> action id."""
+async def place(event_id: int, *, via: tuple[str, str] = ("อีเมล", ""), note: str = "") -> int:
+    """Put a stored event into Google Calendar and record it (undo deletes it). -> action id.
+
+    Used for appointments found in email and, from the schedule page, ones you add yourself
+    (`note` is then your description)."""
     with session() as s:
         ev = s.get(Event, event_id)
         title, start, end, all_day, place_, ref = ev.title, ev.starts_at, ev.ends_at, ev.all_day, ev.location, ev.source_ref
         email = s.get(Email, ref) if ev.source == "email" else None
     link = gmail_link(email) if email else ""
-    description = (f"จากอีเมล: {email.sender_name or email.sender} · {email.subject}\n{link}\n\nลงโดยเลขา" if email else "ลงโดยเลขา")
-    gcal_id, _ = await asyncio.to_thread(gcal.insert, title, start, end, all_day=all_day, location=place_, description=description)
+    description = (f"จากอีเมล: {email.sender_name or email.sender} · {email.subject}\n{link}\n\nลงโดยเลขา" if email
+                   else "\n\n".join(x for x in (note.strip(), "ลงโดยเลขา") if x))
+    gcal_id, cal_link = await asyncio.to_thread(gcal.insert, title, start, end, all_day=all_day, location=place_,
+                                                description=description)
     with session() as s:
         ev = s.get(Event, event_id)
-        ev.gcal_id, ev.status = gcal_id, "placed"
+        ev.gcal_id, ev.status, ev.link = gcal_id, "placed", cal_link
     return actions.record("calendar.place", f"ลงปฏิทิน: {title}", thai_datetime(start) if not all_day else thai_datetime(start).split(" ")[0] + " ทั้งวัน",
-                          source_label=via[0], source_url=via[1] or link, undo={"event_id": event_id})
+                          source_label=via[0], source_url=via[1] or link or cal_link, undo={"event_id": event_id})
 
 
 async def _undo_place(undo: dict) -> None:

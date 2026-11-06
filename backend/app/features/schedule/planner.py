@@ -17,7 +17,9 @@ How it decides:
    that whenever it's possible, and the tests showed the target changed nothing.)
    "late" (on request): fill the free time closest to the due date, working backwards.
 4. A block is 30–120 minutes and starts on a quarter hour. One task gets at most 3 hours
-   a day, so big work spreads over several days instead of eating one.
+   a day, so big work spreads over several days instead of eating one. A task can set its
+   own longest block and daily limit (`Work.max_block`, `Work.per_day`); the rules are
+   only the default.
 5. Whatever doesn't fit before the due date is reported (`Plan.short`), never placed late.
 """
 
@@ -46,6 +48,8 @@ class Work:
     minutes: int  # still to place
     due: datetime | None = None
     mode: str = "early"  # early · late
+    max_block: int | None = None  # this task's longest block (minutes); None: rules.max_block
+    per_day: int | None = None  # the most this task may take in a day; None: rules.per_task_per_day
 
 
 @dataclass(frozen=True)
@@ -112,18 +116,22 @@ def _take(free: list[Interval], piece: Interval) -> None:
     raise ValueError("piece is not free")
 
 
-def _length(room: int, remaining: int, day_left: int, rules: Rules) -> int:
+def _length(room: int, remaining: int, day_left: int, longest: int, rules: Rules) -> int:
     """How long the next block can be (0 = none here)."""
-    length = min(rules.max_block, remaining, room, day_left)
+    length = min(longest, remaining, room, day_left)
     if length < remaining:  # not the last piece: keep it on the quarter-hour grid
         length -= length % rules.step
-    smallest = min(rules.min_block, remaining)  # a short leftover may be shorter than a normal block
+    # A short leftover may be shorter than a normal block, and so may every block of a task
+    # whose own longest block is under the rules' minimum (you asked for 15-minute pieces).
+    smallest = min(rules.min_block, longest, remaining)
     return length if length >= smallest else 0
 
 
 def _fill(work: Work, free: list[Interval], until: datetime, remaining: int, used: dict[tuple[int, date], int],
           rules: Rules, *, backwards: bool) -> tuple[list[Placed], int]:
     placed: list[Placed] = []
+    longest = work.max_block or rules.max_block
+    per_day = work.per_day or rules.per_task_per_day
     order = sorted(free, reverse=backwards)
     for s, e in order:
         if remaining <= 0:
@@ -138,8 +146,8 @@ def _fill(work: Work, free: list[Interval], until: datetime, remaining: int, use
                 begin = _ceil(s, rules.step)
                 room = int((e - begin).total_seconds() // 60)
                 day = begin.date()
-            day_left = rules.per_task_per_day - used.get((work.task_id, day), 0)
-            length = _length(room, remaining, day_left, rules)
+            day_left = per_day - used.get((work.task_id, day), 0)
+            length = _length(room, remaining, day_left, longest, rules)
             if length <= 0:
                 break
             if backwards:

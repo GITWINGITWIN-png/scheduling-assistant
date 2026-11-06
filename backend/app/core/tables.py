@@ -158,6 +158,10 @@ class Task(Base):
     # How the planner places it: early (start soon, done a day before the due date; the
     # default) or late (as close to the due date as fits), the user's choice at the B3 plan.
     plan_mode: Mapped[str] = mapped_column(String(8), default="early", server_default="early")
+    # How this task's time is cut up, set per task on the schedule page (the user's request after
+    # trying B3): the longest block, and the most time it may take in one day. None: the rules'.
+    block_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    daily_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(10), default="open", index=True)  # open · done · dropped
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
 

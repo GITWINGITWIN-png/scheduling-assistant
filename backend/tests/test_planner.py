@@ -67,6 +67,25 @@ def test_one_task_gets_at_most_three_hours_a_day():
     assert len(per_day) == 2
 
 
+def test_a_task_can_set_its_own_block_length_and_daily_limit():
+    # 4 hours, in 1-hour blocks, at most 2 hours a day: two days of two blocks each.
+    p = plan([Work(1, 240, due=at(14, 17), max_block=60, per_day=120)], [], now=NOW)
+    assert [b.minutes for b in p.blocks] == [60, 60, 60, 60]
+    assert sorted({b.start.date() for b in p.blocks}) == [at(9, 0).date(), at(10, 0).date()]
+
+
+def test_a_block_length_under_the_rules_minimum_still_places_work():
+    # The rules say 30 minutes at least; a task that asks for 15-minute pieces gets them.
+    p = plan([Work(1, 45, due=at(9, 17), max_block=15)], [], now=NOW)
+    assert [b.minutes for b in p.blocks] == [15, 15, 15]
+
+
+def test_per_task_limits_do_not_change_other_tasks():
+    p = plan([Work(1, 240, due=at(14, 17), per_day=60), Work(2, 240, due=at(14, 18))], [], now=NOW)
+    first_day = [b for b in p.blocks if b.start.date() == at(9, 0).date()]
+    assert minutes(first_day, 1) == 60 and minutes(first_day, 2) == 180
+
+
 def test_early_task_uses_the_last_day_only_when_it_must():
     # due Tuesday 12:00: "a day before" is Monday 12:00, but Monday morning is busy
     busy = [(at(9, 9), at(9, 12))]

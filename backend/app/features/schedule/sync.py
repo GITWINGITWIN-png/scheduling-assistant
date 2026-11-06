@@ -131,12 +131,14 @@ def _inputs(at: datetime, busy: list[tuple[datetime, datetime]]) -> tuple[list[W
     covered: dict[int, int] = {}
     for b in kept:  # past, running, about to start, or pinned by you: already counted
         covered[b.task_id] = covered.get(b.task_id, 0) + int((b.ends_at - b.starts_at).total_seconds() // 60)
-    work = [Work(t.id, estimate(t, est) - covered.get(t.id, 0), t.due_at, t.plan_mode) for t in tasks]
+    work = [Work(t.id, estimate(t, est) - covered.get(t.id, 0), t.due_at, t.plan_mode, t.block_minutes, t.daily_minutes)
+            for t in tasks]
     all_busy = (busy + [(b.starts_at, b.ends_at) for b in kept if b.ends_at > at]
                 + [(b.starts_at, b.ends_at) for b in deleted])
     fingerprint = hashlib.sha256(json.dumps({
         "day": local(at).date().isoformat(),
-        "tasks": sorted((t.id, t.due_at.isoformat() if t.due_at else "", estimate(t, est), t.plan_mode) for t in tasks),
+        "tasks": sorted((t.id, t.due_at.isoformat() if t.due_at else "", estimate(t, est), t.plan_mode,
+                         t.block_minutes or 0, t.daily_minutes or 0) for t in tasks),
         "busy": sorted((s_.isoformat(), e.isoformat()) for s_, e in busy),
         "pinned": sorted((b.id, b.starts_at.isoformat(), b.ends_at.isoformat()) for b in blocks if b.status == "pinned"),
         "deleted": sorted(b.id for b in deleted),
