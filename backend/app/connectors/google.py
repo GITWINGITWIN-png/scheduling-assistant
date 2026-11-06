@@ -3,11 +3,16 @@
 Accounts and what each may do are in ACCOUNTS:
 
 - gmail (หลัก, your everyday Gmail): read Gmail, read and write Calendar. Appointments
-  from every account go into this one calendar (CALENDAR_ACCOUNT), so you have one schedule.
-- ku (KU, the @ku.th address; v1's token.json, which v1 called "personal"): read Gmail.
-  Its old token also allows Calendar; that grant is kept but not used.
-- school (Classroom, v1's token_school.json): read Gmail, plus the Classroom permissions B3
-  uses. They are asked for together, so B3 doesn't need another consent.
+  and work blocks from every account go into its calendars (CALENDAR_ACCOUNT), so you have
+  one schedule.
+- ku (KU, the @ku.th address; v1's token.json, which v1 called "personal"): read Gmail,
+  and since B3 also Classroom (CLASSROOM_ACCOUNT): courses, coursework and materials, plus
+  read-only Drive to download the materials' files. Its old token also allows Calendar;
+  that grant is kept but not used. (v1 had a separate token for Classroom on the same
+  @ku.th address; B3 merged it here, the user confirmed it is one account.)
+
+Each feature asks only for the permissions it uses (`credentials(account, *need)`), so
+KU's mail watch keeps working while the Classroom permissions are not granted yet.
 No address is written here: an account is whoever signs in during `connect`, and the
 settings page shows the address the watch found.
 
@@ -17,10 +22,10 @@ the repo). The token holds a refresh token, so after one consent, calls stay sig
 
 Connecting an account (once; it opens your browser):
 
-    cd backend && uv run python -m app.connectors.google connect gmail
+    cd backend && uv run python -m app.connectors.google connect ku
     cd backend && uv run python -m app.connectors.google status
 
-v1's tokens (backend/token.json, token_school.json) are copied on first use. An account
+v1's token (backend/token.json) is copied on first use. An account
 whose old token already allows everything listed here never has to consent again.
 
 Why the token is loaded with the scopes it was *granted* (not just the ones a caller
@@ -55,6 +60,9 @@ CLASSROOM = [
     "https://www.googleapis.com/auth/classroom.coursework.me.readonly",
     "https://www.googleapis.com/auth/classroom.announcements.readonly",
 ]
+CLASSROOM_MATERIALS = "https://www.googleapis.com/auth/classroom.courseworkmaterials.readonly"
+DRIVE_READ = "https://www.googleapis.com/auth/drive.readonly"  # to download a material's file
+CLASSROOM_ALL = (*CLASSROOM, CLASSROOM_MATERIALS)
 # Google hands back student-submissions.me.readonly when asked for coursework.me.readonly
 SUBSTITUTES = {CLASSROOM[1]: {CLASSROOM[1], "https://www.googleapis.com/auth/classroom.student-submissions.me.readonly"}}
 
@@ -69,11 +77,12 @@ class Account:
 
 
 ACCOUNTS = {
-    "gmail": Account("gmail", "หลัก", (GMAIL_READ, CALENDAR), "Gmail อ่านอย่างเดียว · ปฏิทิน อ่านและเขียน (นัดลงที่นี่)"),
-    "ku": Account("ku", "KU", (GMAIL_READ,), "Gmail อ่านอย่างเดียว", "token.json"),
-    "school": Account("school", "Classroom", (GMAIL_READ, *CLASSROOM), "Gmail อ่านอย่างเดียว · Classroom (B3)", "token_school.json"),
+    "gmail": Account("gmail", "หลัก", (GMAIL_READ, CALENDAR), "Gmail อ่านอย่างเดียว · ปฏิทิน อ่านและเขียน (นัดและบล็อกงานลงที่นี่)"),
+    "ku": Account("ku", "KU", (GMAIL_READ, *CLASSROOM_ALL, DRIVE_READ),
+                  "Gmail อ่านอย่างเดียว · Classroom และไฟล์สื่อการเรียน อ่านอย่างเดียว", "token.json"),
 }
-CALENDAR_ACCOUNT = "gmail"  # where appointments are written
+CALENDAR_ACCOUNT = "gmail"  # where appointments and work blocks are written
+CLASSROOM_ACCOUNT = "ku"
 
 
 class NeedsConsent(Exception):
@@ -97,9 +106,10 @@ def granted(account: str) -> set[str]:
         return set()
 
 
-def missing(account: str) -> list[str]:
+def missing(account: str, need: tuple[str, ...] = ()) -> list[str]:
+    """Which of `need` (default: everything the account asks for) the token doesn't allow."""
     have = granted(account)
-    return [s for s in ACCOUNTS[account].scopes if not (SUBSTITUTES.get(s, {s}) & have)]
+    return [s for s in (need or ACCOUNTS[account].scopes) if not (SUBSTITUTES.get(s, {s}) & have)]
 
 
 def _save(account: str, creds: Credentials) -> None:
@@ -124,12 +134,15 @@ def import_v1(account: str) -> bool:
     return True
 
 
-def credentials(account: str) -> Credentials:
-    """Signed-in credentials for one account, refreshed if expired. Raises NeedsConsent."""
+def credentials(account: str, *need: str) -> Credentials:
+    """Signed-in credentials for one account, refreshed if expired. Raises NeedsConsent.
+
+    need: the permissions this caller uses (default: all of the account's). Only those
+    are checked, so a feature still works while another one waits for consent."""
     import_v1(account)
     if not token_path(account).exists():
         raise NeedsConsent(account, "ยังไม่ได้เชื่อม")
-    if lacking := missing(account):
+    if lacking := missing(account, need):
         raise NeedsConsent(account, f"ยังไม่ได้อนุญาต {', '.join(s.rsplit('/', 1)[-1] for s in lacking)}")
     creds = Credentials.from_authorized_user_file(str(token_path(account)), sorted(granted(account)))
     if not creds.valid:
@@ -156,6 +169,13 @@ def connect(account: str) -> None:
     _save(account, creds)
 
 
+FEATURE_NAMES = {GMAIL_READ: "Gmail", CALENDAR: "ปฏิทิน", **{s: "Classroom" for s in CLASSROOM_ALL}, DRIVE_READ: "ไฟล์ใน Drive"}
+
+
+def _features(scopes) -> list[str]:
+    return list(dict.fromkeys(FEATURE_NAMES.get(s, s.rsplit("/", 1)[-1]) for s in scopes))
+
+
 def status() -> list[dict]:
     """For the settings page. Reads the token files only (no network), so it's cheap to poll."""
     out = []
@@ -163,9 +183,14 @@ def status() -> list[dict]:
         import_v1(acc.id)
         connected = token_path(acc.id).exists()
         lacking = missing(acc.id) if connected else list(acc.scopes)
+        if not connected:
+            why = "ยังไม่ได้เชื่อม"
+        elif lacking:  # say what already works, so "missing Classroom" doesn't read as "mail is broken"
+            works = [f for f in _features(acc.scopes) if f not in _features(lacking)]
+            why = (f"{' · '.join(works)} ใช้ได้ · " if works else "") + f"ยังไม่ได้อนุญาต {' · '.join(_features(lacking))}"
         out.append({
             "id": acc.id, "label": acc.label, "does": acc.does, "connected": connected and not lacking,
-            "problem": "" if connected and not lacking else str(NeedsConsent(acc.id, "ยังไม่ได้เชื่อม" if not connected else "ขาดสิทธิ์บางอย่าง")),
+            "problem": "" if connected and not lacking else str(NeedsConsent(acc.id, why)),
         })
     return out
 

@@ -1,10 +1,13 @@
 // W10 ตั้งค่า: models and effort per task, the secretary's clock, notification sounds, channels.
 // Parts that arrive in later phases are shown greyed with their phase, as agreed in stage 2.
 import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router";
 import { api, type Settings as S } from "../api";
 import { when } from "../format";
 import { Icon, type IconName } from "../icons";
 import { Card, Chip, Phase, Seg, Spinner } from "../components/ui";
+import { MailSettingsCard } from "./settings/MailSettings";
+import { Reminders, RulesCard, useScheduleRules } from "./settings/ScheduleRules";
 
 const MODEL_NAMES: Record<string, string> = { sonnet: "Sonnet", opus: "Opus" };
 
@@ -33,8 +36,14 @@ function Row({ icon, title, sub, side, dim = false }: { icon: IconName; title: s
 export function Settings() {
   const [s, setS] = useState<S | null>(null);
   const [note, setNote] = useState("");
+  const rules = useScheduleRules(); // shared by กติกาตาราง and เตือนก่อนถึงกำหนด
   const load = useCallback(() => { api.settings().then(setS, (e) => setNote((e as Error).message)); }, []);
   useEffect(load, [load]);
+  // /settings#rules and #mail (links from the schedule and people pages) scroll to their card
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (s && hash) document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [s, hash]);
 
   const setTask = async (task: string, model: string, effort: string) => {
     try {
@@ -65,10 +74,10 @@ export function Settings() {
                   </tr>
                 ))}
                 {s.planned_tasks.map((t) => (
-                  <tr key={t.label} className="border-b border-line last:border-0 opacity-60">
-                    <td className="px-4 py-2">{t.label}</td>
+                  <tr key={t.label} className={`border-b border-line last:border-0 ${t.phase ? "opacity-60" : ""}`}>
+                    <td className={`px-4 py-2 ${t.phase ? "" : "font-semibold"}`}>{t.label}</td>
                     <td className="px-2 py-2">{t.model}</td>
-                    <td className="px-2 py-2"><span className="font-mono text-xs mr-2">{t.effort}</span><Phase phase={t.phase} /></td>
+                    <td className="px-2 py-2"><span className="font-mono text-xs mr-2">{t.effort}</span>{t.phase && <Phase phase={t.phase} />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -102,9 +111,8 @@ export function Settings() {
             <Row icon="bell" title="#คุยกับเลขา" sub="ทุกคำตอบ" side={<Chip tone="acc">เด้ง</Chip>} />
             <p className="text-xs text-muted pt-2">ตามที่ตกลง: ทุกห้องเด้งเสียง · ตั้งในแอป Discord ของแต่ละเครื่อง: คลิกขวาที่เซิร์ฟเวอร์ → Notification Settings → All Messages · กลางคืนใช้โหมดห้ามรบกวนของมือถือได้</p>
           </Card>
-          <Card title="เตือนก่อนถึงกำหนด" right={<Phase phase="B3" />}>
-            <div className="flex gap-1.5 opacity-60"><Chip tone="acc">1 วัน</Chip><Chip tone="acc">1 ชั่วโมง</Chip></div>
-          </Card>
+          <Reminders {...rules} />
+          <RulesCard {...rules} />
         </div>
 
         <div className="flex flex-col gap-4">
@@ -113,7 +121,7 @@ export function Settings() {
               side={dc.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn">{dc.configured ? "มีปัญหา" : "รอตั้งค่า"}</Chip>} />
             {s.google.map((g) => (
               <Row key={g.id} icon="mail" title={`Google · ${g.label}`}
-                sub={g.connected ? g.does : g.problem}
+                sub={g.connected ? [g.address, g.does].filter(Boolean).join(" · ") : g.problem}
                 side={g.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn">รอเชื่อม</Chip>} />
             ))}
             {s.services.map((x) => (
@@ -121,6 +129,7 @@ export function Settings() {
             ))}
             {!dc.connected && <p className="text-xs text-muted pt-2">วิธีตั้งค่า Discord: docs/setup/discord.md</p>}
           </Card>
+          <MailSettingsCard />
           <Card title="เปิดหน้าเว็บจาก">
             <Row icon="monitor" title="คอมเครื่องนี้" sub={window.location.host} side={<Chip tone="ok">ใช้อยู่</Chip>} />
             <Row icon="tablet" title="iPad" sub="ผ่าน Tailscale · my-pc:8000" dim side={<Phase phase="B8" />} />

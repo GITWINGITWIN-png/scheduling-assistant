@@ -54,7 +54,7 @@ class Header:
 
 
 def _service(account: str):
-    return build("gmail", "v1", credentials=google.credentials(account), cache_discovery=False)
+    return build("gmail", "v1", credentials=google.credentials(account, google.GMAIL_READ), cache_discovery=False)
 
 
 def profile(account: str) -> tuple[str, str]:

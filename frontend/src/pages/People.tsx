@@ -1,12 +1,13 @@
 // W2 คนและอีเมล: the people registry by level, what each person sent (one line each, and what the
-// secretary did about it), follow-ups, and the mail settings (keywords, interests, reminder days).
+// secretary did about it), follow-ups, and setting someone important ahead of time. The mail
+// settings (keywords, interests, reminder days) are on the settings page.
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router";
-import { api, type Followup, type Level, type MailSettings, type Person, type PersonDetail } from "../api";
+import { Link, useSearchParams } from "react-router";
+import { api, type Followup, type Level, type Person, type PersonDetail } from "../api";
 import { when } from "../format";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
-import { Banner, Button, Card, Chip, Phase, Spinner } from "../components/ui";
+import { Avatar, Banner, Button, Card, Chip, Phase, Spinner, Tabs } from "../components/ui";
 
 type Tab = Level | "followups";
 const TABS: { key: Tab; label: string }[] = [
@@ -20,10 +21,6 @@ function sub(p: Person): string {
     return [life, p.awaiting && "คุณรอคำตอบ"].filter(Boolean).join(" · ");
   }
   return [p.source, p.awaiting && "คุณรอคำตอบ"].filter(Boolean).join(" · ");
-}
-
-function Avatar({ name }: { name: string }) {
-  return <span className="size-8 shrink-0 rounded-full bg-accent-soft text-accent-strong grid place-items-center font-semibold text-sm">{name.trim().charAt(0) || "?"}</span>;
 }
 
 export function People() {
@@ -48,10 +45,15 @@ export function People() {
   const load = useCallback(() => {
     setError("");
     const lvl: Level = tab === "followups" ? "important" : tab;
+    if (tab !== "followups") setList(null); // not the last tab's people while this one loads
     api.people(lvl).then((r) => { setCounts(r.counts); if (tab !== "followups") setList(r.items); }, (e) => setError((e as Error).message));
     if (tab === "followups") api.followups().then((r) => setFus(r.items), (e) => setError((e as Error).message));
   }, [tab]);
   useEffect(load, [load]);
+  // As in the plan's W2, someone is always open: the first person, until you pick another.
+  useEffect(() => {
+    if (selected == null && tab !== "followups" && list?.length) go({ p: list[0].id });
+  }, [list]); // eslint-disable-line react-hooks/exhaustive-deps -- only when a list arrives
   useEffect(() => {
     if (selected == null) { setDetail(null); return; }
     api.person(selected).then(setDetail, (e) => setError((e as Error).message));
@@ -61,14 +63,7 @@ export function People() {
 
   return (
     <div className="flex flex-col gap-4 max-w-6xl">
-      <div className="flex flex-wrap items-center gap-2">
-        {TABS.map((t) => (
-          <button key={t.key} type="button" onClick={() => go({ tab: t.key, p: null })}
-            className={`px-3.5 py-1.5 rounded-full border text-sm cursor-pointer ${tab === t.key ? "bg-accent text-accent-ink border-accent" : "border-line-2 text-ink-2 hover:bg-panel-2"}`}>
-            {t.label} {counts && <span className="opacity-75">{counts[t.key]}</span>}
-          </button>
-        ))}
-      </div>
+      <Tabs options={TABS.map((t) => ({ ...t, count: counts?.[t.key] }))} value={tab} onChange={(k) => go({ tab: k, p: null })} />
       <Banner icon="people">
         <span className="grow">ข้อเสนอประจำสัปดาห์ (ต่ออายุ ลด ยกขั้นคน) มาพร้อมทบทวนรายสัปดาห์ · ตอนนี้ตัดสินเองได้ที่นี่</span>
         <Phase phase="B7" />
@@ -104,9 +99,8 @@ export function People() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <AddPerson onDone={(id) => { go({ tab: "important", p: id }); changed(); }} />
-        <MailSettingsCard />
       </div>
     </div>
   );
@@ -131,7 +125,7 @@ function Detail({ p, onChange }: { p: PersonDetail; onChange: () => void }) {
     <Card>
       <div className="pt-4 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <Avatar name={p.name} />
+          <Avatar name={p.name} size="lg" />
           <div className="grow min-w-0">
             <div className="flex items-center gap-2"><span className="font-semibold text-lg truncate">{p.name}</span>
               <Chip tone={p.level === "important" ? "bad" : p.level === "interested" ? "acc" : "muted"}>{p.level_name}</Chip></div>
@@ -259,41 +253,8 @@ function AddPerson({ onDone }: { onDone: (id: number) => void }) {
           <Button kind="p" sm disabled={!address.includes("@")} onClick={add}>เพิ่ม</Button>
           {msg && <span className="text-xs text-bad">{msg}</span>}
         </div>
-      </div>
-    </Card>
-  );
-}
-
-function MailSettingsCard() {
-  const [s, setS] = useState<MailSettings | null>(null);
-  const [kw, setKw] = useState("");
-  const [interests, setInterests] = useState("");
-  const [days, setDays] = useState(3);
-  const [msg, setMsg] = useState("");
-  const fill = (x: MailSettings) => { setS(x); setKw(x.keywords.join(", ")); setInterests(x.interests.join(", ")); setDays(x.followup_days); };
-  useEffect(() => { api.mailSettings().then(fill, (e) => setMsg((e as Error).message)); }, []);
-  const split = (t: string) => t.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
-  const save = () => api.saveMailSettings({ keywords: split(kw), interests: split(interests), followup_days: days })
-    .then((x) => { fill(x); setMsg("บันทึกแล้ว"); }, (e) => setMsg((e as Error).message));
-  const input = "w-full bg-panel border border-line rounded-lg px-2 py-1.5 text-sm";
-  if (!s) return <Card title="ตั้งค่าอีเมล"><Spinner /></Card>;
-  return (
-    <Card title="ตั้งค่าอีเมล" right={<span className="text-xs text-muted">{s.emails_week} ฉบับใน 7 วัน{s.last_watch ? ` · เฝ้าล่าสุด ${when(s.last_watch)}` : ""}</span>}>
-      <div className="flex flex-col gap-2.5 text-sm">
-        {s.accounts.map((a) => (
-          <div key={a.id} className="flex items-center gap-2">
-            <Icon name="mail" size={16} />
-            <span className="grow truncate">Google · {a.label}{a.address && <span className="text-muted"> · {a.address}</span>}</span>
-            {a.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn" title={a.problem}>รอเชื่อม</Chip>}
-          </div>
-        ))}
-        <label className="flex flex-col gap-1"><span>คีย์เวิร์ดที่แจ้งทันที (ไม่ว่าใครส่ง) · คั่นด้วย ,</span>
-          <input className={input} value={kw} onChange={(e) => setKw(e.target.value)} /></label>
-        <label className="flex flex-col gap-1"><span>เรื่องที่สนใจช่วงนี้ (ใช้ตอนอ่านหัวข้อจากผู้ส่งที่ไม่สนใจ)</span>
-          <input className={input} value={interests} onChange={(e) => setInterests(e.target.value)} placeholder="เช่น ฝึกงาน, time-series, ทุน" /></label>
-        <label className="flex items-center gap-2"><span className="grow">เตือนเรื่องค้างเมื่อเกิน</span>
-          <input type="number" min={1} max={30} value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-16 bg-panel border border-line rounded-lg px-2 py-1" /> วัน</label>
-        <div className="flex items-center gap-2"><Button kind="p" sm onClick={save}>บันทึก</Button>{msg && <span className="text-xs text-muted">{msg}</span>}</div>
+        <Link to="/settings#mail" className="text-xs text-muted hover:text-ink pt-1">
+          คีย์เวิร์ดที่แจ้งทันที เรื่องที่สนใจ และวันเตือนเรื่องค้าง: <span className="font-semibold text-accent-strong whitespace-nowrap">ตั้งค่าอีเมล →</span></Link>
       </div>
     </Card>
   );

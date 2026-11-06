@@ -12,12 +12,14 @@ function Dot({ ok }: { ok: boolean }) {
   return <span className={`size-2 rounded-full shrink-0 ${ok ? "bg-ok" : "bg-bad"}`} />;
 }
 
+const COUNT_TITLE = { people: "อีเมลจากคนสำคัญวันนี้" } as const;
+
 function Side() {
   const { status, online } = useStatus();
   return (
     <aside className="bg-side border-r border-line flex flex-col min-h-0">
       <div className="flex items-center gap-2.5 px-5 pt-5 pb-4">
-        <span className="size-9 rounded-full bg-accent text-accent-ink grid place-items-center font-semibold">ล</span>
+        <span className="size-8 rounded-[10px] bg-accent text-accent-ink grid place-items-center font-bold">ล</span>
         <span className="flex flex-col leading-tight">
           <span className="font-semibold">เลขา</span>
           <span className="text-xs text-muted">my_secretary v2</span>
@@ -34,6 +36,12 @@ function Side() {
               <Icon name={n.icon} />
               <span className="grow">{n.label}</span>
               {!n.ready && <span className="text-[11px] text-muted" title={`มาในช่วง ${n.phase}`}>{n.phase}</span>}
+              {n.ready && n.count && !!status?.counts?.[n.count] && (
+                // the plan's .cnt: a red number for what needs a look
+                <span title={`${COUNT_TITLE[n.count]} ${status.counts[n.count]} ฉบับ`}
+                  className="min-w-[18px] rounded-full bg-bad px-[5px] text-center font-mono text-[11px] font-semibold leading-[18px] text-white">
+                  {status.counts[n.count]}</span>
+              )}
             </NavLink>
           ),
         )}
@@ -56,9 +64,9 @@ function Top() {
   const page = PAGES.find((p) => p.path === pathname);
   return (
     <header className="bg-top border-b border-line flex items-center gap-4 px-6 py-3">
-      <div className="flex flex-col grow min-w-0">
-        <h1 className="text-xl font-semibold truncate">{page?.label ?? "เลขา"}</h1>
-        <span className="text-xs text-muted">{thaiDate()}</span>
+      <div className="flex items-baseline gap-3 grow min-w-0">
+        <h1 className="text-[19px] font-semibold truncate">{page?.label ?? "เลขา"}</h1>
+        <span className="text-[13px] text-muted whitespace-nowrap">{thaiDate()}</span>
       </div>
       <AskBox />
       <Bell />
@@ -71,13 +79,27 @@ function Top() {
   );
 }
 
+/** The page is read from disk on every visit, the backend only when it starts: after new code
+ *  arrives, the page can be newer than the running backend, and new fields are lost. Say so. */
+function Restart() {
+  const { status } = useStatus();
+  if (!status?.stale) return null;
+  return (
+    <div className="flex items-start gap-2.5 rounded-s border border-warn/40 bg-warn-soft px-4 py-3 mb-4 text-sm text-ink">
+      <Icon name="refresh" className="text-warn mt-0.5 shrink-0" />
+      <span><b>เลขากำลังรันโค้ดรุ่นก่อน</b> โค้ดบนเครื่องใหม่กว่า สิ่งที่เพิ่งเพิ่มในหน้านี้อาจยังไม่ทำงานหรือไม่ถูกบันทึก ·
+        รีสตาร์ทเลขา: <code className="font-mono text-[13px] bg-panel rounded px-1.5 py-0.5 whitespace-nowrap">systemctl --user restart my-secretary</code></span>
+    </div>
+  );
+}
+
 export function Shell() {
   return (
     <div className="h-screen grid grid-cols-[236px_minmax(0,1fr)]">
       <Side />
       <div className="flex flex-col min-w-0 min-h-0">
         <Top />
-        <main className="flex-1 overflow-auto p-6"><Outlet /></main>
+        <main className="flex-1 overflow-auto p-6"><Restart /><Outlet /></main>
       </div>
     </div>
   );

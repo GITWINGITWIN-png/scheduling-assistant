@@ -21,23 +21,30 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from app.api import ask as ask_api
 from app.api import log as log_api
 from app.api import mail as mail_api
+from app.api import schedule as schedule_api
 from app.api import settings as settings_api
 from app.connectors import discord_bot
 from app.core import backup, db, worker
 from app.core.clock import clock
 from app.core.config import REPO_DIR
 from app.features import actions_discord, ask_discord
+from app.features.classroom import cards as classroom_cards
+from app.features.classroom import materials as classroom_materials
+from app.features.classroom import sync as classroom_sync
 from app.features.mail import cards as mail_cards
 from app.features.mail import extract as mail_extract
 from app.features.mail import followups as mail_followups
 from app.features.mail import rounds as mail_rounds
 from app.features.mail import watch as mail_watch
+from app.features.schedule import remind as schedule_remind
+from app.features.schedule import sync as schedule_sync
 
 VERSION = "2.0.0.dev0"
 WEB_DIST = REPO_DIR / "frontend" / "dist"  # `npm run build` in frontend/ writes the web page here
@@ -54,6 +61,11 @@ async def start_background() -> None:
     mail_extract.setup()  # appointments and tasks from what the rounds read
     mail_followups.setup()  # who owes a reply, and the reminders
     mail_cards.setup()  # #ด่วน · #อนุมัติ · #สรุป cards (after extract, so they can say what was done)
+    schedule_sync.setup()  # B3: plan blocks and sync with Google Calendar every 15 min (off until B3's check)
+    schedule_remind.setup()  # B3: "tomorrow" / "in an hour" in #ด่วน every 5 min (off until the check)
+    classroom_sync.setup()  # B3: Classroom deadlines and materials every 2 h (off until the check)
+    classroom_cards.setup()  # "ติดตามวิชานี้ไหม" in #อนุมัติ
+    classroom_materials.setup()  # new materials into the course folder, inside the Classroom round
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button
@@ -95,7 +107,22 @@ app = FastAPI(title="my_secretary", version=VERSION, lifespan=lifespan)
 app.include_router(ask_api.router)
 app.include_router(log_api.router)
 app.include_router(mail_api.router)
+app.include_router(schedule_api.router)
 app.include_router(settings_api.router)
+
+
+@app.exception_handler(RequestValidationError)
+async def _refused(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """A request the API can't take, said in words the page shows as they are. A field the
+    backend doesn't know means the page is newer than the running backend: say so, rather
+    than drop the field without a word (what happened to task details on 2026-11-06)."""
+    errors = exc.errors()
+    unknown = sorted({str(e["loc"][-1]) for e in errors if e.get("type") == "extra_forbidden"})
+    if unknown:
+        text = f"เลขายังไม่รู้จักช่อง {', '.join(unknown)} · หน้าเว็บอาจใหม่กว่าเลขาที่รันอยู่: รีสตาร์ทเลขาแล้วลองอีกครั้ง"
+    else:
+        text = "ข้อมูลไม่ครบหรือไม่ถูกต้อง: " + ", ".join(sorted({".".join(str(x) for x in e["loc"][1:]) or "body" for e in errors}))
+    return JSONResponse(status_code=422, content={"detail": text})
 
 
 @app.get("/api/health")

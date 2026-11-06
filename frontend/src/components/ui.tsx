@@ -39,6 +39,7 @@ export function Phase({ phase }: { phase: string }) {
 
 const BTN = {
   p: "bg-accent text-accent-ink hover:bg-accent-strong border-transparent",
+  ok: "bg-ok text-white hover:brightness-95 border-transparent", // รับ (the plan's .btn-ok)
   q: "bg-panel text-ink border-line-2 hover:bg-panel-2",
   ghost: "bg-transparent text-ink-2 border-transparent hover:bg-panel-2",
 } as const;
@@ -57,17 +58,52 @@ export function Button({ children, kind = "q", icon, sm = false, disabled = fals
   );
 }
 
-/** A row of mutually exclusive options (the mockups' "seg" filter). */
+/** A row of mutually exclusive options, as the plan's mockups draw it (look.css .seg): one outlined
+ *  group, the options split by thin lines, the chosen one tinted with the accent. */
 export function Seg<T extends string>({ options, value, onChange }: { options: { key: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="inline-flex bg-panel-2 border border-line rounded-full p-0.5">
-      {options.map((o) => (
-        <button key={o.key} type="button" onClick={() => onChange(o.key)}
-          className={`px-3.5 py-1 text-sm rounded-full cursor-pointer ${o.key === value ? "bg-panel text-ink shadow-card font-medium" : "text-muted hover:text-ink"}`}>
+    <div className="inline-flex shrink-0 overflow-hidden rounded-full border border-line-2 bg-panel">
+      {options.map((o, i) => (
+        <button key={o.key} type="button" onClick={() => onChange(o.key)} aria-pressed={o.key === value}
+          className={`px-3 py-1 text-xs font-semibold whitespace-nowrap cursor-pointer ${i ? "border-l border-line" : ""}
+            ${o.key === value ? "bg-accent-soft text-accent-strong" : "text-ink-2 hover:bg-panel-2"}`}>
           {o.label}
         </button>
       ))}
     </div>
+  );
+}
+
+/** Tabs along a line, as the plan's mockups draw them (look.css .tabs): the chosen one is underlined
+ *  with the accent, and each can carry a count. */
+export function Tabs<T extends string>({ options, value, onChange }: {
+  options: { key: T; label: string; count?: number }[]; value: T; onChange: (v: T) => void;
+}) {
+  return (
+    <div role="tablist" className="flex gap-0.5 border-b border-line">
+      {options.map((o) => (
+        <button key={o.key} type="button" role="tab" aria-selected={o.key === value} onClick={() => onChange(o.key)}
+          className={`-mb-px flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold whitespace-nowrap border-b-2 cursor-pointer
+            ${o.key === value ? "text-ink border-accent" : "text-muted border-transparent hover:text-ink"}`}>
+          {o.label}
+          {o.count != null && <span className="font-mono text-[11px] leading-[17px] rounded-full bg-panel-2 px-1.5 text-ink-2">{o.count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// The plan's avatar colours (look.css .av-1 … .av-8): white letters on solid colours, the same
+// colour for the same person every time.
+const AV = ["#5B7BD5", "#2E9C8A", "#D98E2B", "#A35BC5", "#D25C77", "#64748B", "#4E9B4E", "#B5684A"];
+
+export function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {
+  const n = [...name].reduce((h, c) => (h * 31 + c.codePointAt(0)!) >>> 0, 7) % AV.length;
+  const box = size === "sm" ? "size-6 text-[11px]" : size === "lg" ? "size-11 text-[17px]" : "size-8 text-[13px]";
+  return (
+    <span className={`${box} shrink-0 rounded-full grid place-items-center font-semibold text-white`} style={{ background: AV[n] }}>
+      {name.trim().charAt(0).toUpperCase() || "?"}
+    </span>
   );
 }
 

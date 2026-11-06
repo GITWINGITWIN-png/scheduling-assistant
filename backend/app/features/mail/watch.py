@@ -33,8 +33,8 @@ from dataclasses import dataclass
 from sqlalchemy import select
 
 from app.connectors import gmail, google
+from app.core import settings
 from app.core.db import now, session
-from app.core.tables import Setting
 from app.features.mail import people
 from app.features.mail.read import Reading, read_one
 from app.features.mail.tables import LEVELS, Email, Followup
@@ -65,14 +65,11 @@ SYNCED: list[Callable[[str, list], None]] = []
 
 # ------------------------------------------------------------------ settings and state
 def _get(key: str, default):
-    with session() as s:
-        row = s.get(Setting, key)
-        return row.value if row and row.value is not None else default
+    return settings.get(key, default)
 
 
 def _put(key: str, value) -> None:
-    with session() as s:
-        s.merge(Setting(key=key, value=value))
+    settings.put(key, value)
 
 
 def keywords() -> list[str]:
@@ -215,8 +212,8 @@ async def read_now(email_id: str) -> Reading | None:
     return reading
 
 
-async def run() -> str:
-    """The watch round. Returns a short line for the action log."""
+async def run() -> str | None:
+    """The watch round. Returns a short line for the action log, or None if nothing happened."""
     async with lock:
         new, read, skipped = 0, 0, []
         for account in google.ACCOUNTS:
@@ -229,6 +226,8 @@ async def run() -> str:
             for email_id in flagged:
                 if await read_now(email_id):
                     read += 1
+    if not (new or read or skipped):
+        return None  # a quiet run: no row in the log (see clock.Handler)
     parts = [f"ใหม่ {new} ฉบับ"] + ([f"อ่านทันที {read}"] if read else [])
     if skipped:
         parts.append(f"ข้ามบัญชี {', '.join(skipped)} (ยังไม่ได้เชื่อม)")

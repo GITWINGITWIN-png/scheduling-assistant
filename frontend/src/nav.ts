@@ -2,18 +2,21 @@
 // `ready` pages exist now; the others open a "มาในช่วง Bx" page that says what they'll hold.
 import type { IconName } from "./icons";
 
-export type NavItem = { path: string; label: string; icon: IconName; screen: string; phase: string; ready: boolean; about: string };
+export type NavItem = {
+  path: string; label: string; icon: IconName; screen: string; phase: string; ready: boolean; about: string;
+  count?: "people"; // which of /api/status's counts shows next to it (the plan's red number)
+};
 
 export const NAV: (NavItem | { group: string })[] = [
   { path: "/", label: "วันนี้", icon: "home", screen: "W1", phase: "B4", ready: false,
     about: "ทุกอย่างของวันนี้ในหน้าเดียว: ตารางเทียบที่ทำจริง เรื่องที่รอคุณ เรื่องสำคัญ งานเบื้องหลัง ข่าวโปรเจค" },
-  { path: "/people", label: "คนและอีเมล", icon: "people", screen: "W2", phase: "B2", ready: true,
+  { path: "/people", label: "คนและอีเมล", icon: "people", screen: "W2", phase: "B2", ready: true, count: "people",
     about: "ทะเบียนคน 3 ระดับพร้อมวันหมดอายุและโน้ตเหตุผล สรุปรายคน เรื่องค้าง" },
   { path: "/projects", label: "โปรเจค", icon: "folder", screen: "W3", phase: "B5", ready: false,
     about: "ทะเบียนโปรเจค: สถานะ potential ความเร่งด่วน ข่าวล่าสุด คำแนะนำ และคู่มือเชื่อมต่อ" },
   { path: "/jobs", label: "งานเบื้องหลัง", icon: "jobs", screen: "W4", phase: "B5", ready: false,
     about: "โควตาและเส้น 70% งานที่กำลังทำ คิวงาน และแผนที่รอคุณ · ทุกแผนบอกโมเดลและ effort" },
-  { path: "/schedule", label: "ตาราง", icon: "calendar", screen: "W5", phase: "B3", ready: false,
+  { path: "/schedule", label: "ตาราง", icon: "calendar", screen: "W5", phase: "B3", ready: true,
     about: "ตารางสัปดาห์: นัด เดดไลน์ บล็อกงาน ที่ทำจริง ซิงก์กับ Google Calendar" },
   { path: "/ideas", label: "ไอเดีย", icon: "idea", screen: "W6", phase: "B6", ready: false,
     about: "คลังไอเดียเป็นกลุ่ม · กลุ่มที่โตพอเสนอเป็นโปรเจคหรืองาน" },
