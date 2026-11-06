@@ -140,8 +140,9 @@ async def ask_appointment(event_id: int, decision_id: int, e: Email) -> None:
 
 
 async def round_summary(r: rounds.RoundResult) -> None:
-    """ROUND_DONE hook: the #สรุป card ("สรุปรายคนรายวัน")."""
-    if not _ready() or not (r.people or r.noteworthy or r.important):
+    """ROUND_DONE hook: the #สรุป card ("สรุปรายคนรายวัน") for the 12:00 round. The 00:00 round
+    has none since B4: the morning brief carries the night (the user's choice, 2026-11-06)."""
+    if r.big or not _ready() or not (r.people or r.noteworthy or r.important):
         return
     lines = []
     for p in r.people:
