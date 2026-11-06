@@ -26,6 +26,8 @@ SETTLED = {
     ("course", "approved"): "✅ ติดตามวิชานี้แล้ว", ("course", "rejected"): "ไม่ติดตามวิชานี้",
     ("plan", "approved"): "✅ อนุมัติแผนแล้ว", ("plan", "rejected"): "ไม่เอาแผนนี้",
     ("project_level", "approved"): "✅ ตั้งระดับโปรเจคแล้ว",
+    ("job", "approved"): "✅ อนุมัติแผนแล้ว · ใช้ได้ 3 วัน", ("job", "rejected"): "ไม่เอาแผนนี้",
+    ("job", "revised"): "แก้แผนแล้ว · แผนใหม่ส่งตามมา", ("job", "cancelled"): "งานนี้ออกจากคิวแล้ว",
 }
 
 

@@ -226,6 +226,8 @@ def decide(decision_id: int, action: str, note: str = "", via: Via = WEB) -> tup
         d = s.get(Decision, decision_id)
         if d is None:
             raise DecisionError("ไม่พบเรื่องนี้")
+        if d.kind != "plan":  # appointments, courses, projects and background plans have their own answers
+            raise DecisionError("เรื่องนี้ตอบที่ปุ่มของมันเอง")
         if d.status != "pending":
             raise DecisionError(f"เรื่องนี้ตัดสินไปแล้ว ({d.status})")
         d.status = "approved" if action == "approve" else "rejected"
@@ -258,7 +260,7 @@ async def revise(decision_id: int, change: str, via: Via = WEB) -> Answer:
     """แก้: Opus rewrites the plan with your change; the old one is marked revised."""
     with session() as s:
         old = s.get(Decision, decision_id)
-        if old is None or old.status != "pending":
+        if old is None or old.status != "pending" or old.kind != "plan":
             raise DecisionError("แผนนี้แก้ไม่ได้แล้ว (ไม่พบ หรือตัดสินไปแล้ว)")
         old.status, old.answer, old.answered_at = "revised", change, now()
     return await plan(old.detail.get("request", old.title), previous=old, change=change, via=via)

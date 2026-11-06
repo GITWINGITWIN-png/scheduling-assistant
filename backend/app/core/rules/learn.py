@@ -7,8 +7,9 @@ The patterns (later phases add more):
 - appointment days: you turned down appointments on one weekday at least 3 times in 4 weeks
   and accepted none on that day -> "คุณมักไม่รับนัดวันเสาร์". Once you accept it, such requests
   say so on their card; they still wait for your answer.
-- background plans (B5.6): every plan for one project approved, at least 5 -> that project's
-  low-risk plans may start without asking.
+- background plans: every plan for one project approved, at least 5 in 4 weeks -> "คุณอนุมัติ
+  แผนงานเบื้องหลังของ finance ทุกครั้ง"; once you accept it, that project's low-risk plans may
+  start without asking (a standing rule; high-risk work still asks).
 """
 
 from __future__ import annotations
@@ -50,7 +51,21 @@ def appointment_days(s, at: datetime) -> list[Found]:
             for day, n in sorted(no.items()) if n >= TIMES and not yes[day]]
 
 
-DETECTORS: list[Callable[..., list[Found]]] = [appointment_days]
+JOB_TIMES = 5  # "อนุมัติ 5 จาก 5"
+
+
+def job_approvals(s, at: datetime) -> list[Found]:
+    answered = s.scalars(select(Decision).where(Decision.kind == "job", Decision.status.in_(("approved", "rejected")),
+                                                Decision.answered_at >= at - WINDOW)).all()
+    yes, no = Counter(), Counter()
+    for d in answered:
+        (yes if d.status == "approved" else no)[(d.detail or {}).get("project", "")] += 1
+    return [Found(f"learned.job_auto.{name}", f"คุณอนุมัติแผนงานเบื้องหลังของ {name} ทุกครั้ง", f"อนุมัติ {n} จาก {n} ใน 4 สัปดาห์",
+                  ["jobs"], {"type": "job_auto", "project": name})
+            for name, n in sorted(yes.items()) if name and n >= JOB_TIMES and not no[name]]
+
+
+DETECTORS: list[Callable[..., list[Found]]] = [appointment_days, job_approvals]
 
 
 def refresh(at: datetime | None = None) -> int:
