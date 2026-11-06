@@ -235,13 +235,13 @@ async def _run(job_id: int, run: Run, via: tuple[str, str]) -> None:
         s.expunge(job)
     wt = worktrees() / f"{slug(job.project)}-{job.id}"
     base = ""
-    summary, status, used, denied = "", "failed", 0, []
+    summary, status, used, denied, cached = "", "failed", 0, [], 0
     try:
         base = _git(project_root, "rev-parse", "HEAD")
         base_branch = _git(project_root, "rev-parse", "--abbrev-ref", "HEAD")
         worktrees().mkdir(parents=True, exist_ok=True)
         _git(project_root, "worktree", "add", "-b", job.branch, str(wt), base)
-        summary, used, denied, finished = await _drive(job, wt, run)
+        summary, used, denied, finished, cached = await _drive(job, wt, run)
         status = "stopped" if run.why else ("done" if finished else "failed")
         # its own paragraph: Claude's words below are Markdown (the jobs page shows them so)
         summary = f"เริ่มจาก {base_branch} ({base[:7]})" + (f"\n\n{summary}" if summary else "")
@@ -253,7 +253,11 @@ async def _run(job_id: int, run: Run, via: tuple[str, str]) -> None:
         RUNNING.pop(job_id, None)
     words = {"done": "ทำเสร็จ", "stopped": f"หยุด: {run.why}", "failed": "ไม่สำเร็จ"}[status]
     tail = f" · ถูกห้าม {len(denied)} ครั้ง" if denied else ""
-    result = f"{words} · {commits} commit บน {job.branch} · ใช้ {used:,} / งบ {job.budget:,} โทเคน{tail}\n{summary}".strip()
+    # most of a run's tokens are Claude Code reading its own instructions again from the cache; they
+    # seem to count far less against your plan (four such jobs on 2026-11-06 didn't move the week by
+    # 1%): said, so the quota not moving makes sense
+    cache = f" (อ่าน cache ซ้ำ {cached:,})" if cached else ""
+    result = f"{words} · {commits} commit บน {job.branch} · ใช้ {used:,} / งบ {job.budget:,} โทเคน{cache}{tail}\n{summary}".strip()
     with session() as s:
         j = s.get(Job, job_id)
         j.status, j.used, j.finished_at, j.result = status, used, now(), result[:4000]
@@ -266,8 +270,8 @@ async def _run(job_id: int, run: Run, via: tuple[str, str]) -> None:
             log.exception("couldn't tell how job %s went", job_id)
 
 
-async def _drive(job: Job, wt: Path, run: Run) -> tuple[str, int, list[str], bool]:
-    """Claude Code at work. -> (its last words, tokens used, refusals, finished normally)."""
+async def _drive(job: Job, wt: Path, run: Run) -> tuple[str, int, list[str], bool, int]:
+    """Claude Code at work. -> (its last words, tokens used, refusals, finished normally, of them read from the cache)."""
     budget, loop, denied = Budget(job.budget), Loop(), []
     allowed = set(job.risks) if job.approved_until else set()  # what you approved, nothing more
 
@@ -346,7 +350,8 @@ async def _drive(job: Job, wt: Path, run: Run) -> tuple[str, int, list[str], boo
     llm.record_usage("job", job.model, job.effort, final, result.duration_ms if result else 0,
                      ok=bool(result and not result.is_error))
     finished = result is not None and not result.is_error and not run.why
-    return (result.result if result and result.result else last_words)[:1500], used, denied, finished
+    cached = int((final or {}).get("cache_read_input_tokens") or 0)
+    return (result.result if result and result.result else last_words)[:1500], used, denied, finished, cached
 
 
 def _wrap_up(project_root: Path, wt: Path, job: Job, base: str, why: str) -> int:

@@ -106,6 +106,7 @@ def test_a_job_works_on_its_own_branch_and_never_on_yours(project, monkeypatch):
     assert git(root, "show", f"{job.branch}:notes.txt") == "ของคุณ"  # it started from your last commit
     assert git(root, "worktree", "list").count("\n") == 0  # its worktree is gone; the branch stays
     assert "ทำเสร็จ · 2 commit บน " in job.result and "เริ่มจาก main" in job.result
+    assert "ใช้ 32,000 / งบ 100,000 โทเคน (อ่าน cache ซ้ำ 31,850)" in job.result  # why the quota hardly moves
     assert job.result.split("\n")[2:4] == ["", "ทำครบตามแผน"]  # Claude's own words in a paragraph of their own (Markdown)
     assert "ขั้นที่ค้างใน PROGRESS.md: เขียน hello" in FakeClient.last.prompt
 

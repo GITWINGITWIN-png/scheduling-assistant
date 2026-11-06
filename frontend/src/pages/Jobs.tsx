@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, type JobRow, type JobsPage } from "../api";
-import { Meter, Rank } from "../components/project";
+import { LineEditor, Meter, Rank } from "../components/project";
 import { Toast, type ToastMsg } from "../components/Toast";
 import { Button, Card, Chip, Markdown, Spinner } from "../components/ui";
 import { kTokens, shortDay, when } from "../format";
@@ -31,7 +31,8 @@ function RiskChip({ j }: { j: JobRow }) {
 }
 
 // ------------------------------------------------------------------ the quota card and the numbers
-function QuotaCard({ q, usage, onRead, reading }: { q: JobsPage["quota"]; usage: JobsPage["usage"]; onRead: () => void; reading: boolean }) {
+function QuotaCard({ q, usage, onRead, reading, say }: { q: JobsPage["quota"]; usage: JobsPage["usage"]; onRead: () => void; reading: boolean; say: Say }) {
+  const [editing, setEditing] = useState(false);
   const left = q.week_left;
   const above = left !== undefined && left > q.line;
   const resets = q.week_resets_at ? new Date(q.week_resets_at) : null;
@@ -47,16 +48,19 @@ function QuotaCard({ q, usage, onRead, reading }: { q: JobsPage["quota"]; usage:
           <span className="text-[13px] text-muted">เหลือ{resets ? ` · รีเซ็ต ${shortDay(resets)} ${resets.toTimeString().slice(0, 5)}` : ""}</span>
         </div>
         <Meter value={left ?? 0} tone={above ? "ok" : "warn"} mark={q.line} thick />
-        <div className="flex flex-wrap gap-x-3 text-xs">
-          <span className="text-muted grow">{left === undefined ? "" : `ใช้ไป ${Math.round(100 - left)}%`}
-            {q.five_left != null ? ` · 5 ชั่วโมงเหลือ ${Math.round(q.five_left)}%` : ""}</span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <span className="text-muted grow">{left === undefined ? "" : `Claude รายงาน: สัปดาห์ใช้ไป ${Math.round(100 - left)}%`}
+            {q.five_left != null ? ` · 5 ชั่วโมงใช้ไป ${Math.round(100 - q.five_left)}%` : ""}</span>
           <b>{word}</b>
+          {!editing && <Button sm kind="ghost" icon="edit" onClick={() => setEditing(true)} title="เส้นนี้เป็นกติกาในสมุดกติกา">แก้เส้น</Button>}
         </div>
+        {editing && <LineEditor line={q.line} onCancel={() => setEditing(false)}
+          onSave={(line) => api.setJobsRule({ line }).then((x) => { setEditing(false); say(`เส้นโควตาเป็น ${x.line}% แล้ว`, x.action_id); }, (e) => say((e as Error).message))} />}
         <div className="flex flex-wrap gap-x-3 text-xs text-muted border-t border-line pt-2">
           <span className="grow">เลขาใช้วันนี้ <b className="text-ink">{kTokens(usage.today)}</b> โทเคน (งานเบื้องหลัง {kTokens(usage.jobs_today)}) · 7 วัน {kTokens(usage.week)}</span>
           {q.at && <span>อ่านเมื่อ {when(q.at)}</span>}
         </div>
-        <span className="text-[11px] text-muted">Claude บอกโควตาสัปดาห์ทีละ 1% งานไม่กี่งานอาจยังไม่ขยับเลขนี้ · 5 ชั่วโมงขยับเร็วกว่า</span>
+        <span className="text-[11px] text-muted">Claude ส่งตัวเลขเป็นจำนวนเต็ม % · โทเคนของงานส่วนใหญ่เป็นการอ่าน cache ซ้ำ (ดูได้ในงานที่ทำแล้ว) งานเล็กๆ จึงยังไม่ถึง 1% ของสัปดาห์ · โควตา 5 ชั่วโมงขยับเร็วกว่า</span>
       </div>
     </Card>
   );
@@ -329,7 +333,7 @@ export function Jobs() {
     <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)]">
       <div className="flex flex-col gap-4 min-w-0">
         <div className="grid gap-4 md:grid-cols-2">
-          <QuotaCard q={page.quota} usage={page.usage} reading={reading} onRead={() => {
+          <QuotaCard q={page.quota} usage={page.usage} reading={reading} say={say} onRead={() => {
             const before = page.quota.week_left;
             setReading(true);
             api.readQuota().then((r) => {

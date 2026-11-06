@@ -48,7 +48,8 @@ class FakeClient:
         self.interrupted = True
 
     def _usage(self, tokens: int) -> dict:
-        return {"input_tokens": tokens - 100, "output_tokens": 100}
+        """Like the real reports: most of it read again from the cache."""
+        return {"input_tokens": 50, "cache_read_input_tokens": tokens - 150, "output_tokens": 100}
 
     async def receive_response(self):
         for n, step in enumerate(self.script):

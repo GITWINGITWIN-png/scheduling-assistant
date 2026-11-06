@@ -1,5 +1,8 @@
+import { useState } from "react";
+
 // Small pieces the projects, jobs and today pages share, drawn as the plan's mockups draw them
-// (look.css .rank, .urg, .meter): a project's potential letter, its urgency bars, and a meter.
+// (look.css .rank, .urg, .meter): a project's potential letter, its urgency bars, a meter, and the
+// quota line's editor (the jobs page and the rule book both change it).
 
 const RANK: Record<string, string> = { S: "#D99A1E", A: "#A855C9", B: "#2F55D4", C: "#1D9A8A", D: "#9AA3B1", F: "#9C8F86" };
 
@@ -32,5 +35,22 @@ export function Meter({ value, tone = "accent", mark, thick = false }: { value: 
       <i className={`block h-full rounded-full ${fill}`} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
       {mark !== undefined && <i className="absolute -top-[5px] -bottom-[5px] w-0.5 rounded-sm bg-ink" style={{ left: `${mark}%` }} />}
     </div>
+  );
+}
+
+/** The quota line (the rule "งานเบื้องหลังทำเองได้เมื่อโควตาเหลือเกิน 70%"): a number and บันทึก. */
+export function LineEditor({ line, onSave, onCancel }: { line: number; onSave: (line: number) => void; onCancel: () => void }) {
+  const [value, setValue] = useState(String(line));
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5 text-[13px]">
+      <span className="text-ink-2">ทำเองได้เมื่อโควตาสัปดาห์เหลือเกิน</span>
+      <input type="number" min={10} max={100} value={value} onChange={(e) => setValue(e.target.value)} autoFocus
+        onKeyDown={(e) => e.key === "Enter" && onSave(Number(value))}
+        className="w-16 h-8 rounded-s border border-line-2 bg-panel px-2 text-right font-mono" />
+      <span className="text-ink-2">%</span>
+      <button type="button" onClick={() => onSave(Number(value))}
+        className="rounded-full bg-accent text-accent-ink hover:bg-accent-strong px-3 py-1 text-xs font-medium cursor-pointer">บันทึก</button>
+      <button type="button" onClick={onCancel} className="rounded-full px-3 py-1 text-xs text-ink-2 hover:bg-panel-2 cursor-pointer">ยกเลิก</button>
+    </span>
   );
 }

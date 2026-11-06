@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObjec
 import { Link } from "react-router";
 import { api, type Part, type Proposal, type RiskRow, type RuleRow, type RulesPage, type SystemRule } from "../api";
 import { Toast, type ToastMsg } from "../components/Toast";
+import { LineEditor } from "../components/project";
 import { Button, Card, Chip, Spinner, Switch, Tabs } from "../components/ui";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
@@ -44,24 +45,14 @@ function EditLink({ to }: { to: string }) {
 // ------------------------------------------------------------------ rules that live in your settings
 function SystemLine({ r, ctx }: { r: SystemRule; ctx: Ctx }) {
   const [editing, setEditing] = useState(false);
-  const [line, setLine] = useState(String(r.line ?? 70));
   if (r.key === "jobs") {
-    const save = () => api.setJobsRule({ line: Number(line) }).then((x) => { setEditing(false); ctx.done(`เส้นโควตาเป็น ${x.line}% แล้ว`, x.action_id); }, ctx.fail);
+    const save = (value: number) => api.setJobsRule({ line: value }).then((x) => { setEditing(false); ctx.done(`เส้นโควตาเป็น ${x.line}% แล้ว`, x.action_id); }, ctx.fail);
     return (
       <Line toggle={<Switch on={!!r.enabled} title={r.enabled ? "เปิดอยู่: แผนเสี่ยงต่ำเริ่มเองได้เมื่อโควตาเกินเส้น" : "ปิดอยู่: ทุกแผนถามคุณก่อน"}
         onChange={(on) => api.setJobsRule({ auto: on }).then((x) => ctx.done(on ? "เปิดให้งานเบื้องหลังทำเองได้" : "ปิดแล้ว · ทุกแผนจะถามคุณก่อน", x.action_id), ctx.fail)} />}
         text={r.text} sub={r.enabled ? ctx.parts(r.used_by) : `${ctx.parts(r.used_by)} · ปิดอยู่: ทุกแผนถามคุณก่อน`}
-        side={<Button sm onClick={() => setEditing((e) => !e)}>แก้</Button>}>
-        {editing && (
-          <div className="mt-2 ml-[46px] flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-ink-2">ทำเองได้เมื่อโควตาสัปดาห์เหลือเกิน</span>
-            <input type="number" min={10} max={100} value={line} onChange={(e) => setLine(e.target.value)}
-              className="w-16 h-8 rounded-s border border-line-2 bg-panel px-2 text-right" />
-            <span className="text-ink-2">%</span>
-            <Button sm kind="p" onClick={save}>บันทึก</Button>
-            <Button sm kind="ghost" onClick={() => setEditing(false)}>ยกเลิก</Button>
-          </div>
-        )}
+        side={<Button sm icon="edit" onClick={() => setEditing((e) => !e)}>แก้เส้น {r.line ?? 70}%</Button>}>
+        {editing && <div className="mt-2 ml-[46px]"><LineEditor line={r.line ?? 70} onSave={save} onCancel={() => setEditing(false)} /></div>}
       </Line>
     );
   }
