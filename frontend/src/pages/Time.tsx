@@ -3,14 +3,154 @@
 // (④ ⑤): the recording switch, หยุดบันทึก, and the blocklist. Everything comes from ActivityWatch on
 // this computer, through the secretary's filter; nothing here uses a model.
 import { useCallback, useEffect, useState } from "react";
-import { api, type PrivacyCard, type PrivacyRuleRow, type TimePage } from "../api";
+import { Link } from "react-router";
+import { api, type Behaviour, type PrivacyCard, type PrivacyRuleRow, type TimeBar, type TimePage, type TimeProject, type TimeRange } from "../api";
 import { Toast, type ToastMsg } from "../components/Toast";
-import { Banner, Button, Card, Spinner, Switch } from "../components/ui";
+import { Banner, Button, Card, Spinner, Switch, Tabs } from "../components/ui";
 import { hm } from "../format";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
 
 type Say = (text: string, actionId?: number | null) => void;
+
+// The mockup's colours per category (W7 ①): code c1, study c2, meeting c3, web c6, other c5; mail and chat c4.
+const CAT_COLOR: Record<string, string> = { code: "var(--c1)", study: "var(--c2)", meeting: "var(--c3)", chat: "var(--c4)",
+  web: "var(--c6)", other: "var(--c5)" };
+const CAT_ORDER = ["code", "study", "meeting", "chat", "web", "other"];
+const PROJECT_COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c6)", "var(--c5)"];
+
+function hours(min: number): string {
+  if (min < 60) return `${Math.round(min)} นาที`;
+  const h = min / 60;
+  return `${h >= 10 ? Math.round(h) : Math.round(h * 2) / 2} ชม.`;
+}
+
+/** ① Stacked bars, one per day (per hour today), the categories in the mockup's order. */
+function Bars({ bars, categories, perHour }: { bars: TimeBar[]; categories: Record<string, string>; perHour: boolean }) {
+  const W = 640, H = 200, top = 18, bottom = 24, left = 44;
+  const totals = bars.map((b) => Object.values(b.minutes).reduce((a, v) => a + v, 0));
+  const maxMin = Math.max(60, ...totals);
+  const stepMin = perHour ? 15 : maxMin > 600 ? 180 : maxMin > 240 ? 120 : 60;
+  const scaleMax = Math.ceil(maxMin / stepMin) * stepMin;
+  const y = (m: number) => top + (H - top - bottom) * (1 - m / scaleMax);
+  const slot = (W - left) / bars.length;
+  const bw = Math.min(46, slot * 0.62);
+  const used = CAT_ORDER.filter((c) => bars.some((b) => b.minutes[c]));
+  return (
+    <div className="flex flex-col gap-2">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="เวลาต่อวันตามหมวด">
+        {Array.from({ length: scaleMax / stepMin + 1 }, (_, i) => i * stepMin).map((m) => (
+          <g key={m}>
+            <line x1={left} x2={W} y1={y(m)} y2={y(m)} stroke="var(--line)" />
+            <text x={left - 6} y={y(m) + 4} textAnchor="end" fontSize="11" fill="var(--muted)">{perHour ? `${m}น.` : `${m / 60} ชม.`}</text>
+          </g>
+        ))}
+        {bars.map((b, i) => {
+          let acc = 0;
+          const x = left + slot * i + (slot - bw) / 2;
+          return (
+            <g key={b.start}>
+              {CAT_ORDER.filter((c) => b.minutes[c]).map((c) => {
+                const y0 = y(acc), y1 = y(acc + b.minutes[c]);
+                acc += b.minutes[c];
+                return <rect key={c} x={x} y={y1} width={bw} height={Math.max(0, y0 - y1 - 1)} rx={3} fill={CAT_COLOR[c]}>
+                  <title>{`${b.label} · ${categories[c]} ${hours(b.minutes[c])}`}</title></rect>;
+              })}
+              {(!perHour || i % 2 === 0) && <text x={x + bw / 2} y={H - 6} textAnchor="middle" fontSize="11" fill="var(--muted)">{b.label}</text>}
+            </g>
+          );
+        })}
+      </svg>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2">
+        {used.map((c) => <span key={c} className="inline-flex items-center gap-1.5"><i className="size-2.5 rounded-sm" style={{ background: CAT_COLOR[c] }} />{categories[c]}</span>)}
+      </div>
+    </div>
+  );
+}
+
+/** ② Per project, against the schedule's plan for it. */
+function Projects({ items }: { items: TimeProject[] }) {
+  const total = items.reduce((a, p) => a + p.minutes, 0);
+  return (
+    <Card title="แยกตามโปรเจค">
+      {items.length === 0 ? <p className="text-sm text-muted">ยังไม่มีเวลาที่ผูกกับโปรเจค · เลขาดูชื่อโปรเจคจากชื่อหน้าต่าง เช่น VS Code และ terminal</p> : (
+        <div className="flex flex-col gap-2.5">
+          {total > 0 && (
+            <div className="flex h-2.5 overflow-hidden rounded-full bg-panel-2">
+              {items.filter((p) => p.minutes).map((p, i) => <i key={p.name} title={`${p.name} ${hours(p.minutes)}`} style={{ width: `${(100 * p.minutes) / total}%`, background: PROJECT_COLORS[i % PROJECT_COLORS.length] }} />)}
+            </div>
+          )}
+          <ul className="divide-y divide-line">
+            {items.map((p, i) => (
+              <li key={p.name} className="flex items-start gap-2.5 py-2">
+                <i className="mt-1.5 size-2 shrink-0 rounded-full" style={{ background: PROJECT_COLORS[i % PROJECT_COLORS.length] }} />
+                <span className="grow min-w-0">
+                  <span className="block font-semibold text-[14px] truncate">{p.name}</span>
+                  {p.planned > 0 && <span className="block text-xs text-muted">แผนถึงตอนนี้ {hours(p.planned)}{p.short >= 30 ? ` · ขาด ${hours(p.short)}` : ""}</span>}
+                </span>
+                <span className="text-sm text-ink-2 whitespace-nowrap">{hours(p.minutes)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** ③ What the rules noticed. */
+function Behaviours({ items, days }: { items: Behaviour[]; days: number }) {
+  return (
+    <Card title="พฤติกรรมที่เจอ">
+      {items.length === 0 ? (
+        <p className="text-sm text-muted">{days ? "ยังไม่เห็นอะไรชัด · ข้อมูลยิ่งหลายวันยิ่งเห็น" : "ยังไม่มีข้อมูล"}</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {items.map((b) => (
+            <li key={b.title} className="flex items-start gap-3 py-2.5">
+              <Icon name={b.icon} className="mt-0.5 text-ink-2" />
+              <span className="grow min-w-0">
+                <span className="block font-semibold text-[14px]">{b.title}</span>
+                <span className="block text-xs text-muted">{b.sub}</span>
+              </span>
+              {b.link && <Link to={b.link} className="text-xs font-semibold text-accent-strong hover:underline whitespace-nowrap">ตาราง →</Link>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/** อื่นๆ: what the rules couldn't sort, for you to sort (it becomes a rule of yours). */
+function Unsorted({ page, say, fail }: { page: TimePage; say: Say; fail: (e: unknown) => void }) {
+  if (page.unsorted.length === 0) return null;
+  return (
+    <Card title="ยังไม่จัดหมวด" right={<span className="text-xs text-muted">กติกาจัดไม่ได้ · เลือกหมวดแล้วเลขาจำเป็นกติกาของคุณ</span>}>
+      <ul className="divide-y divide-line">
+        {page.unsorted.map((u) => (
+          <li key={u.app} className="flex flex-wrap items-center gap-2.5 py-2">
+            <span className="grow min-w-0 basis-48">
+              <span className="block font-semibold text-[14px] truncate">{u.app || "(ไม่มีชื่อแอป)"}</span>
+              <span className="block text-xs text-muted truncate" title={u.title}>{u.title}</span>
+            </span>
+            <span className="text-sm text-ink-2">{hours(u.minutes)}</span>
+            <select defaultValue="" aria-label={`จัดหมวด ${u.app}`} className="rounded-full border border-line-2 bg-panel px-2 py-1 text-xs"
+              onChange={async (e) => {
+                const cat = e.currentTarget.value;
+                if (!cat) return;
+                try { const r = await api.sortTime("app", u.app, cat); say(`${u.app} → ${page.categories[cat]} · จัดของเดิมใหม่ด้วย`, r.action_id); }
+                catch (err) { fail(err); }
+              }}>
+              <option value="">จัดหมวด…</option>
+              {CAT_ORDER.filter((c) => c !== "other").map((c) => <option key={c} value={c}>{page.categories[c]}</option>)}
+            </select>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
 
 /** What the recorder is doing, in one line. */
 function recorderLine(p: PrivacyCard): { text: string; bad?: boolean } {
@@ -113,20 +253,23 @@ function RulesEditor({ p, set, say, fail }: { p: PrivacyCard; set: (p: PrivacyCa
   );
 }
 
+const RANGES: { key: TimeRange; label: string }[] = [{ key: "today", label: "วันนี้" }, { key: "week", label: "สัปดาห์นี้" }, { key: "month", label: "เดือนนี้" }];
+
 export function Time() {
   const { refresh } = useStatus();
+  const [range, setRange] = useState<TimeRange>("week");
   const [page, setPage] = useState<TimePage | null>(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState<ToastMsg | null>(null);
   const load = useCallback(() => {
-    api.time().then((p) => { setPage(p); setError(""); }, (e) => setError((e as Error).message));
-  }, []);
+    api.time(range).then((p) => { setPage(p); setError(""); }, (e) => setError((e as Error).message));
+  }, [range]);
   useEffect(() => {
     load();
     const t = setInterval(load, 60_000);
     return () => clearInterval(t);
   }, [load]);
-  const say: Say = (text, actionId = null) => { setToast({ text, actionId, key: Date.now() }); refresh(); };
+  const say: Say = (text, actionId = null) => { setToast({ text, actionId, key: Date.now() }); refresh(); load(); };
   const fail = (e: unknown) => setError((e as Error).message);
   const undo = async (id: number) => { await api.undo(id); setToast(null); load(); refresh(); };
   if (page === null) return error ? <p className="text-sm text-bad">{error}</p> : <Spinner />;
@@ -138,9 +281,21 @@ export function Time() {
       {!(r.enabled && r.round_on) && (
         <Banner icon="clock">ยังไม่ได้บันทึกกิจกรรม · เปิด <b>บันทึกกิจกรรม</b> ในการ์ดความเป็นส่วนตัว แล้วหน้านี้จะเริ่มมีเวลาต่อวัน แยกตามหมวดและโปรเจค</Banner>
       )}
+      <div className="flex flex-wrap items-end gap-3">
+        <Tabs options={RANGES} value={range} onChange={setRange} />
+        <span className="ml-auto text-sm text-muted">{page.label} · จาก ActivityWatch{page.total ? ` · รวม ${hours(page.total)}` : ""}</span>
+      </div>
       <div className="grid gap-4 items-start xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
-        <div className="flex flex-col gap-4 min-w-0" />
         <div className="flex flex-col gap-4 min-w-0">
+          <Card title={range === "today" ? "เวลาต่อชั่วโมง" : "เวลาต่อวัน"}>
+            {page.total ? <Bars bars={page.bars} categories={page.categories} perHour={range === "today"} />
+              : <p className="text-sm text-muted">ยังไม่มีเวลาที่บันทึกใน{RANGES.find((x) => x.key === range)!.label}</p>}
+          </Card>
+          <Behaviours items={page.behaviours} days={page.days_with_data} />
+          <Unsorted page={page} say={say} fail={fail} />
+        </div>
+        <div className="flex flex-col gap-4 min-w-0">
+          <Projects items={page.projects} />
           <Privacy p={page.privacy} set={setPrivacy} say={say} fail={fail} />
         </div>
       </div>

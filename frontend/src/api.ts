@@ -19,7 +19,7 @@ export type Settings = {
   clock: Round[];
   discord: { configured: boolean; connected: boolean; user: string; channels: string[]; problem: string };
   google: { id: string; label: string; does: string; connected: boolean; problem: string; address: string }[];
-  services: { icon: string; name: string; detail: string; phase: string }[];
+  services: { icon: string; name: string; detail: string; phase: string; state?: string; tone?: "ok" | "warn" | "muted" }[]; // B6: state is live
   jobs_rule: { auto: boolean; line: number; approval_days: number }; // B5: อนุมัติเอง (set in the rule book)
 };
 
@@ -206,11 +206,22 @@ export type PrivacyCard = {
   recorder: Recorder; rules: PrivacyRuleRow[]; kinds: Record<PrivacyRuleRow["kind"], string>;
   last_read: { to?: string; at?: string; error?: string; error_at?: string };
 };
-export type TimePage = { privacy: PrivacyCard };
+export type TimeBar = { label: string; start: string; minutes: Record<string, number> };
+export type TimeProject = { name: string; minutes: number; planned: number; short: number };
+export type Behaviour = { icon: "bolt" | "eye" | "trend" | "clock"; title: string; sub: string; link?: string };
+export type TimeRange = "today" | "week" | "month";
+export type TimePage = {
+  privacy: PrivacyCard; range: TimeRange; label: string; start: string; end: string;
+  categories: Record<string, string>; bars: TimeBar[]; projects: TimeProject[]; behaviours: Behaviour[];
+  unsorted: { app: string; title: string; minutes: number }[]; total: number; days_with_data: number;
+  rules: { field: "app" | "title"; match: string; category: string; project: string }[];
+};
 
 export const api = {
   // W7 การใช้เวลา (B6)
-  time: () => call<TimePage>("GET", "/api/time"),
+  time: (range: TimeRange = "week") => call<TimePage>("GET", `/api/time?range=${range}`),
+  sortTime: (field: "app" | "title", match: string, category: string, project = "") =>
+    call<{ action_id: number }>("POST", "/api/time/categories", { field, match, category, project }),
   setRecording: (on: boolean) => call<PrivacyCard & { action_id: number }>("PUT", "/api/time/recording", { on }),
   pauseRecording: (minutes: number) => call<PrivacyCard & { until: string; action_id: number }>("POST", "/api/time/pause", { minutes }),
   resumeRecording: () => call<PrivacyCard & { action_id: number }>("POST", "/api/time/resume"),

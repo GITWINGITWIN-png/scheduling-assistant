@@ -6,7 +6,8 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
-from app.features.time import privacy, pull, recorder
+from app.core.db import now
+from app.features.time import categorize, insights, privacy, pull, recorder
 from app.features.time.tables import KINDS
 
 router = APIRouter(prefix="/api")
@@ -21,8 +22,26 @@ def privacy_card() -> dict:
 
 
 @router.get("/time")
-def time_page() -> dict:
-    return {"privacy": privacy_card()}
+def time_page(range: str = "week") -> dict:  # noqa: A002  (the page's word: วันนี้ · สัปดาห์นี้ · เดือนนี้)
+    if range not in ("today", "week", "month"):
+        raise HTTPException(422, "range ต้องเป็น today, week หรือ month")
+    return {"privacy": privacy_card(), **insights.page(range, now()), "rules": categorize.yours()}
+
+
+class CategoryIn(Strict):
+    field: str  # app · title
+    match: str
+    category: str
+    project: str = ""
+
+
+@router.post("/time/categories")
+def add_category(body: CategoryIn) -> dict:
+    """จัดหมวด from อื่นๆ: a rule of yours, and everything kept is sorted again."""
+    try:
+        return {"action_id": categorize.add_rule(body.field, body.match, body.category, body.project)}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 class SwitchIn(Strict):

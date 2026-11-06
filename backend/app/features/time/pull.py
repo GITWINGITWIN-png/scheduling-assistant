@@ -54,9 +54,10 @@ class Read:
 
 
 def sorter():
-    """(app, title) -> (category, project id, project name). Until the category rules arrive
-    (categorize.py), everything is kept unsorted."""
-    return lambda app, title: ("", None, "")
+    """(app, title) -> (category, project id, project name), by the rules in categorize.py."""
+    from app.features.time import categorize
+
+    return categorize.Sorter().sort
 
 
 def read(at: datetime | None = None) -> Read:
