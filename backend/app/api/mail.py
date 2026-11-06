@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from app.connectors import google
 from app.core.db import now, session
 from app.core.tables import Action
+from app.features import decisions
 from app.features.mail import extract, followups, people, rounds, watch
 from app.features.mail.tables import LEVELS, SOURCES, Email, Followup, Person
 
@@ -147,6 +148,7 @@ async def answer_appointment(decision_id: int, body: AppointmentIn) -> dict:
     """รับนัด (into the calendar, undoable) or ไม่ไป, for an appointment waiting in the bell / #อนุมัติ."""
     try:
         d, action_id = await extract.decide(decision_id, body.accept, via=("หน้าเว็บ", ""))
+        await decisions.settle_card(decision_id)  # its #อนุมัติ card says so too
     except ValueError as exc:
         raise HTTPException(409, str(exc))
     return {"id": d.id, "status": d.status, "action_id": action_id}

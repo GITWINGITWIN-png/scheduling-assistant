@@ -31,6 +31,7 @@ export type Decision = {
   model: string; effort: string; tokens: number | null; created_at: string;
   when: string; from: string; subject: string; // appointment (B2)
   folder: string; exists: boolean; link: string; // course (B3)
+  clash?: string | null; // appointment: what else is at that time ("" = nothing), null for other kinds
 };
 
 export type Answer = {

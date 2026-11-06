@@ -12,6 +12,7 @@ from app.core import clock as clock_mod
 from app.core.clock import clock
 from app.core.db import now, session
 from app.core.tables import Decision, LLMUsage
+from app.features.decisions import clashes
 from app.features.briefs import day as briefs_day
 from app.features.mail import watch
 
@@ -114,14 +115,16 @@ def status() -> dict:
 
 @router.get("/decisions")
 def decisions(status: str = "pending") -> dict:
-    """What waits for you (the bell): plans (B1), appointments from email (B2), Classroom courses (B3)."""
+    """What waits for you (the bell and the today page): plans (B1), appointments from email (B2),
+    Classroom courses (B3). An appointment says what else is at that time (clash: "" = nothing)."""
     with session() as s:
         rows = s.scalars(select(Decision).where(Decision.status == status).order_by(Decision.created_at.desc()).limit(50)).all()
+    clash = clashes(rows)
     return {"items": [{"id": d.id, "kind": d.kind, "title": d.title, "plan": d.detail.get("plan", ""),
                        "request": d.detail.get("request", ""), "model": d.detail.get("model", ""),
                        "effort": d.detail.get("effort", ""), "tokens": d.detail.get("tokens"),
                        "when": d.detail.get("when", ""), "from": d.detail.get("from", ""),  # appointment (B2)
                        "subject": d.detail.get("subject", ""),
                        "folder": d.detail.get("folder", ""), "exists": d.detail.get("exists", False),  # course (B3)
-                       "link": d.detail.get("link", ""),
+                       "link": d.detail.get("link", ""), "clash": clash.get(d.id),
                        "created_at": d.created_at.isoformat()} for d in rows]}

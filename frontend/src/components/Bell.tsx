@@ -2,12 +2,11 @@
 // from email (B2), Classroom courses to follow (B3). B4's today page later gathers them in one place.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Decision } from "../api";
-import { when } from "../format";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
-import { PlanActions } from "./PlanActions";
+import { DecisionRow } from "./Decisions";
 import { useDismiss } from "./popover";
-import { Button, Markdown, Spinner } from "./ui";
+import { Button, Spinner } from "./ui";
 
 // รับ · ไม่ไป for an appointment from someone who isn't important (B2), with ย้อนกลับ after รับ.
 // onChange: the page around it re-reads what it shows (the schedule redraws the calendar).
@@ -85,14 +84,12 @@ export function Bell() {
   const { status } = useStatus();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Decision[] | null>(null);
-  const [expanded, setExpanded] = useState<number | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
   useDismiss(wrap, open, useCallback(() => setOpen(false), []));
   const count = status?.pending ?? 0;
+  const load = useCallback(() => { api.decisions().then((r) => setItems(r.items), () => setItems([])); }, []);
 
-  useEffect(() => {
-    if (open) api.decisions().then((r) => setItems(r.items), () => setItems([]));
-  }, [open]);
+  useEffect(() => { if (open) load(); }, [open, load]);
 
   return (
     <div ref={wrap} className="relative">
@@ -100,49 +97,19 @@ export function Bell() {
         className="relative size-9 rounded-full border border-line-2 text-ink-2 grid place-items-center cursor-pointer hover:bg-panel-2">
         <Icon name="bell" />
         {count > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-accent-ink text-[11px] font-semibold grid place-items-center">
+          // the plan's .ibx .n: a red number
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-bad text-white font-mono text-[10.5px] font-semibold grid place-items-center">
             {count}
           </span>
         )}
       </button>
       {open && (
         <div className="absolute right-0 top-[calc(100%+10px)] z-20 w-[min(520px,92vw)] max-h-[70vh] overflow-auto bg-panel border border-line rounded-card p-4
-          shadow-[0_18px_50px_rgba(0,0,0,0.22)] flex flex-col gap-3">
+          shadow-[0_18px_50px_rgba(0,0,0,0.22)] flex flex-col gap-1">
           <span className="font-semibold">เรื่องที่รอคุณ</span>
           {items === null && <Spinner />}
           {items?.length === 0 && <p className="text-sm text-muted">ไม่มีเรื่องที่รอ</p>}
-          {items?.map((d) => (
-            <div key={d.id} className="border-t border-line pt-3 flex flex-col gap-2 first-of-type:border-0 first-of-type:pt-0">
-              {d.kind === "course" ? (
-                <>
-                  <div>
-                    <div className="font-medium">{d.title}</div>
-                    <div className="text-xs text-muted">วิชาใน Classroom · ติดตามไหม: งานที่มีกำหนดส่งเข้าตาราง สื่อใหม่ลงโฟลเดอร์วิชา</div>
-                  </div>
-                  <CourseActions decisionId={d.id} folder={d.folder} exists={d.exists} />
-                </>
-              ) : d.kind === "appointment" ? (
-                <>
-                  <div>
-                    <div className="font-medium">{d.title}</div>
-                    <div className="text-xs text-muted">{["นัดรอคุณรับ", d.when, d.from && `จาก ${d.from}`, d.subject].filter(Boolean).join(" · ")}</div>
-                  </div>
-                  <AppointmentActions decisionId={d.id} />
-                </>
-              ) : (
-                <>
-                  <button type="button" className="text-left cursor-pointer" onClick={() => setExpanded(expanded === d.id ? null : d.id)}>
-                    <div className="font-medium">{d.title}</div>
-                    <div className="text-xs text-muted">
-                      {["แผน", when(d.created_at), d.model && `${d.model} effort ${d.effort}`, expanded === d.id ? "ซ่อน" : "ดูแผน"].filter(Boolean).join(" · ")}
-                    </div>
-                  </button>
-                  {expanded === d.id && <Markdown text={d.plan} />}
-                  <PlanActions decisionId={d.id} />
-                </>
-              )}
-            </div>
-          ))}
+          {!!items?.length && <ul className="divide-y divide-line">{items.map((d) => <DecisionRow key={d.id} d={d} />)}</ul>}
         </div>
       )}
     </div>

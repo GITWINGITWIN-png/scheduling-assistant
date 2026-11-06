@@ -200,3 +200,34 @@ def test_a_day_gets_one_evening_review(thursday, monkeypatch):
     monkeypatch.setattr(evening, "tonight", lambda at: "")
     assert evening.make(at(11, 21)) is not None
     assert evening.make(at(11, 22)) is None
+
+
+# ------------------------------------------------------------------ decisions in one place
+def test_a_waiting_appointment_says_what_else_is_at_that_time():
+    from app.api import settings as settings_api
+    from app.core.tables import Decision
+    with session() as s:
+        busy = Event(title="เรียน DSP", starts_at=at(15, 13), ends_at=at(15, 16), source="calendar", status="placed")
+        clash = Event(title="ประชุมโปรเจค", starts_at=at(15, 14), ends_at=at(15, 15), source="email", status="proposed")
+        free = Event(title="คุยงาน", starts_at=at(15, 17), ends_at=at(15, 18), source="email", status="proposed")
+        s.add_all([busy, clash, free])
+        s.flush()
+        a = Decision(kind="appointment", title="ประชุมโปรเจค", detail={"event_id": clash.id})
+        b = Decision(kind="appointment", title="คุยงาน", detail={"event_id": free.id})
+        s.add_all([a, b])
+        s.flush()
+        ids = (a.id, b.id)
+    shown = {d["id"]: d for d in settings_api.decisions()["items"]}
+    assert shown[ids[0]]["clash"] == "เรียน DSP"
+    assert shown[ids[1]]["clash"] == ""  # nothing else then: "ไม่ชนนัดอื่น"
+
+
+def test_answering_on_the_web_without_discord_leaves_the_card_alone():
+    from app.core.tables import Decision
+    from app.features import decisions
+    with session() as s:
+        d = Decision(kind="course", title="OS", status="approved")
+        s.add(d)
+        s.flush()
+        did = d.id
+    asyncio.run(decisions.settle_card(did))  # the bot isn't connected in tests: nothing to do, nothing raised
