@@ -6,10 +6,11 @@
 // สร้าง) for a card with two tabs, กิจกรรม and งาน (schedule/EditCard.tsx); click anything on
 // the calendar to see what it is (schedule/DetailCard.tsx).
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, type CourseRow, type Decision, type ScheduleRules, type TaskRow } from "../api";
+import { api, type CourseRow, type Decision, type Followed, type ScheduleRules, type TaskRow } from "../api";
 import { Link } from "react-router";
 import { AppointmentActions, CourseActions } from "../components/Bell";
-import { Avatar, Banner, Button, Card, Chip, Phase, Spinner } from "../components/ui";
+import { LineEditor, Meter } from "../components/project";
+import { Avatar, Banner, Button, Card, Chip, Spinner } from "../components/ui";
 import { duration, when } from "../format";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
@@ -69,11 +70,61 @@ function Tasks({ items, onAdd, onEdit, onFinish }: {
 }
 
 // ------------------------------------------------------------------ the right column (W5 ⑤ ⑥ ⑦)
-/** ⑤ and ⑥ arrive with B6 (blocks compared with what you really did, from ActivityWatch). */
-function Later({ title, children }: { title: string; children: string }) {
+/** ⑤ ทำตามแผนได้ (B6): this week's checked blocks you followed, against your target, per day. */
+function FollowedCard({ f, onTarget }: { f: Followed | null; onTarget: (t: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  if (!f) return <Card title="ทำตามแผนได้"><Spinner /></Card>;
+  const maxDay = Math.max(60, ...f.days.map((d) => d.done + d.missed));
   return (
-    <Card title={title} right={<Phase phase="B6" />}>
-      <p className="text-sm text-muted">{children}</p>
+    <Card title="ทำตามแผนได้">
+      {f.percent === null ? (
+        <p className="text-sm text-muted">{f.recording ? "ยังไม่มีบล็อกที่เทียบได้สัปดาห์นี้ · บล็อกที่จบแล้วจะถูกเทียบกับ ActivityWatch ทุก 15 นาที"
+          : <>ยังไม่ได้เปิดบันทึกกิจกรรม · <Link to="/time" className="underline">เปิดที่หน้าการใช้เวลา</Link></>}</p>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          <div className="flex items-baseline gap-2">
+            <b className="text-[28px] leading-none">{f.percent}%</b>
+            <span className="text-sm text-muted">สัปดาห์นี้ ·{" "}
+              <button type="button" className="hover:underline cursor-pointer" onClick={() => setEditing(!editing)}>เป้า {f.target}%</button></span>
+          </div>
+          {editing && <LineEditor line={f.target} onSave={(v) => { setEditing(false); onTarget(v); }} onCancel={() => setEditing(false)} />}
+          <Meter value={f.percent} tone={f.percent >= f.target ? "ok" : "warn"} mark={f.target} thick />
+          <svg viewBox="0 0 280 90" className="w-full h-auto" role="img" aria-label="ทำตามแผนรายวัน">
+            {f.days.map((d, i) => {
+              const x = 14 + i * 38, h = (v: number) => (64 * v) / maxDay;
+              return (
+                <g key={d.label}>
+                  <rect x={x} y={70 - h(d.done)} width={22} height={h(d.done)} rx={3} fill="var(--c2)"><title>{`${d.label} ทำตามแผน ${duration(d.done)}`}</title></rect>
+                  <rect x={x} y={70 - h(d.done) - h(d.missed)} width={22} height={h(d.missed)} rx={3} fill="var(--c5)"><title>{`${d.label} หลุดแผน ${duration(d.missed)}`}</title></rect>
+                  <text x={x + 11} y={86} textAnchor="middle" fontSize="10" fill="var(--muted)">{d.label}</text>
+                </g>
+              );
+            })}
+          </svg>
+          <div className="flex gap-3 text-xs text-ink-2">
+            <span className="inline-flex items-center gap-1.5"><i className="size-2.5 rounded-sm" style={{ background: "var(--c2)" }} />ทำตามแผน</span>
+            <span className="inline-flex items-center gap-1.5"><i className="size-2.5 rounded-sm" style={{ background: "var(--c5)" }} />หลุดแผน</span>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** ⑥ ข้อสังเกต (B6): a part of a weekday where blocks keep being missed. */
+function NotesCard({ f }: { f: Followed | null }) {
+  return (
+    <Card title="ข้อสังเกต">
+      {!f || f.notes.length === 0 ? (
+        <p className="text-sm text-muted">ยังไม่เห็นช่วงที่หลุดซ้ำ · เลขาดูย้อนหลัง 4 สัปดาห์ ช่วงเดียวกันหลุด 2 สัปดาห์ขึ้นไปจึงบอก</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {f.notes.map((n) => (
+            <li key={n.title} className="py-2"><span className="block font-semibold text-[14px]">{n.title}</span>
+              <span className="block text-xs text-muted">{n.sub}</span></li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }
@@ -168,6 +219,9 @@ export function Schedule() {
     api.tasks().then((r) => setTasks(r.items), () => setTasks([]));
   }, [key]);
   const changed = useCallback(() => { setKey((k) => k + 1); refresh(); }, [refresh]);
+  const [followedWeek, setFollowedWeek] = useState<Followed | null>(null);
+  const loadFollowed = useCallback(() => { api.followed().then(setFollowedWeek, () => setFollowedWeek(null)); }, []);
+  useEffect(() => { loadFollowed(); }, [loadFollowed, key]);
   const byId = useMemo(() => new Map((tasks ?? []).map((t) => [t.id, t])), [tasks]);
 
   const say = (text: string, actionId: number | null = null) => setToast({ text, actionId, key: Date.now() });
@@ -206,8 +260,11 @@ export function Schedule() {
         <Week reloadKey={key} ghost={ghost} onPlanned={changed} onCreate={create}
           onPick={(p, anchor) => { setEditing(null); setPicked({ picked: p, anchor }); }} />
         <div className="flex flex-col gap-4 min-w-0">
-          <Later title="ทำตามแผนได้">เทียบบล็อกในตารางกับสิ่งที่ทำจริงจาก ActivityWatch เป็นเปอร์เซ็นต์ต่อสัปดาห์ เทียบกับเป้าที่คุณตั้ง</Later>
-          <Later title="ข้อสังเกต">จากบล็อกที่หลุดบ่อย เลขาเสนอวิธีวางตารางแบบใหม่ คุณกดใช้หรือไม่ก็ได้ · ที่ใช้แล้วเก็บในสมุดกติกา</Later>
+          <FollowedCard f={followedWeek} onTarget={async (v) => {
+            try { const r = await api.setFollowTarget(v); setToast({ text: `ตั้งเป้าทำตามแผน ${v}%`, actionId: r.action_id, key: Date.now() }); loadFollowed(); }
+            catch (e) { setToast({ text: (e as Error).message, actionId: null, key: Date.now() }); }
+          }} />
+          <NotesCard f={followedWeek} />
           <Pending reloadKey={key} onChange={changed} />
         </div>
       </div>

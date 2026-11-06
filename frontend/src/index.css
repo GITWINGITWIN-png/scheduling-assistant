@@ -130,3 +130,5 @@ body { background: var(--bg); color: var(--ink); }
 .blk.bg { background: var(--panel-2); color: var(--ink-2); border-left-color: var(--muted); }
 .blk.miss { background: transparent; color: var(--muted); border: 1.5px dashed var(--line-2); }
 .blk.job { background: var(--panel-2); color: var(--ink-2); border-left-color: #A855C9; } /* background work (the mockup's purple) */
+.blk.done { background: var(--ok-soft); color: var(--ok); border-left-color: var(--ok); } /* B6 ทำจริง: work */
+.blk.other { background: var(--panel-2); color: var(--muted); border-left-color: var(--c5, var(--muted)); } /* B6 ทำจริง: the rest */

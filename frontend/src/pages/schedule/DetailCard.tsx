@@ -89,7 +89,19 @@ export function DetailCard({ picked, task, anchor, onClose, onEdit, onDone, onCh
     const need = task ? task.est_minutes ?? task.est_default : 0;
     body = <>
       {b && <Line icon="calendar">บล็อกงานในปฏิทิน “เลขา” ·{" "}
-        {b.past ? "ผ่านไปแล้ว นับว่าทำแล้ว" : b.pinned ? "คุณย้ายมาเอง เลขาจะไม่ย้ายบล็อกนี้" : "เลขาย้ายได้เมื่อตารางเปลี่ยน ถ้าย้ายเองใน Google Calendar เลขาจะไม่ย้ายอีก"}</Line>}
+        {!b.past ? (b.pinned ? "คุณย้ายมาเอง เลขาจะไม่ย้ายบล็อกนี้" : "เลขาย้ายได้เมื่อตารางเปลี่ยน ถ้าย้ายเองใน Google Calendar เลขาจะไม่ย้ายอีก")
+          : b.outcome === "done" ? `ทำแล้ว · ทำจริง ${duration(b.worked ?? 0)} (จาก ActivityWatch)`
+          : b.outcome === "missed" ? `หลุดแผน${b.instead ? ` · ช่วงนี้คุณทำ ${b.instead}` : ""} · ทำจริง ${duration(b.worked ?? 0)} ที่เหลือกลับไปที่งานให้หาเวลาใหม่`
+          : b.outcome === "away" ? "ไม่ได้ใช้คอมช่วงนี้ · นับว่าทำแล้ว (อาจทำนอกคอม)"
+          : b.outcome === "unknown" ? "ช่วงนี้ไม่ได้บันทึกการใช้เวลา · นับว่าทำแล้ว"
+          : "ผ่านไปแล้ว นับว่าทำแล้ว"}</Line>}
+      {b?.outcome === "missed" && (
+        <div className="flex"><Button sm icon="check" disabled={busy} onClick={async () => {
+          setBusy(true); setError("");
+          try { const r = await api.blockDone(b.id); onDone({ text: `นับว่าทำแล้ว: ${b.title}`, saved: { action_id: r.action_id, plan: null } }); }
+          catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+        }}>นับว่าทำแล้ว (ทำนอกคอม)</Button></div>
+      )}
       {task ? <Line icon="clock">{task.due ? `ส่ง ${when(task.due)}` : "ไม่มีกำหนดส่ง"} · {task.source}
         <span className="block text-muted">จองแล้ว {duration(task.done_minutes + task.booked_minutes)} จาก {duration(need)}</span></Line>
         : <Line icon="clock">{dl?.source ?? "งานนี้ปิดไปแล้ว"}</Line>}

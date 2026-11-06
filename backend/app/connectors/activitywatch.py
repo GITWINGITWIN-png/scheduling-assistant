@@ -67,6 +67,7 @@ QUERY_ACTIVE = [
     'win = flood(query_bucket(find_bucket("aw-watcher-window_")));',
     "RETURN = filter_period_intersect(win, present);",
 ]
+QUERY_COVERED = ['afk = flood(query_bucket(find_bucket("aw-watcher-afk_")));', "RETURN = afk;"]
 QUERY_PRESENT = [
     'afk = flood(query_bucket(find_bucket("aw-watcher-afk_")));',
     'RETURN = filter_keyvals(afk, "status", ["not-afk"]);',
@@ -107,6 +108,17 @@ def present(start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
     tell "doing something else" from "not at the computer"."""
     spans = []
     for e in _events(QUERY_PRESENT, start, end):
+        a, b = _when(e)
+        a, b = max(a, start), min(b, end)
+        if b > a:
+            spans.append((a, b))
+    return sorted(spans)
+
+
+def covered(start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
+    """When the recorder was running at all (away or not): "nothing recorded" isn't "you were away"."""
+    spans = []
+    for e in _events(QUERY_COVERED, start, end):
         a, b = _when(e)
         a, b = max(a, start), min(b, end)
         if b > a:

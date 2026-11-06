@@ -55,6 +55,7 @@ export type CalItem = {
 export type BlockItem = {
   id: number; task_id: number; title: string; start: string; end: string; pinned: boolean; past: boolean;
   running: boolean; task_status: "open" | "done" | "dropped";
+  outcome?: "" | "done" | "missed" | "away" | "unknown"; worked?: number | null; instead?: string; // B6: what really happened
 };
 export type DeadlineItem = { task_id: number; title: string; due: string; source: string; link: string };
 export type Week = { events: CalItem[]; blocks: BlockItem[]; deadlines: DeadlineItem[]; plan: { planned_at: string | null; short: { task_id: number; title: string; minutes: number }[] } };
@@ -88,6 +89,7 @@ export type BriefView = { made_at: string; title: string; headline: string; fiel
 export type TodayPage = {
   greeting: string; brief: BriefView | null; headline: string; morning_on: boolean;
   plan: DayItem[]; secretary: RoundMark[]; hours: [number, number];
+  actual?: { start: string; end: string; what: string; category: string; project: string }[]; recording?: boolean; // B6: ทำจริง
   important: { id: string; who: string; summary: string; at: string; done: string[]; link: string }[];
   news: { id: number; project: string; title: string; body: string; at: string; potential: string; urgent: boolean; failed: boolean; needs_you: boolean; link: string }[];
   jobs: {
@@ -196,6 +198,12 @@ export type IdeaGroupRow = {
 export type IdeasPage = { recent: IdeaRow[]; total: number; ungrouped: number; groups: IdeaGroupRow[]; grown: number; round_on: boolean };
 export type SavedIdea = { id: number; tags: string[]; group: GroupPreview };
 
+// W5 ⑤ ⑥ ทำตามแผนได้ · ข้อสังเกต (B6)
+export type Followed = {
+  label: string; percent: number | null; checked: number; target: number; recording: boolean;
+  days: { label: string; done: number; missed: number }[]; notes: { title: string; sub: string }[];
+};
+
 // W7 การใช้เวลา (B6)
 export type PrivacyRuleRow = { id: number; kind: "app" | "title" | "word"; kind_name: string; value: string; note: string };
 export type Recorder = {
@@ -242,6 +250,9 @@ export const api = {
   // W1 วันนี้ (B4)
   today: () => call<TodayPage>("GET", "/api/today"),
   // W5 ตาราง (B3)
+  followed: () => call<Followed>("GET", "/api/schedule/followed"),
+  setFollowTarget: (target: number) => call<{ target: number; action_id: number }>("PUT", "/api/schedule/followed/target", { target }),
+  blockDone: (id: number) => call<{ action_id: number }>("POST", `/api/blocks/${id}/done`),
   week: (start: string, end: string) => call<Week>("GET", `/api/schedule?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`),
   replan: () => call<{ line: string }>("POST", "/api/schedule/replan"),
   tasks: () => call<{ items: TaskRow[] }>("GET", "/api/tasks"),

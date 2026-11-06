@@ -1,13 +1,13 @@
 // W1 วันนี้ (B4), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w1): the morning's
 // numbers (the same line as the brief in #สรุป, with the brief in full behind a link), the day as
 // rows (แผน · ทำจริง · เลขา, with the background work in purple), what waits for you, the background
-// work, today's important mail and the projects' news. The ทำจริง row comes with B6 (ActivityWatch).
+// work, today's important mail and the projects' news. The ทำจริง row is ActivityWatch's (B6), through the filter.
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api, type BriefView, type Decision, type DayItem, type RoundMark, type TodayPage } from "../api";
 import { DecisionRow } from "../components/Decisions";
 import { Meter, Rank } from "../components/project";
-import { Avatar, Card, Chip, Phase, Spinner } from "../components/ui";
+import { Avatar, Card, Chip, Spinner } from "../components/ui";
 import { ago, hm, kTokens, shortDay } from "../format";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
@@ -52,7 +52,10 @@ function FullBrief({ b, onClose }: { b: BriefView; onClose: () => void }) {
 // ------------------------------------------------------------------ the day as rows (W1 ③)
 const KIND = { meet: "meet", block: "work", dead: "dead", allday: "meet" } as const;
 
-function DayRows({ plan, secretary, runs, hours }: { plan: DayItem[]; secretary: RoundMark[]; runs: TodayPage["jobs"]["runs"]; hours: [number, number] }) {
+function DayRows({ plan, secretary, runs, hours, actual, recording }: {
+  plan: DayItem[]; secretary: RoundMark[]; runs: TodayPage["jobs"]["runs"]; hours: [number, number];
+  actual: NonNullable<TodayPage["actual"]>; recording: boolean;
+}) {
   const [h0, h1] = hours;
   const cols = (h1 - h0) * 2; // half hours
   const col = (iso: string) => {
@@ -85,8 +88,19 @@ function DayRows({ plan, secretary, runs, hours }: { plan: DayItem[]; secretary:
               {i.kind === "dead" ? `ส่ง ${i.title}` : i.title}</span>
           );
         })}
-        <span className="dr-later" style={{ gridColumn: `2 / span ${cols}`, gridRow: 3 }}>
-          เทียบกับที่ทำจริงจาก ActivityWatch <Phase phase="B6" /></span>
+        {actual.length === 0 && (
+          <span className="dr-later" style={{ gridColumn: `2 / span ${cols}`, gridRow: 3 }}>
+            {recording ? "ยังไม่มีเวลาที่บันทึกวันนี้" : <>ยังไม่ได้เปิดบันทึกกิจกรรม · <Link to="/time" className="underline">เปิดที่หน้าการใช้เวลา</Link></>}</span>
+        )}
+        {actual.filter((a) => inside(a.start, a.end)).map((a) => {
+          const work = a.project || a.category === "code" || a.category === "study";
+          const mins = (new Date(a.end).getTime() - new Date(a.start).getTime()) / 60_000;
+          return (
+            <span key={`act${a.start}`} className={`blk ${work ? "done" : "other"}`} style={at(col(a.start), Math.max(col(a.end), col(a.start) + 1), 3)}
+              title={`${hm(new Date(a.start))}–${hm(new Date(a.end))} ${a.what}`}>
+              {a.what}{mins >= 50 ? ` ${Math.round(mins / 6) / 10} ชม.` : ""}</span>
+          );
+        })}
         {runs.filter((j) => inside(j.start, j.end)).map((j) => (
           <span key={`job${j.id}`} className="blk job" style={at(col(j.start), Math.max(col(j.end), col(j.start) + 1), 4)}
             title={`${hm(new Date(j.start))}–${hm(new Date(j.end))} งานเบื้องหลัง ${j.project}: ${j.title}${j.line ? ` · ${j.line}` : ""}`}>
@@ -200,7 +214,8 @@ export function Today() {
           {keys.map(([c, label]) => <span key={label} className="inline-flex items-center gap-1.5"><i className={`size-2 rounded-full ${c}`} />{label}</span>)}
           <Link to="/schedule" className="font-semibold text-accent-strong hover:underline">ทั้งสัปดาห์ →</Link>
         </div>}>
-        <DayRows plan={page.plan} secretary={page.secretary} runs={page.jobs.runs} hours={page.hours} />
+        <DayRows plan={page.plan} secretary={page.secretary} runs={page.jobs.runs} hours={page.hours}
+          actual={page.actual ?? []} recording={!!page.recording} />
       </Card>
 
       <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">

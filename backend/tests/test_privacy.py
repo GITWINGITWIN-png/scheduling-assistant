@@ -34,6 +34,9 @@ def _fresh(monkeypatch, tmp_path):
     settings.put(pull.STATE_KEY, {})
     privacy.seed()
     monkeypatch.setattr(privacy, "awatcher_config_path", lambda: tmp_path / "awatcher" / "config.toml")
+    yield
+    with session() as s:  # leave nothing behind for the other files (the projects' advice counts it)
+        s.execute(delete(Activity))
 
 
 def m(minutes: int) -> datetime:
@@ -52,6 +55,7 @@ def fake_aw(monkeypatch, windows: list[tuple[int, int, str, str]], present=None)
 
     monkeypatch.setattr(aw, "active_windows", active)
     monkeypatch.setattr(aw, "present", here)
+    monkeypatch.setattr(aw, "covered", here)
 
 
 def kept() -> list[tuple[str, str, int]]:

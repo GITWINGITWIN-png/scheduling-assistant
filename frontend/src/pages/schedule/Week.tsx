@@ -40,9 +40,12 @@ function meetItem(e: CalItem): EventInput {
 }
 
 function blockItem(b: BlockItem): EventInput {
-  // B3 can't tell yet whether you really worked in a block (B6 compares with ActivityWatch): a block
-  // is ทำแล้ว when you marked its task done; otherwise a past block is just past.
-  const [kind, sub] = b.task_status === "done" ? ["done", "ทำแล้ว"] : b.past ? ["past", "ผ่านไปแล้ว"]
+  // B6 compares a block that has ended with ActivityWatch (W5 ④): done (green, with the time you
+  // really worked), missed (dashed: you were on something else), away (not at the computer:
+  // still counted as done). Before it's checked, or when nothing was recorded, a past block is just past.
+  const worked = b.worked ? ` ${b.worked >= 60 ? `${Math.round(b.worked / 6) / 10} ชม.` : `${b.worked} นาที`}` : "";
+  const [kind, sub] = b.outcome === "done" ? ["done", `ทำแล้ว${worked}`] : b.outcome === "missed" ? ["miss", "หลุดแผน"]
+    : b.task_status === "done" ? ["done", "ทำแล้ว"] : b.outcome === "away" ? ["past", "ไม่ได้ใช้คอม"] : b.past ? ["past", "ผ่านไปแล้ว"]
     : b.running ? ["", "กำลังทำ"] : b.pinned ? ["", "คุณย้ายมา"] : ["", "เลขาจอง"];
   return { id: `b${b.id}`, title: b.title, start: b.start, end: b.end, classNames: ["ev", kind].filter(Boolean),
            extendedProps: { picked: { type: "block", block: b } satisfies Picked, sub } };

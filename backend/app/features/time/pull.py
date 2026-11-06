@@ -38,8 +38,9 @@ OVERLAP = timedelta(minutes=30)
 FIRST = timedelta(days=1)  # the first read ever goes back this far
 BACKFILL = timedelta(days=7)  # after a long gap, at most this far
 
-# Called after each read with (start, end, presence spans): B6's plan-vs-actual checks the blocks
-# that ended in it (followed.py). The presence spans tell "doing something else" from "away".
+# Called after each read with the Read: B6's plan-vs-actual checks the blocks that ended in it
+# (followed.py). Presence tells "doing something else" from "away"; coverage, "away" from "nothing
+# was recorded".
 READ: list = []
 
 
@@ -50,7 +51,8 @@ class Read:
     kept: int = 0
     skipped: int = 0  # windows the blocklist dropped
     hidden: int = 0
-    present: list[tuple[datetime, datetime]] = field(default_factory=list)
+    present: list[tuple[datetime, datetime]] = field(default_factory=list)  # at the computer (not away)
+    covered: list[tuple[datetime, datetime]] = field(default_factory=list)  # the recorder ran (away or not)
 
 
 def sorter():
@@ -67,9 +69,10 @@ def read(at: datetime | None = None) -> Read:
     last = datetime.fromisoformat(state["to"]) if state.get("to") else None
     start = max(last - OVERLAP if last else at - FIRST, at - BACKFILL)
     windows = aw.active_windows(start, at)
-    present = aw.present(start, at)
+    present, covered = aw.present(start, at), aw.covered(start, at)
     rules, pauses, sort = privacy.rules(), privacy.pauses(), sorter()
-    result = Read(start, at, present=[p for s, e in present for p in privacy.cut_pauses(s, e, pauses)])
+    result = Read(start, at, present=[p for s, e in present for p in privacy.cut_pauses(s, e, pauses)],
+                  covered=[p for s, e in covered for p in privacy.cut_pauses(s, e, pauses)])
     rows = []
     for w in windows:
         verdict = rules.verdict(w.app, w.title)
@@ -115,4 +118,8 @@ def last_read() -> dict:
 
 def setup() -> None:
     from app.core import clock
+    from app.features.time import followed
+
     clock.attach("activity", run)
+    if followed.after_read not in READ:
+        READ.append(followed.after_read)  # B6: check the blocks that have ended
