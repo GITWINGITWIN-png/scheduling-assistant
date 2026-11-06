@@ -1,7 +1,7 @@
 // W10 ตั้งค่า: models and effort per task, the secretary's clock, notification sounds, channels.
 // Parts that arrive in later phases are shown greyed with their phase, as agreed in stage 2.
 import { useCallback, useEffect, useState } from "react";
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import { api, type Settings as S } from "../api";
 import { when } from "../format";
 import { Icon, type IconName } from "../icons";
@@ -98,11 +98,11 @@ export function Settings() {
         </div>
 
         <div className="flex flex-col gap-4">
-          <Card title="อนุมัติเอง" right={<Phase phase="B5" />}>
-            <div className="opacity-60 text-sm flex flex-col gap-1.5">
-              <span>โควตาสัปดาห์เหลือเกิน 70% · ความเสี่ยงต่ำเท่านั้น</span>
-              <span>อายุการอนุมัติ 3 วัน เฉพาะแผนนั้น · งบโทเคนต่องาน</span>
-              <span className="text-xs text-muted">ถ้าอ่านโควตา Pro ไม่ได้ ทุกแผนงานเบื้องหลังต้องขออนุมัติ</span>
+          <Card title="อนุมัติเอง" right={<Link to="/rules" className="text-xs font-semibold text-accent-strong hover:underline">แก้ที่สมุดกติกา →</Link>}>
+            <div className="text-sm flex flex-col gap-1.5">
+              <span>{s.jobs_rule.auto ? `โควตาสัปดาห์เหลือเกิน ${s.jobs_rule.line}% · ความเสี่ยงต่ำเท่านั้น` : "ปิดอยู่ · ทุกแผนงานเบื้องหลังถามคุณก่อน"}</span>
+              <span>อายุการอนุมัติ {s.jobs_rule.approval_days} วัน เฉพาะแผนนั้น · งบโทเคนต่องาน เกินงบหยุดเสมอ</span>
+              <span className="text-xs text-muted">ถ้าอ่านโควตา Pro ไม่ได้ ทุกแผนงานเบื้องหลังต้องขออนุมัติ · งานเสี่ยงสูงถามทุกครั้ง</span>
             </div>
           </Card>
           <Card title="เสียงแจ้งเตือน">

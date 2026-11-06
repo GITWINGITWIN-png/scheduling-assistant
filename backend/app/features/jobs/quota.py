@@ -8,7 +8,8 @@ background work a tiny call (`probe`, a handful of tokens) refreshes a reading t
 
 The 70% line: above it, low-risk background work may start on its own; at or below it, every
 plan asks you. When there's no fresh reading at all, the quota counts as unknown, and then every
-plan asks too (the agreed rule).
+plan asks too (the agreed rule). The line and its switch are a rule in the rule book
+(core/rules/book.py `line()`, `auto()`), so you can change them on its page.
 """
 
 from __future__ import annotations
@@ -23,7 +24,6 @@ from app.features.jobs.tables import QuotaReading
 
 log = logging.getLogger(__name__)
 
-LINE = 70.0  # percent of the week left: above it, low-risk work may start by itself
 KEEP_EVERY = timedelta(minutes=10)  # an unchanged reading is kept this often
 FRESH = timedelta(hours=1)  # older than this, background work reads it again first
 

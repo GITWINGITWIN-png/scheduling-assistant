@@ -23,8 +23,7 @@ export const NAV: (NavItem | { group: string })[] = [
   { path: "/time", label: "การใช้เวลา", icon: "chart", screen: "W7", phase: "B6", ready: false,
     about: "เวลาต่อวันตามหมวดและโปรเจคจาก ActivityWatch ผ่านตัวกรองความเป็นส่วนตัว" },
   { group: "ระบบ" },
-  { path: "/rules", label: "สมุดกติกา", icon: "book", screen: "W8", phase: "B5", ready: false,
-    about: "กติกาที่คุณตั้ง สิ่งที่เลขาเรียนรู้ (รอยืนยัน) และรายการงานเสี่ยงสูง" },
+  { path: "/rules", label: "สมุดกติกา", icon: "book", screen: "W8", phase: "B5", ready: true, about: "" },
   { path: "/log", label: "สิ่งที่เลขาทำ", icon: "log", screen: "W9", phase: "B1", ready: true, about: "" },
   { path: "/settings", label: "ตั้งค่า", icon: "gear", screen: "W10", phase: "B1", ready: true, about: "" },
 ];

@@ -30,6 +30,7 @@ from app.api import jobs as jobs_api
 from app.api import log as log_api
 from app.api import mail as mail_api
 from app.api import projects as projects_api
+from app.api import rules as rules_api
 from app.api import schedule as schedule_api
 from app.api import settings as settings_api
 from app.api import today as today_api
@@ -37,6 +38,7 @@ from app.connectors import discord_bot
 from app.core import backup, db, worker
 from app.core.clock import clock
 from app.core.config import REPO_DIR
+from app.core.rules import book as rules_book
 from app.features import actions_discord, ask_discord
 from app.features.briefs import evening as briefs_evening
 from app.features.briefs import morning as briefs_morning
@@ -99,6 +101,7 @@ async def wait_to_take_over() -> None:
 async def lifespan(app: FastAPI):
     db.migrate()  # new tables/columns from a fresh `git pull` are created here
     jobs_quota.setup()  # B5: every Claude call's rate-limit report keeps the quota reading fresh (any copy)
+    rules_book.seed()  # B5: the 7 agreed high-risk kinds are always in the rule book
     waiting: asyncio.Task | None = None
     if worker.claim():
         await start_background()
@@ -124,6 +127,7 @@ app.include_router(jobs_api.router)
 app.include_router(log_api.router)
 app.include_router(mail_api.router)
 app.include_router(projects_api.router)
+app.include_router(rules_api.router)
 app.include_router(schedule_api.router)
 app.include_router(settings_api.router)
 app.include_router(today_api.router)

@@ -26,6 +26,7 @@ from sqlalchemy import select
 
 from app.connectors import gcal, google
 from app.core import actions, when
+from app.core.rules import learn
 from app.core.db import now, session
 from app.core.tables import Decision, Event, Task
 from app.core.timefmt import thai_datetime
@@ -191,6 +192,10 @@ async def decide(decision_id: int, accept: bool, *, via: tuple[str, str] = ("ห
                 s.get(Event, event_id).status = "declined"
         if not accept:
             actions.record("calendar.decline", f"ไม่ไปนัด: {title}", when_words, source_label=via[0], source_url=via[1])
+        try:
+            learn.refresh()  # B5: a pattern in your answers ("คุณมักไม่รับนัดวันเสาร์") waits in the rule book
+        except Exception:
+            log.exception("couldn't look for patterns after an appointment answer")
         with session() as s:
             return s.get(Decision, decision_id), action_id
 

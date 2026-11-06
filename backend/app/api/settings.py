@@ -11,8 +11,10 @@ from app.core import codestamp, llm, themes
 from app.core import clock as clock_mod
 from app.core.clock import clock
 from app.core.db import now, session
+from app.core.rules import book as rules_book
+from app.core.rules.check import APPROVAL_DAYS
 from app.core.tables import Decision, LLMUsage
-from app.features.decisions import clashes
+from app.features.decisions import clashes, rule_notes
 from app.features.briefs import day as briefs_day
 from app.features.mail import watch
 
@@ -51,6 +53,8 @@ def get_settings() -> dict:
         # on each (the mail settings card that listed them moved here, W10)
         "google": [{**g, "address": watch.address_of(g["id"])} for g in google.status()],
         "services": SERVICES,
+        # B5: the rule "งานเบื้องหลังทำเองได้เมื่อโควตาเหลือเกิน 70%" (W10's อนุมัติเอง; changed in the rule book)
+        "jobs_rule": {"auto": rules_book.auto(), "line": rules_book.line(), "approval_days": APPROVAL_DAYS},
     }
 
 
@@ -113,7 +117,8 @@ def status() -> dict:
     return {"pending": pending, "tokens_week": int(week), "discord": discord_bot.status()["connected"],
             "theme": themes.current_theme(), "stale": codestamp.stale(),
             "counts": {"people": briefs_day.important_today(), "decisions": pending},
-            "quota": {"week_left": reading.week_left, "at": reading.at.isoformat(), "line": quota.LINE} if reading else None}
+            "quota": {"week_left": reading.week_left, "at": reading.at.isoformat(), "line": rules_book.line(),
+                      "auto": rules_book.auto()} if reading else None}
 
 
 @router.get("/decisions")
@@ -122,12 +127,12 @@ def decisions(status: str = "pending") -> dict:
     Classroom courses (B3). An appointment says what else is at that time (clash: "" = nothing)."""
     with session() as s:
         rows = s.scalars(select(Decision).where(Decision.status == status).order_by(Decision.created_at.desc()).limit(50)).all()
-    clash = clashes(rows)
+    clash, against = clashes(rows), rule_notes(rows)
     return {"items": [{"id": d.id, "kind": d.kind, "title": d.title, "plan": d.detail.get("plan", ""),
                        "request": d.detail.get("request", ""), "model": d.detail.get("model", ""),
                        "effort": d.detail.get("effort", ""), "tokens": d.detail.get("tokens"),
                        "when": d.detail.get("when", ""), "from": d.detail.get("from", ""),  # appointment (B2)
                        "subject": d.detail.get("subject", ""),
                        "folder": d.detail.get("folder", ""), "exists": d.detail.get("exists", False),  # course (B3)
-                       "link": d.detail.get("link", ""), "clash": clash.get(d.id),
+                       "link": d.detail.get("link", ""), "clash": clash.get(d.id), "rule": against.get(d.id, ""),
                        "created_at": d.created_at.isoformat()} for d in rows]}

@@ -18,6 +18,7 @@ export function DecisionRow({ d, onChange }: { d: Decision; onChange?: () => voi
         <span className="grow min-w-0 basis-48">
           <span className="block font-semibold text-[13.5px]">{d.from ? `นัดจาก ${d.from}: ` : "นัด: "}{d.title}</span>
           <span className={`block text-xs ${d.clash ? "text-warn" : "text-ink-2"}`}>{[d.when, clash].filter(Boolean).join(" · ")}</span>
+          {d.rule && <span className="block text-xs text-warn">ขัดกติกาของคุณ: {d.rule}</span>}
         </span>
         <AppointmentActions decisionId={d.id} onChange={onChange} />
       </li>

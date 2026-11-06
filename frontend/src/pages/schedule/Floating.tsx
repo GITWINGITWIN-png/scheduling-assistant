@@ -1,9 +1,8 @@
-// Two pieces the schedule page shares, both modelled on Google Calendar:
-// - Floating: a card that opens next to where you clicked (the quick-create card and the
-//   event card), in the middle of the screen when there is no click to sit next to, and as
-//   a sheet along the bottom on a phone. A click outside it or Esc closes it.
-// - Toast: the "บันทึกแล้ว · เลิกทำ" bar at the bottom after a change.
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+// Floating, modelled on Google Calendar: a card that opens next to where you clicked (the
+// quick-create card and the event card), in the middle of the screen when there is no click to
+// sit next to, and as a sheet along the bottom on a phone. A click outside it or Esc closes it.
+// (The "บันทึกแล้ว · เลิกทำ" bar is components/Toast.tsx, shared with the other pages.)
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useDismiss } from "../../components/popover";
 
 export type Anchor = { x: number; y: number } | null;
@@ -49,28 +48,6 @@ export function Floating({ anchor, onClose, children, width = 400 }: {
       className={`float-card fixed z-50 bg-panel border border-line text-ink shadow-[0_14px_44px_rgba(0,0,0,0.28)]
         ${narrow ? "inset-x-0 bottom-0 rounded-t-card max-h-[85vh] overflow-y-auto" : "rounded-card max-h-[calc(100vh-32px)] overflow-y-auto"}`}>
       {children}
-    </div>
-  );
-}
-
-export type ToastMsg = { text: string; actionId: number | null; key: number };
-
-export function Toast({ msg, onUndo, onClose }: { msg: ToastMsg | null; onUndo: (actionId: number) => Promise<void>; onClose: () => void }) {
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(onClose, 10_000);
-    return () => clearTimeout(t);
-  }, [msg, onClose]);
-  if (!msg) return null;
-  return (
-    <div className="fixed z-50 left-4 bottom-4 max-w-[min(520px,calc(100vw-32px))] flex items-center gap-3 rounded-s bg-ink text-panel px-4 py-2.5 text-sm shadow-[0_8px_30px_rgba(0,0,0,0.3)]">
-      <span className="grow">{msg.text}</span>
-      {msg.actionId !== null && (
-        <button type="button" disabled={busy} className="font-semibold text-accent-soft hover:underline cursor-pointer disabled:opacity-50"
-          onClick={async () => { setBusy(true); try { await onUndo(msg.actionId!); } finally { setBusy(false); } }}>เลิกทำ</button>
-      )}
-      <button type="button" aria-label="ปิด" className="opacity-70 hover:opacity-100 cursor-pointer" onClick={onClose}>✕</button>
     </div>
   );
 }

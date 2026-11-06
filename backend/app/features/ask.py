@@ -33,6 +33,7 @@ from sqlalchemy import func, select
 from app.core import actions, llm
 from app.core.clock import clock
 from app.core.db import now, session
+from app.core.rules import book
 from app.core.tables import Action, Decision, LLMUsage
 from app.core.timefmt import thai_datetime
 
@@ -163,7 +164,8 @@ async def ask(text: str, history: list[tuple[str, str]] = (), on_text: TextSink 
         if on_text and not chunk.lstrip().upper().startswith("HANDOFF"):
             await on_text(chunk)
 
-    reply = await llm.run("ask", _prompt(text, history), system=ASK_SYSTEM, tools=TOOLS, on_text=stream_unless_handoff)
+    reply = await llm.run("ask", _prompt(text, history), system=ASK_SYSTEM + book.prompt_block("ask"), tools=TOOLS,
+                          on_text=stream_unless_handoff)
     if reply.text.lstrip().upper().startswith("HANDOFF"):
         if on_note:
             await on_note(HANDOFF_NOTE)
@@ -175,7 +177,8 @@ async def ask(text: str, history: list[tuple[str, str]] = (), on_text: TextSink 
 async def deepen(text: str, history: list[tuple[str, str]] = (), on_text: TextSink = None, via: Via = WEB) -> Answer:
     """"ให้ Opus คิดต่อ": the same question, thought through by Opus."""
     system = ASK_SYSTEM + "\nตอนนี้ผู้ใช้ขอให้คิดละเอียดขึ้นกว่าคำตอบเร็ว: ค้นให้ครบ อธิบายเหตุผล"
-    reply = await llm.run("ask_deep", _prompt(text, history), system=system, tools=TOOLS, on_text=on_text)
+    reply = await llm.run("ask_deep", _prompt(text, history), system=system + book.prompt_block("ask"), tools=TOOLS,
+                          on_text=on_text)
     if reply.text.lstrip().upper().startswith("HANDOFF"):
         return await plan(text, history, on_text=on_text, via=via)
     actions.record("ask.deep", "ตอบคำถาม · Opus คิดต่อ", text, source_label=via[0], source_url=via[1], tokens=reply.tokens)
@@ -189,7 +192,7 @@ async def plan(text: str, history: list[tuple[str, str]] = (), on_text: TextSink
     prompt = _prompt(text, history)
     if previous is not None:
         prompt += f"\n\n[แผนเดิม]\n{previous.detail.get('plan', '')}\n\n[ผู้ใช้ขอแก้]\n{change}\nเขียนแผนใหม่ทั้งแผนตามที่ขอแก้"
-    reply = await llm.run("plan", prompt, system=PLAN_SYSTEM, tools=TOOLS, on_text=on_text)
+    reply = await llm.run("plan", prompt, system=PLAN_SYSTEM + book.prompt_block("ask"), tools=TOOLS, on_text=on_text)
     lines = reply.text.strip().splitlines()
     title = (lines[0].strip(" #*") if lines else "แผน")[:200]
     body = "\n".join(lines[1:]).strip() or reply.text

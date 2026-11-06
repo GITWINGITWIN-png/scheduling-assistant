@@ -69,7 +69,8 @@ function Quota() {
         <i className="absolute -top-[5px] -bottom-[5px] w-0.5 rounded-sm bg-ink" style={{ left: `${q?.line ?? 70}%` }} />
       </div>
       <span className="text-muted">{left === null ? "ยังไม่ได้อ่านโควตา · ทุกแผนงานเบื้องหลังต้องถามคุณ"
-        : above ? "เกินเส้น 70% งานเบื้องหลังทำเองได้" : "ไม่เกินเส้น 70% · ทุกแผนถามคุณก่อน"}</span>
+        : q?.auto === false ? "ปิดการทำเองไว้ · ทุกแผนถามคุณก่อน"
+        : above ? `เกินเส้น ${q!.line}% งานเบื้องหลังทำเองได้` : `ไม่เกินเส้น ${q!.line}% · ทุกแผนถามคุณก่อน`}</span>
     </div>
   );
 }

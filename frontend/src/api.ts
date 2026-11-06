@@ -4,7 +4,7 @@ export type Status = {
   pending: number; tokens_week: number; discord: boolean; theme: string;
   stale?: boolean; // the backend code on disk is newer than the running one: restart (older backends don't send it)
   counts?: { people?: number; decisions?: number }; // the side menu's red numbers (people: today's เรื่องสำคัญ; decisions: what waits for you)
-  quota?: { week_left: number; at: string; line: number } | null; // B5: what's left of your Claude week (null: not read yet)
+  quota?: { week_left: number; at: string; line: number; auto?: boolean } | null; // B5: what's left of your Claude week (null: not read yet); line and auto: the rule book's rule
 };
 
 export type Task = { task: string; label: string; model: string; effort: string; default_model: string; default_effort: string };
@@ -20,6 +20,7 @@ export type Settings = {
   discord: { configured: boolean; connected: boolean; user: string; channels: string[]; problem: string };
   google: { id: string; label: string; does: string; connected: boolean; problem: string; address: string }[];
   services: { icon: string; name: string; detail: string; phase: string }[];
+  jobs_rule: { auto: boolean; line: number; approval_days: number }; // B5: อนุมัติเอง (set in the rule book)
 };
 
 export type LogItem = {
@@ -33,6 +34,7 @@ export type Decision = {
   when: string; from: string; subject: string; // appointment (B2)
   folder: string; exists: boolean; link: string; // course (B3)
   clash?: string | null; // appointment: what else is at that time ("" = nothing), null for other kinds
+  rule?: string; // appointment: a rule in your rule book it goes against ("" = none) (B5)
 };
 
 export type Answer = {
@@ -84,6 +86,28 @@ export type TodayPage = {
   greeting: string; brief: BriefView | null; headline: string; morning_on: boolean;
   plan: DayItem[]; secretary: RoundMark[]; hours: [number, number];
   important: { id: string; who: string; summary: string; at: string; done: string[]; link: string }[];
+};
+
+// W8 สมุดกติกา (B5)
+export type Part = "planner" | "mail" | "jobs" | "ask" | "clock" | "all";
+/** A rule that lives in your settings, shown in the rule book (its value is set where `edit` points). */
+export type SystemRule = {
+  key: "schedule" | "mail" | "jobs" | "never"; text: string; used_by: Part[];
+  edit?: string; enabled?: boolean; line?: number; fixed?: boolean; note?: string;
+};
+export type RuleRow = {
+  id: number; kind: "yours" | "learned" | "high_risk"; text: string; used_by: Part[]; enabled: boolean;
+  status: "active" | "pending" | "dismissed"; effect: { type: string } | null; evidence: string; fixed: boolean; updated_at: string | null;
+};
+export type RiskRow = { id: number; key: string; text: string; fixed: boolean; hint: string };
+export type RulesPage = {
+  system: SystemRule[]; yours: RuleRow[]; learned: RuleRow[]; risks: RiskRow[]; parts: Record<Part, string>;
+  counts: { yours: number; learned: number; risks: number };
+};
+/** What a sentence would become (nothing saved yet). kind "unsupported": `why` says why not. */
+export type Proposal = {
+  kind: string; text: string; used_by: Part[]; why: string; ok: boolean; tokens: number;
+  effect: Record<string, unknown> | null; change: Record<string, unknown> | null;
 };
 
 export class ApiError extends Error {}
@@ -159,6 +183,16 @@ export const api = {
     call<{ id: number; status: string; action_id: number | null }>("POST", `/api/appointments/${id}`, { accept }),
   decide: (id: number, action: "approve" | "reject") => call<{ id: number; status: string; action_id: number }>("POST", `/api/decisions/${id}`, { action }),
   revise: (id: number, change: string) => call<Answer>("POST", `/api/decisions/${id}/revise`, { change }),
+  // W8 สมุดกติกา (B5)
+  ruleBook: () => call<RulesPage>("GET", "/api/rules"),
+  parseRule: (text: string) => call<Proposal>("POST", "/api/rules/parse", { text }),
+  addRule: (r: { kind: string; text: string; used_by?: Part[]; effect?: Record<string, unknown> | null; change?: Record<string, unknown> | null }) =>
+    call<{ rule_id?: number; action_id: number; why: string }>("POST", "/api/rules", r),
+  editRule: (id: number, change: { text?: string; used_by?: Part[]; enabled?: boolean }) =>
+    call<RuleRow & { action_id: number }>("PATCH", `/api/rules/${id}`, change),
+  deleteRule: (id: number) => call<{ action_id: number }>("DELETE", `/api/rules/${id}`),
+  answerLearned: (id: number, accept: boolean) => call<RuleRow & { action_id: number }>("POST", `/api/rules/${id}/answer`, { accept }),
+  setJobsRule: (r: { auto?: boolean; line?: number }) => call<{ auto: boolean; line: number; action_id: number }>("PUT", "/api/rules/jobs", r),
 };
 
 export type AskEvents = {

@@ -209,3 +209,35 @@ class Reminder(Base):
     due_at: Mapped[datetime] = mapped_column(UTCDateTime)
     sent_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
     message_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), default=None)
+
+
+class Rule(Base):
+    """rules · สมุดกติกา (P8, B5): what you told the secretary, what it learned from your answers,
+    and the high-risk work it always asks about first (W8).
+
+    kind: yours · learned · high_risk
+    status: active · pending (learned: not used until you press "ใช้เป็นกติกา") · dismissed
+      ("ไม่ใช่": kept so the same pattern isn't suggested again)
+    used_by: the parts that read it (core/rules/book.py PARTS)
+    effect: for a rule the code follows itself, what it does ({"type": "appointment_days",
+      "weekdays": [5]}, {"type": "job_auto", "project": "finance"}); None: a note that the parts
+      with a model read (ถามเลขา, the background planner)
+    key: a stable name for the rules the secretary makes itself (the agreed high-risk kinds, a
+      learned pattern), so it never makes one twice
+    fixed: one of the 7 agreed high-risk kinds: it can't be deleted or switched off
+    """
+
+    __tablename__ = "rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    used_by: Mapped[list] = mapped_column(JSON, default=list)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(10), default="active", index=True)
+    effect: Mapped[dict | None] = mapped_column(JSON, default=None)
+    key: Mapped[str | None] = mapped_column(String(80), unique=True, default=None)
+    evidence: Mapped[str] = mapped_column(Text, default="")  # learned: "ปฏิเสธ 3 ครั้งใน 4 สัปดาห์"
+    fixed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now, onupdate=now)
