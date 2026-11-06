@@ -29,15 +29,30 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     with engine.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            # SQLite can't ALTER most column changes. In batch mode Alembic builds the new
-            # table, copies the rows across and swaps it in, so later migrations just work.
-            render_as_batch=True,
-        )
-        with context.begin_transaction():
-            context.run_migrations()
+        # A batch migration rebuilds a table: new table, copy the rows, drop the old one,
+        # rename. With foreign keys on, SQLite refuses to drop `tasks` while `blocks` point
+        # at it (found undoing a B3 migration on a copy of the real database), so they are off
+        # while migrating and every reference is checked once at the end instead. SQLite only
+        # accepts this switch outside a transaction, hence the commit right after it.
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.commit()
+        try:
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                # SQLite can't ALTER most column changes. In batch mode Alembic builds the new
+                # table, copies the rows across and swaps it in, so later migrations just work.
+                render_as_batch=True,
+            )
+            with context.begin_transaction():
+                context.run_migrations()
+            broken = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+            if broken:
+                raise RuntimeError(f"the migration left rows pointing at nothing: {broken[:5]}")
+        finally:
+            connection.rollback()  # end any transaction left open, so the switch below takes effect
+            connection.exec_driver_sql("PRAGMA foreign_keys=ON")  # the app's connections rely on it
+            connection.commit()
 
 
 if context.is_offline_mode():
