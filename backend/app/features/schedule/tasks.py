@@ -16,7 +16,8 @@ from app.core.timefmt import thai_datetime
 
 EDITABLE = ("title", "due_at", "est_minutes", "plan_mode", "block_minutes", "daily_minutes", "details")
 MODES = {"early": "เริ่มเร็ว", "late": "ชิดเดดไลน์"}
-SOURCE_NAMES = {"email": "อีเมล", "classroom": "Classroom", "you": "คุณเพิ่ม", "project": "โปรเจค", "calendar": "ปฏิทิน"}
+SOURCE_NAMES = {"email": "อีเมล", "classroom": "Classroom", "you": "คุณเพิ่ม", "project": "โปรเจค", "calendar": "ปฏิทิน",
+                "idea": "กลุ่มไอเดีย"}  # B6: a grown idea group you made a task
 DETAILS_MAX = 5000  # characters of รายละเอียดงาน
 
 # The minutes a task may ask for (None always means "the default"). The upper ends only

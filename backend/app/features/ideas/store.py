@@ -101,16 +101,30 @@ def suggest(text: str, *, projects: dict[str, str] | None = None, known: list[st
     return _unique(found)[:MAX_TAGS]
 
 
-def primary(tags: list[str], projects: dict[str, str] | None = None) -> str | None:
-    """The tag that decides the group: the first one that isn't a project, so "#backtest #finance"
-    is the backtest group (about finance) rather than one big finance group."""
+def primary(tags: list[str], projects: dict[str, str] | None = None, sizes: dict[str, int] | None = None) -> str | None:
+    """The tag that decides the group. Not a project, so "#backtest #finance" is the backtest group
+    (about finance) rather than one big finance group. Among the others, the one whose group is
+    biggest already (`sizes`: {tag: ideas}), so related ideas grow one group instead of starting
+    many small ones that never grow enough; with no group yet, the first."""
     projects = project_tags() if projects is None else projects
-    return next((t for t in tags if t not in projects), tags[0] if tags else None)
+    own = [t for t in tags if t not in projects] or tags[:1]
+    if not own:
+        return None
+    sizes = sizes or {}
+    return max(own, key=lambda t: (sizes.get(t, 0), -own.index(t)))
+
+
+def group_sizes() -> dict[str, int]:
+    """{tag: how many ideas its group has}."""
+    with session() as s:
+        rows = s.execute(select(IdeaGroup.tag, func.count(Idea.id)).join(Idea, Idea.group_id == IdeaGroup.id)
+                         .group_by(IdeaGroup.tag)).all()
+    return {tag: n for tag, n in rows}
 
 
 def group_preview(tags: list[str], *, joining: bool = True) -> dict | None:
     """The group these tags lead to: {"name", "size", "new"} (size counts this idea when joining)."""
-    tag = primary(tags)
+    tag = primary(tags, sizes=group_sizes())
     if tag is None:
         return None
     with session() as s:
@@ -122,8 +136,9 @@ def group_preview(tags: list[str], *, joining: bool = True) -> dict | None:
 # ------------------------------------------------------------------ adding, changing, removing
 def add(text: str, *, source: str, source_ref: str = "", tags: list[str] | None = None,
         at: datetime | None = None) -> dict:
-    """Keep one idea. tags=None: only the #tags you typed are yours, and the next round tags the
-    rest. A list (from the popup or the page) is final: what you kept, plus what you typed.
+    """Keep one idea. tags=None (a #ไอเดีย message: there was nothing to choose from): the #tags
+    you typed, and the next round adds what the rules find after them. A list (the popup, the
+    page: you saw the suggestions) is final: what you kept, plus what you typed.
     -> {"id", "tags", "group"} (the group it will join at the next round)."""
     if source not in SOURCES:
         raise ValueError(f"ไม่รู้จักทางเข้า {source}")
@@ -134,7 +149,7 @@ def add(text: str, *, source: str, source_ref: str = "", tags: list[str] | None 
         text = text[: MAX_TEXT - 1] + "…"
     typed = hashtags(text)
     if tags is None:
-        final, tagged = typed, "you" if typed else ""
+        final, tagged = typed, ""
     else:
         final, tagged = _unique([*(clean(t) for t in tags), *typed])[:MAX_TAGS], "you"
     with session() as s:
@@ -162,15 +177,18 @@ def change_text(idea_id: int, text: str) -> None:
             return
         old_typed = hashtags(idea.text)
         idea.text = text[:MAX_TEXT]
-        if idea.tagged in ("you", "") and idea.tags == old_typed:  # its tags were only the #tags
+        if idea.tagged != "you":  # not chosen by you: the next round tags and places it again
             new = hashtags(text)
-            if new != idea.tags:
-                idea.tags, idea.tagged = new, "you" if new else ""
-                idea.group_id, idea.grouped_at = None, None  # the next round places it again
+            if new != old_typed:
+                idea.tags, idea.tagged = new, ""
+                idea.group_id, idea.grouped_at = None, None
 
 
 def set_tags(idea_id: int, tags: list[str], *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> dict:
-    """You changed an idea's tags on the page: they're yours now, and the next round regroups it."""
+    """You changed an idea's tags on the page: they're yours now, and it moves to its group at once
+    (you're looking at the page; the round would only do the same later)."""
+    from app.features.ideas import groups  # here: groups imports this module
+
     final = _unique(clean(t) for t in tags)[:MAX_TAGS]
     with session() as s:
         idea = s.get(Idea, idea_id)
@@ -179,6 +197,7 @@ def set_tags(idea_id: int, tags: list[str], *, via: tuple[str, str] = ("หน�
         if final != idea.tags:
             idea.group_id, idea.grouped_at = None, None
         idea.tags, idea.tagged = final, "you"
+    groups.place([idea_id])
     actions.record("idea.tags", "แก้แท็กไอเดีย", " ".join(f"#{t}" for t in final) or "ไม่มีแท็ก",
                    source_label=via[0], source_url=via[1])
     return {"id": idea_id, "tags": final, "group": group_preview(final, joining=False)}

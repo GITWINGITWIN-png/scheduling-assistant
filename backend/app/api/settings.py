@@ -149,6 +149,8 @@ def decisions(status: str = "pending") -> dict:
                        "job_id": d.detail.get("job_id"), "budget": d.detail.get("budget"),  # background plan (B5)
                        "risks": d.detail.get("risks", []), "why": d.detail.get("why", ""), "stuck_at": d.detail.get("stuck_at", ""),
                        "project_id": d.detail.get("project_id"),  # new project (B5)
+                       "group_id": d.detail.get("group_id"), "size": d.detail.get("size"),  # a grown idea group (B6)
+                       "about": d.detail.get("project", ""),
                        "folder": d.detail.get("folder", ""), "exists": d.detail.get("exists", False),  # course (B3)
                        "link": d.detail.get("link", ""), "clash": clash.get(d.id), "rule": against.get(d.id, ""),
                        "created_at": d.created_at.isoformat()} for d in rows]}

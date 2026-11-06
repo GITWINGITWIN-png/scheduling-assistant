@@ -40,6 +40,18 @@ export function DecisionRow({ d, onChange }: { d: Decision; onChange?: () => voi
       </li>
     );
   }
+  if (d.kind === "idea") { // a grown idea group (B6): answered on the ideas page, where the folder's name is set
+    return (
+      <li className="py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <Avatar name={d.title} size="sm" />
+        <span className="grow min-w-0 basis-48">
+          <span className="block font-semibold text-[13.5px]">กลุ่มไอเดียโตพอ: {d.title}</span>
+          <span className="block text-xs text-ink-2">{[`${d.size ?? ""} ไอเดีย`, d.about && `เกี่ยวกับ ${d.about}`, "เปิดเป็นโปรเจค หรือทำเป็นงาน"].filter(Boolean).join(" · ")}</span>
+        </span>
+        <Link to={`/ideas?group=${d.group_id}`} className="inline-flex items-center rounded-full bg-accent text-accent-ink hover:bg-accent-strong px-3 py-1 text-xs font-medium">ดูกลุ่ม</Link>
+      </li>
+    );
+  }
   if (d.kind === "project_level") { // a new folder under ~/Projects (B5)
     return (
       <li className="py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">

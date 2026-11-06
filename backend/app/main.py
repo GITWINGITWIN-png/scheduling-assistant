@@ -45,6 +45,7 @@ from app.features.briefs import evening as briefs_evening
 from app.features.briefs import morning as briefs_morning
 from app.features.classroom import cards as classroom_cards
 from app.features.ideas import cards as ideas_cards
+from app.features.ideas import groups as ideas_groups
 from app.features.ideas import store as ideas_store
 from app.features.jobs import cards as jobs_cards
 from app.features.jobs import quota as jobs_quota
@@ -89,7 +90,8 @@ async def start_background() -> None:
     projects_inbox.setup()  # B5: news from ~/.secretary/inbox every 5 min (off until the check)
     jobs_runner.setup()  # B5: background work 01:00–06:00 (off until the check); a job cut off by a stop is kept
     jobs_cards.setup()  # B5: "แผนงานเบื้องหลัง · ต้องถามคุณ" in #อนุมัติ (D5)
-    ideas_cards.setup()  # B6: every message in #ไอเดีย is an idea (✅ once kept)
+    ideas_cards.setup()  # B6: every message in #ไอเดีย is an idea (✅ once kept), and the rounds' cards
+    ideas_groups.setup()  # B6: group the ideas at 00:05 and 12:05 (off until B6's check)
     if n := ideas_store.import_outbox():  # ideas the Super+I popup kept while the secretary was down
         log.info("took in %s ideas from the popup's outbox", n)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off

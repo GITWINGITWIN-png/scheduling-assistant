@@ -37,6 +37,7 @@ export type Decision = {
   rule?: string; // appointment: a rule in your rule book it goes against ("" = none) (B5)
   job_id?: number | null; budget?: number | null; risks?: string[]; why?: string; stuck_at?: string; // background plan (B5)
   project_id?: number | null; // new project (B5)
+  group_id?: number | null; size?: number | null; about?: string; // a grown idea group (B6)
 };
 
 export type Answer = {
@@ -186,7 +187,13 @@ export type IdeaRow = {
   tagged: "" | "you" | "rules"; group_id: number | null; group: string; at: string;
 };
 export type GroupPreview = { name: string; size: number; new: boolean; tag: string } | null;
-export type IdeasPage = { recent: IdeaRow[]; total: number; ungrouped: number };
+export type IdeaGroupRow = {
+  id: number; name: string; tag: string; status: "open" | "asked" | "later" | "project" | "task"; status_name: string;
+  size: number; week: number; grew: string; last: string | null; about: string; tags: string[];
+  decision_id: number | null; waiting: boolean; project_id: number | null; task_id: number | null;
+  ideas: { id: number; text: string; source: IdeaRow["source"]; at: string }[];
+};
+export type IdeasPage = { recent: IdeaRow[]; total: number; ungrouped: number; groups: IdeaGroupRow[]; grown: number; round_on: boolean };
 export type SavedIdea = { id: number; tags: string[]; group: GroupPreview };
 
 export const api = {
@@ -196,6 +203,12 @@ export const api = {
   suggestTags: (text: string) => call<{ tags: string[]; group: GroupPreview }>("GET", `/api/ideas/suggest?text=${encodeURIComponent(text)}`),
   setIdeaTags: (id: number, tags: string[]) => call<SavedIdea>("PUT", `/api/ideas/${id}/tags`, { tags }),
   removeIdea: (id: number) => call<{ action_id: number | null }>("DELETE", `/api/ideas/${id}`),
+  groupFolder: (id: number) => call<{ name: string }>("GET", `/api/ideas/groups/${id}/folder`),
+  groupProject: (id: number, name: string) => call<{ project_id: number; action_id: number }>("POST", `/api/ideas/groups/${id}/project`, { name }),
+  groupTask: (id: number) => call<{ task_id: number; action_id: number }>("POST", `/api/ideas/groups/${id}/task`),
+  groupLater: (id: number) => call<{ action_id: number }>("POST", `/api/ideas/groups/${id}/later`),
+  renameGroup: (id: number, name: string) => call<{ action_id: number }>("PUT", `/api/ideas/groups/${id}/name`, { name }),
+  ideasRound: () => call<{ line: string }>("POST", "/api/ideas/round"),
   // W1 วันนี้ (B4)
   today: () => call<TodayPage>("GET", "/api/today"),
   // W5 ตาราง (B3)
