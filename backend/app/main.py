@@ -35,6 +35,7 @@ from app.core import backup, db, worker
 from app.core.clock import clock
 from app.core.config import REPO_DIR
 from app.features import actions_discord, ask_discord
+from app.features.briefs import evening as briefs_evening
 from app.features.briefs import morning as briefs_morning
 from app.features.classroom import cards as classroom_cards
 from app.features.classroom import materials as classroom_materials
@@ -68,6 +69,7 @@ async def start_background() -> None:
     classroom_cards.setup()  # "ติดตามวิชานี้ไหม" in #อนุมัติ
     classroom_materials.setup()  # new materials into the course folder, inside the Classroom round
     briefs_morning.setup()  # B4: สรุปเช้า 07:00 in #สรุป (off until B4's check)
+    briefs_evening.setup()  # B4: ทบทวนเย็น 21:00 in #สรุป (off until B4's check)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button

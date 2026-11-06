@@ -143,3 +143,60 @@ def test_an_older_nights_picks_are_not_repeated(night):
     settings.put(day.NIGHT_KEY, {"at": at(5, 0, 10).isoformat(), "noteworthy": [["Old", "เก่าแล้ว", "เคยบอกแล้ว"]]})
     who = dict(morning.compose(at(10, 7))["fields"]).get("ใครส่งอะไรมา", "")
     assert "น่าดู" not in who
+
+
+# ------------------------------------------------------------------ the evening review
+@pytest.fixture(scope="module")
+def thursday():
+    """Thu 11 Mar: two blocks, one task closed during the day; Fri 12 Mar: a class and a block."""
+    from app.core.tables import Action
+    with session() as s:
+        work = Task(title="รายงาน OS", source="you")
+        s.add(work)
+        s.flush()
+        s.add_all([Block(task_id=work.id, starts_at=at(11, 9), ends_at=at(11, 11)),
+                   Block(task_id=work.id, starts_at=at(11, 14), ends_at=at(11, 15, 30)),
+                   Block(task_id=work.id, starts_at=at(12, 13), ends_at=at(12, 14))])
+        s.add(Event(title="เรียน OS", starts_at=at(12, 9), ends_at=at(12, 12), location="ห้อง 204", source="calendar",
+                    status="placed"))
+        s.add(Action(at=at(11, 16), kind="task.done", summary="ทำเสร็จแล้ว: สไลด์ datacom"))
+        s.add(Action(at=at(11, 17), kind="task.done", summary="ทำเสร็จแล้ว: กดผิด", undone_at=at(11, 17, 1)))
+
+
+def test_the_evening_review_reports_the_day_and_tomorrow(thursday, monkeypatch):
+    from app.features.briefs import evening
+    monkeypatch.setattr(evening, "tonight", lambda at: "00:00 รอบอ่านอีเมล (ใหญ่)")
+    b = evening.compose(at(11, 21))
+    assert b["title"] == "วันนี้มีบล็อกงาน 2 บล็อก รวม 3 ชม. 30 นาที"
+    assert b["headline"] == "ปิดงาน 1 งาน · พรุ่งนี้ 1 นัด · บล็อก 1"
+    fields = dict(b["fields"])
+    assert fields["บล็อกวันนี้"] == "09:00 บล็อก รายงาน OS · 14:00 บล็อก รายงาน OS"
+    assert fields["ปิดงานวันนี้"] == "สไลด์ datacom"  # an undone one isn't counted
+    assert fields["พรุ่งนี้"] == "09:00 เรียน OS (ห้อง 204) · 13:00 บล็อก รายงาน OS"
+    assert "B6" in b["footer"]  # how well the plan was followed waits for ActivityWatch (the user's choice)
+
+
+def test_tonight_lists_the_rounds_that_are_on_and_says_how_often_the_frequent_ones_run(monkeypatch):
+    from app.core import clock
+    from app.features.briefs import evening
+    on = {"mail_big", "backup", "morning", "watch"}
+    for rid in ("mail_big", "backup", "morning", "watch", "schedule"):
+        monkeypatch.setattr(clock.ROUNDS[rid], "handler", lambda: None)
+    monkeypatch.setattr(clock, "enabled", lambda rid: rid in on)
+    text = evening.tonight(at(11, 21))
+    assert text.splitlines()[0] == "00:00 รอบอ่านอีเมล (ใหญ่) · 03:30 สำรองฐานข้อมูล (เก็บ 14 วัน) · 07:00 สรุปเช้า"
+    assert "รอบประจำ: เฝ้าคนสำคัญและคีย์เวิร์ด (ทุก 5 นาที)" in text
+    assert "ซิงก์ตาราง" not in text  # it would run every 15 minutes tonight, but it's switched off: not promised
+
+
+@pytest.mark.parametrize("hm,ok", [((20, 59), False), ((21, 0), True), ((23, 59), True), ((0, 30), False), ((7, 0), False)])
+def test_the_evening_review_goes_out_from_nine_until_midnight(hm, ok):
+    from app.features.briefs import evening
+    assert evening.open_now(datetime.combine(at(11, 0).date(), time(*hm), BKK)) is ok
+
+
+def test_a_day_gets_one_evening_review(thursday, monkeypatch):
+    from app.features.briefs import evening
+    monkeypatch.setattr(evening, "tonight", lambda at: "")
+    assert evening.make(at(11, 21)) is not None
+    assert evening.make(at(11, 22)) is None

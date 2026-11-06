@@ -20,29 +20,24 @@ the bot, and the clock is never held up.
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, time
 
 import discord
-from sqlalchemy import select
 
 from app.connectors import discord_bot as dc
 from app.core import settings
 from app.core.config import get_config
-from app.core.db import now, session
+from app.core.db import now
 from app.core.timefmt import DAYS, MONTHS, local
-from app.features.briefs import day
+from app.features.briefs import day, post
 from app.features.briefs.tables import Brief
 from app.features.mail import rounds
 
-log = logging.getLogger(__name__)
-
 OPEN = (time(7, 0), time(12, 0))  # the morning brief goes out from 07:00 until noon
-WAIT_FOR_BOT = 300  # seconds a caught-up brief waits for Discord to connect
 
 
-def open_now(at: datetime, window: tuple[time, time] = OPEN) -> bool:
-    return window[0] <= local(at).time() < window[1]
+def open_now(at: datetime) -> bool:
+    return post.open_now(at, OPEN)
 
 
 def day_name(at: datetime) -> str:
@@ -87,15 +82,7 @@ def compose(at: datetime) -> dict:
 
 def make(at: datetime) -> int | None:
     """Store today's brief. -> its id, or None if today already has one."""
-    key = day.today(at).isoformat()
-    parts = compose(at)
-    with session() as s:
-        if s.scalar(select(Brief.id).where(Brief.kind == "morning", Brief.day == key)):
-            return None
-        brief = Brief(kind="morning", day=key, made_at=at, **parts)
-        s.add(brief)
-        s.flush()
-        return brief.id
+    return post.store("morning", at, compose(at))
 
 
 # ------------------------------------------------------------------ Discord
@@ -110,40 +97,6 @@ def card(b: Brief) -> tuple[discord.Embed, discord.ui.View]:
     return embed, dc.buttons(*items)
 
 
-_sending: set[asyncio.Task] = set()  # keep a reference, or the task may be collected before it runs
-
-
-def send_soon(brief_id: int, kind: str, make_card) -> None:
-    """Post the brief once Discord is up (at most WAIT_FOR_BOT seconds from now)."""
-    if not dc.configured():
-        return
-    task = asyncio.create_task(_send(brief_id, kind, make_card), name=f"brief-{brief_id}")
-    _sending.add(task)
-    task.add_done_callback(_sending.discard)
-
-
-async def _send(brief_id: int, kind: str, make_card) -> None:
-    try:
-        await asyncio.wait_for(dc.bot.ready_event.wait(), WAIT_FOR_BOT)
-    except TimeoutError:
-        log.warning("brief %s not sent: Discord didn't connect within %ss (it's on the today page)", brief_id, WAIT_FOR_BOT)
-        return
-    with session() as s:
-        b = s.get(Brief, brief_id)
-        if b is None or b.message_id:
-            return
-        s.expunge(b)
-    embed, view = make_card(b)
-    try:
-        row, _ = await dc.bot.send("summary", embed=embed, view=view, kind=f"brief_{kind}", ref=f"brief:{brief_id}",
-                                   text_copy=f"{b.title}\n{b.headline}")
-    except Exception:
-        log.exception("brief %s couldn't be posted", brief_id)
-        return
-    with session() as s:
-        s.get(Brief, brief_id).message_id = row.id
-
-
 # ------------------------------------------------------------------ the round
 async def run() -> str | None:
     """The "morning" round (07:00)."""
@@ -153,10 +106,7 @@ async def run() -> str | None:
     brief_id = await asyncio.to_thread(make, at)
     if brief_id is None:
         return None  # today's is already out
-    send_soon(brief_id, "morning", card)
-    with session() as s:
-        b = s.get(Brief, brief_id)
-        return b.headline + (" · ส่งเข้า #สรุป" if dc.configured() else " · เก็บไว้ในหน้าวันนี้ (Discord ยังไม่ได้ตั้งค่า)")
+    return post.headline(brief_id) + post.where(post.send_soon(brief_id, "morning", card))
 
 
 async def remember_night(r: rounds.RoundResult) -> None:
