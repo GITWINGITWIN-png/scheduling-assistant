@@ -106,6 +106,7 @@ def test_a_job_works_on_its_own_branch_and_never_on_yours(project, monkeypatch):
     assert git(root, "show", f"{job.branch}:notes.txt") == "ของคุณ"  # it started from your last commit
     assert git(root, "worktree", "list").count("\n") == 0  # its worktree is gone; the branch stays
     assert "ทำเสร็จ · 2 commit บน " in job.result and "เริ่มจาก main" in job.result
+    assert job.result.split("\n")[2:4] == ["", "ทำครบตามแผน"]  # Claude's own words in a paragraph of their own (Markdown)
     assert "ขั้นที่ค้างใน PROGRESS.md: เขียน hello" in FakeClient.last.prompt
 
 
@@ -170,6 +171,9 @@ def test_the_night_round_starts_work_only_in_its_window(project, monkeypatch):
     _, project_id = project
     monkeypatch.setattr(runner, "now", lambda: datetime(2026, 11, 7, 3, 0, tzinfo=timezone.utc))  # 10:00 in Bangkok
     assert asyncio.run(runner.round_tick()) == "นอกช่วง 01:00–06:00 · ไม่เริ่มงานใหม่"
+    with session() as s:  # other test files' ready jobs share this database: only ours may be first
+        for j in s.scalars(select(Job).where(Job.status.in_(("ready", "queued")))):
+            j.status = "dropped"
     job_id = ready_job(project_id)
     night = datetime(2026, 11, 6, 19, 30, tzinfo=timezone.utc)  # 02:30 in Bangkok
     monkeypatch.setattr(runner, "now", lambda: night)

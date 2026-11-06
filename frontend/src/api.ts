@@ -132,6 +132,7 @@ export type JobRow = {
 export type JobsPage = {
   quota: { week_left?: number; week_resets_at?: string | null; five_left?: number | null; at?: string; line: number; auto: boolean };
   kpi: { auto: number; asking: number; over_budget: number };
+  usage: { today: number; jobs_today: number; week: number }; // tokens the secretary itself used (they move with every job)
   running: JobRow | null; queue: JobRow[]; recent: JobRow[]; projects: { id: number; name: string }[];
   round_on: boolean; window: string; approval_days: number;
 };
@@ -232,7 +233,9 @@ export const api = {
   // W4 งานเบื้องหลัง (B5)
   jobs: () => call<JobsPage>("GET", "/api/jobs"),
   readQuota: () => call<{ quota: JobsPage["quota"] | null }>("POST", "/api/quota/read"),
-  addJob: (projectId: number, note: string) => call<{ id: number; action_id: number }>("POST", "/api/jobs", { project_id: projectId, note }),
+  // ทำต่อ: queued and planned at once (go: may start · false: waits for you in #อนุมัติ · null: the plan failed)
+  addJob: (projectId: number, note: string) =>
+    call<{ id: number; action_id: number; go: boolean | null; why: string }>("POST", "/api/jobs", { project_id: projectId, note }),
   planJob: (id: number) => call<{ go: boolean; why: string }>("POST", `/api/jobs/${id}/plan`),
   setJobEffort: (id: number, model: string, effort: string) => call<JobRow>("PUT", `/api/jobs/${id}/effort`, { model, effort }),
   setJobBudget: (id: number, budget: number) => call<JobRow>("PUT", `/api/jobs/${id}/budget`, { budget }),

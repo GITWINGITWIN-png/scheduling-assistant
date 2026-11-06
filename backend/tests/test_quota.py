@@ -30,13 +30,18 @@ def test_a_report_without_the_weekly_window_is_not_a_reading():
     assert quota.parse({"status": "allowed", "rateLimitType": "five_hour"}) is None
 
 
-def test_an_unchanged_report_is_kept_once_every_ten_minutes(monkeypatch):
+def test_the_same_numbers_move_the_reading_time_and_a_change_is_a_new_reading(monkeypatch):
     with session() as s:
         before = s.query(QuotaReading).count()
     quota.observe(RAW)
-    quota.observe(RAW)  # the same numbers again a moment later: not kept twice
+    with session() as s:
+        first = s.query(QuotaReading).order_by(QuotaReading.id.desc()).first()
+        first.at, first_id = now() - timedelta(minutes=5), first.id
+    quota.observe(RAW)  # the same numbers 5 minutes later: no new row, but read just now
+    latest = quota.latest()
+    assert latest.id == first_id and now() - latest.at < timedelta(seconds=5)
     changed = {**RAW, "unifiedWindows": {**RAW["unifiedWindows"], "seven_day": {"utilization": 0.31, "resetsAt": 1794268800}}}
-    quota.observe(changed)  # a change is kept at once
+    quota.observe(changed)  # a change is a new reading
     with session() as s:
         assert s.query(QuotaReading).count() == before + 2
     assert quota.latest().week_left == 69.0

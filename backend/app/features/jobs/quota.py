@@ -24,7 +24,6 @@ from app.features.jobs.tables import QuotaReading
 
 log = logging.getLogger(__name__)
 
-KEEP_EVERY = timedelta(minutes=10)  # an unchanged reading is kept this often
 FRESH = timedelta(hours=1)  # older than this, background work reads it again first
 
 
@@ -45,14 +44,16 @@ def parse(raw: dict) -> dict | None:
 
 
 def observe(raw: dict) -> None:
-    """core/llm.py hook: every RateLimitEvent the CLI sends."""
+    """core/llm.py hook: every RateLimitEvent the CLI sends. A new row when the numbers change;
+    the same numbers only move the newest row's time forward, so "อ่านเมื่อ" is the last time the
+    CLI said so (it reports the week in whole percent: a few jobs can leave it where it was)."""
     numbers = parse(raw)
     if numbers is None:
         return
     with session() as s:
         last = s.scalar(select(QuotaReading).order_by(QuotaReading.at.desc()))
-        same = last is not None and (last.week_left, last.five_left) == (numbers["week_left"], numbers["five_left"])
-        if same and now() - last.at < KEEP_EVERY:
+        if last is not None and (last.week_left, last.five_left) == (numbers["week_left"], numbers["five_left"]):
+            last.at, last.raw = now(), raw
             return
         s.add(QuotaReading(source="sdk", raw=raw, **numbers))
 

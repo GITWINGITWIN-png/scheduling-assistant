@@ -51,7 +51,9 @@ def test_the_page_has_the_queue_the_kpis_and_what_was_done(rows):
     assert [j["status"] for j in mine] == ["asking"] and mine[0]["high_risk"] and mine[0]["risks"] == ["โหลดของจากภายนอก"]
     assert mine[0]["efforts"]["medium"] == 36_000 and mine[0]["efforts"]["xhigh"] == 90_000  # what the effort stepper says
     assert page["kpi"]["asking"] >= 1 and page["kpi"]["over_budget"] >= 1
-    assert [j["title"] for j in page["recent"] if j["project"] == "page-proj"] == ["บทที่ 2", "บทที่ 1"]
+    ends = [j["finished_at"] for j in page["recent"]]
+    assert ends == sorted(ends, reverse=True)  # newest first (other files' jobs share this list of 10)
+    assert "บทที่ 2" in [j["title"] for j in page["recent"] if j["project"] == "page-proj"]
     assert page["approval_days"] == 3 and page["window"] == "01:00–06:00"
 
 
@@ -73,3 +75,31 @@ def test_approving_on_the_web(rows):
     with session() as s:
         assert s.get(Decision, rows["decision"]).status == "approved"
         assert s.scalar(select(Job.status).where(Job.id == rows["job"])) == "ready"
+
+
+def test_tamtor_plans_at_once_so_a_plan_that_asks_is_in_the_bell_straight_away(rows, tmp_path, monkeypatch):
+    from app.core import llm
+    from app.features.jobs import quota
+
+    folder = tmp_path / "now-proj"
+    (folder / ".git").mkdir(parents=True)
+    with session() as s:
+        p = Project(name="now-proj", path=str(folder), potential="B", urgency=2, allow_jobs=True, is_git=True, progress={})
+        s.add(p)
+        s.flush()
+        project_id = p.id
+
+    async def planner(task, prompt, **kw):
+        assert task == "job_plan" and "[ผู้ใช้สั่ง] ติดตั้ง requests แล้วดึงเว็บ" in prompt
+        return llm.Reply(text='{"title": "ดึงเว็บ", "steps": ["pip install requests", "เขียน fetch.py"], "model": "sonnet",'
+                              ' "effort": "low", "estimate": 40000, "risks": ["download"]}', model="claude-opus-5-5", effort="high")
+
+    async def week(max_age=None):
+        return 90.0
+    monkeypatch.setattr(llm, "run", planner)
+    monkeypatch.setattr(quota, "week_left", week)
+    out = asyncio.run(api.add_job(api.NewJob(project_id=project_id, note="ติดตั้ง requests แล้วดึงเว็บ")))
+    assert out["go"] is False and out["why"] == "งานเสี่ยงสูง: โหลดของจากภายนอก"
+    with session() as s:
+        job = s.get(Job, out["id"])
+        assert job.status == "asking" and s.get(Decision, job.decision_id).status == "pending"

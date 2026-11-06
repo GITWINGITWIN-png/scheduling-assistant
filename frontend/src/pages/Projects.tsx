@@ -80,8 +80,9 @@ function ProjectCard({ p, anchor, onClose, say }: { p: ProjectRow; anchor: Ancho
             <div className="flex gap-1.5">
               <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={p.progress.next ? `ว่างไว้ = ${p.progress.next}` : "ให้ทำอะไร"}
                 className="h-8 grow min-w-0 rounded-s border border-line-2 bg-panel px-2 text-xs" />
-              <Button sm kind="p" onClick={() => api.addJob(p.id, note).then((r) => { say(`${p.name} เข้าคิวแล้ว · รอวางแผน`, r.action_id); onClose(); },
-                (e) => say((e as Error).message))}>ทำต่อ</Button>
+              <Button sm kind="p" disabled={busy} onClick={() => { setBusy(true); api.addJob(p.id, note)
+                .then((r) => { say(r.go === null ? r.why : r.go ? `${p.name}: วางแผนแล้ว ผ่านกฎ รอทำ` : `${p.name}: วางแผนแล้ว · ส่งไปถามใน #อนุมัติ · ${r.why}`, r.action_id); onClose(); },
+                  (e) => say((e as Error).message)).finally(() => setBusy(false)); }}>{busy ? <Spinner label="Opus กำลังวางแผน…" /> : "ทำต่อ"}</Button>
             </div>
           )}
         </div>

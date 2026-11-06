@@ -80,6 +80,16 @@ def test_each_kind_is_spotted_in_a_plan(text, kind):
     assert kind in book.flags(text)
 
 
+def test_what_a_plan_says_it_wont_do_is_not_a_risk():
+    # the steps of the slugify plan at B5's check, which were flagged as a download and a push
+    plan = ("เพิ่ม slugify(text: str) -> str ต่อท้ายใน textutil.py โดยใช้แค่ stdlib (re, unicodedata) ห้ามติดตั้งแพ็กเกจเพิ่ม\n"
+            "รัน python -m unittest -v test_textutil ให้ผ่านทุกเทสต์\ncommit บน branch ของงานนี้ ห้าม push\n"
+            "commit ทุกไฟล์บน branch ของงาน ไม่ push · ห้ามรันซ้ำวนไป · do not deploy · without installing anything")
+    assert book.flags(plan) == []
+    assert book.flags("ห้าม push แต่ต้อง pip install requests") == ["download"]  # a no covers its own words only
+    assert book.flags("ไล่แก้ทุกไฟล์ทั้งโปรเจค") == ["loop"]
+
+
 def test_ordinary_work_is_not_high_risk():
     plan = ("1. อ่าน PROGRESS.md หาขั้นถัดไป\n2. เขียนเทสต์ให้ฟังก์ชัน parse แล้วแก้บั๊กที่เจอ\n"
             "3. ลบ import ที่ไม่ใช้ · ปรับชื่อตัวแปร\n4. commit บน branch ของงาน")

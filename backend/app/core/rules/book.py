@@ -70,7 +70,7 @@ RISKS: tuple[Risk, ...] = (
           r"back and forth", r"\brepeatedly\b", r"\bretry", r"\bre-?run\b", r"trial and error")),
     Risk("loop", "งานที่อาจวนจนเปลืองโทเคน",
          "อาจวนทำซ้ำโดยไม่รู้จบ เช่น ไล่ทุกไฟล์ทั้ง repo · grid search · scrape หลายหน้า",
-         (r"วน(?:ลูป|ซ้ำ|ไปเรื่อย|จน)", r"\bloop\b", r"ทุกไฟล์", r"ทั้ง\s*repo", r"\bgrid\s*search", r"hyperparameter",
+         (r"วน(?:ลูป|ซ้ำ|ไปเรื่อย|จน)", r"\bloop\b", r"(?:ไล่|แก้|อ่าน|ตรวจ)\s*(?:ทุกไฟล์|ทั้ง\s*repo)", r"\bgrid\s*search", r"hyperparameter",
           r"brute[\s-]*force", r"\bscrap(?:e|ing)\b", r"\bcrawl", r"ไม่จำกัดรอบ", r"\buntil\b")),
     Risk("delete", "ลบหรือเขียนทับไฟล์/ข้อมูล",
          "ลบหรือเขียนทับไฟล์ ข้อมูล ฐานข้อมูล หรือประวัติ git (reset --hard · rm -rf · drop table)",
@@ -96,6 +96,11 @@ RISKS: tuple[Risk, ...] = (
 )
 RISK_KEYS = {r.key: r for r in RISKS}
 _WORDS = {r.key: [re.compile(w) for w in r.words] for r in RISKS}
+# A mention right after a no doesn't count: "ห้าม push", "ไม่ต้องติดตั้งแพ็กเกจ", "without installing".
+# (Found at B5's check: a plain slugify plan said "ห้ามติดตั้งแพ็กเกจเพิ่ม" and "ห้าม push" and was
+# flagged as a download and a push.) Thai runs words together, so up to 12 letters may sit between.
+_NEGATED = re.compile(r"(?:ไม่|ห้าม|อย่า|ยกเว้น|\bno\b|\bnot\b|\bnever\b|\bwithout\b|\bdon'?t\b|\bavoid\b)"
+                      r"[\s:\-]*(?:\S+\s+){0,2}\S{0,12}$")
 
 
 # ------------------------------------------------------------------ reading the book
@@ -124,11 +129,17 @@ def risks() -> list[dict]:
                  "hint": RISK_KEYS[risk_key(r)].hint if risk_key(r) in RISK_KEYS else ""} for r in rows]
 
 
+def _said(pattern: re.Pattern, text: str) -> bool:
+    """The pattern is in the text, and not as something the plan says it won't do."""
+    return any(not _NEGATED.search(text[max(0, m.start() - 40):m.start()]) for m in pattern.finditer(text))
+
+
 def flags(text: str) -> list[str]:
     """Which of the 7 agreed kinds a plan's text mentions (in RISKS order). Words, no model: a
-    second net under the planner's own flags, so it errs on the side of asking."""
+    second net under the planner's own flags, so a kind it left out still asks; what the plan
+    says it won't do ("ห้าม push") doesn't count."""
     low = text.lower()
-    return [key for key, words in _WORDS.items() if any(w.search(low) for w in words)]
+    return [key for key, words in _WORDS.items() if any(_said(w, low) for w in words)]
 
 
 def _in_use(s, *kinds: str):

@@ -82,6 +82,22 @@ def job_view(j: Job, potentials: dict[int, str] | None = None) -> dict:
             "efforts": efforts}
 
 
+def usage() -> dict:
+    """Tokens the secretary used today and in 7 days, and today's background work."""
+    from sqlalchemy import func
+
+    from app.core.tables import LLMUsage
+    from app.features.briefs import day
+
+    start = day.day_start(day.today(now()))
+    total = func.coalesce(func.sum(LLMUsage.tokens_in + LLMUsage.tokens_out), 0)
+    with session() as s:
+        today = s.scalar(select(total).where(LLMUsage.at >= start))
+        jobs = s.scalar(select(total).where(LLMUsage.at >= start, LLMUsage.task.in_(("job", "job_plan"))))
+        week = s.scalar(select(total).where(LLMUsage.at >= now() - timedelta(days=7)))
+    return {"today": int(today), "jobs_today": int(jobs), "week": int(week)}
+
+
 @router.get("/jobs")
 def jobs_page() -> dict:
     queue.refresh()  # a project you just switched on shows its job straight away (no model: cheap)
@@ -98,6 +114,7 @@ def jobs_page() -> dict:
         projects = [{"id": p.id, "name": p.name} for p in everyone if p.allow_jobs and not queue.blocked(p)]
         views = {"running": job_view(running, pot) if running else None, "recent": [job_view(j, pot) for j in recent]}
     return {"quota": {**(quota_view(quota.latest(max_age=None)) or {}), "line": book.line(), "auto": book.auto()},
+            "usage": usage(),
             "kpi": {"auto": sum(1 for j in waiting if j.status == "ready"), "asking": sum(1 for j in waiting if j.status == "asking"),
                     "over_budget": over},
             "queue": [job_view(j, pot) for j in waiting], **views, "projects": sorted(projects, key=lambda p: p["name"].lower()),
@@ -114,13 +131,18 @@ class NewJob(Strict):
 
 
 @router.post("/jobs")
-def add_job(body: NewJob) -> dict:
-    """ทำต่อ: a job for this project now (it waits for its plan)."""
+async def add_job(body: NewJob) -> dict:
+    """ทำต่อ: a job for this project, planned at once (you asked for it, so it doesn't wait for the
+    night): then the rule check, so a plan that asks is in #อนุมัติ straight away."""
     try:
         job_id, action_id = queue.add(body.project_id, body.note)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return {"id": job_id, "action_id": action_id}
+    try:
+        verdict = await plans.make(job_id)
+    except Exception as exc:  # a PlanError, or Claude unreachable: the job waits in the queue for วางแผนเลย
+        return {"id": job_id, "action_id": action_id, "go": None, "why": f"ใส่คิวแล้ว แต่วางแผนไม่สำเร็จ: {exc}"}
+    return {"id": job_id, "action_id": action_id, "go": verdict.go, "why": verdict.why}
 
 
 @router.post("/jobs/{job_id}/plan")

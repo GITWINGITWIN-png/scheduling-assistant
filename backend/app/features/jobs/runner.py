@@ -243,7 +243,8 @@ async def _run(job_id: int, run: Run, via: tuple[str, str]) -> None:
         _git(project_root, "worktree", "add", "-b", job.branch, str(wt), base)
         summary, used, denied, finished = await _drive(job, wt, run)
         status = "stopped" if run.why else ("done" if finished else "failed")
-        summary = f"เริ่มจาก {base_branch} ({base[:7]})" + (f" · {summary}" if summary else "")
+        # its own paragraph: Claude's words below are Markdown (the jobs page shows them so)
+        summary = f"เริ่มจาก {base_branch} ({base[:7]})" + (f"\n\n{summary}" if summary else "")
     except Exception as exc:
         log.exception("job %s failed", job_id)
         summary = f"ทำไม่สำเร็จ: {exc}"

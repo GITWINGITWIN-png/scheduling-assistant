@@ -129,9 +129,9 @@ export function Banner({ icon = "log", children }: { icon?: IconName; children: 
   );
 }
 
-export function Markdown({ text }: { text: string }) {
+export function Markdown({ text, small = false }: { text: string; small?: boolean }) {
   return (
-    <div className="prose-answer text-[15px]">
+    <div className={`prose-answer ${small ? "text-[13px]" : "text-[15px]"}`}>
       <ReactMarkdown remarkPlugins={[remarkGfm]}
         components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer">{children}</a> }}>
         {text}

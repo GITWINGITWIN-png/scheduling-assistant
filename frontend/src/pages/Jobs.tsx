@@ -9,7 +9,7 @@ import { Link, useSearchParams } from "react-router";
 import { api, type JobRow, type JobsPage } from "../api";
 import { Meter, Rank } from "../components/project";
 import { Toast, type ToastMsg } from "../components/Toast";
-import { Button, Card, Chip, Spinner } from "../components/ui";
+import { Button, Card, Chip, Markdown, Spinner } from "../components/ui";
 import { kTokens, shortDay, when } from "../format";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
@@ -31,7 +31,7 @@ function RiskChip({ j }: { j: JobRow }) {
 }
 
 // ------------------------------------------------------------------ the quota card and the numbers
-function QuotaCard({ q, onRead }: { q: JobsPage["quota"]; onRead: () => void }) {
+function QuotaCard({ q, usage, onRead, reading }: { q: JobsPage["quota"]; usage: JobsPage["usage"]; onRead: () => void; reading: boolean }) {
   const left = q.week_left;
   const above = left !== undefined && left > q.line;
   const resets = q.week_resets_at ? new Date(q.week_resets_at) : null;
@@ -39,7 +39,8 @@ function QuotaCard({ q, onRead }: { q: JobsPage["quota"]; onRead: () => void }) 
     : !q.auto ? "ปิดการทำเองไว้ · ทุกแผนถามคุณก่อน"
     : above ? `เส้น ${q.line}%: เหนือเส้น งานเสี่ยงต่ำทำเองได้` : `เส้น ${q.line}%: ต่ำกว่าเส้น ทุกแผนถามคุณก่อน`;
   return (
-    <Card title="โควตา Claude สัปดาห์นี้" right={<Button sm kind="ghost" icon="refresh" onClick={onRead} title="อ่านตอนนี้ (เรียกสั้นๆ ไม่กี่โทเคน)">อ่านตอนนี้</Button>}>
+    <Card title="โควตา Claude สัปดาห์นี้" right={<Button sm kind="ghost" icon="refresh" onClick={onRead} disabled={reading} title="เรียก Claude สั้นๆ (ไม่กี่ร้อยโทเคน) เพื่ออ่านค่าล่าสุด">
+      {reading ? <Spinner label="กำลังอ่าน…" /> : "อ่านตอนนี้"}</Button>}>
       <div className="flex flex-col gap-2">
         <div className="flex items-baseline gap-2">
           <span className="text-[26px] font-semibold tabular-nums">{left === undefined ? "—" : `${Math.round(left)}%`}</span>
@@ -51,6 +52,11 @@ function QuotaCard({ q, onRead }: { q: JobsPage["quota"]; onRead: () => void }) 
             {q.five_left != null ? ` · 5 ชั่วโมงเหลือ ${Math.round(q.five_left)}%` : ""}</span>
           <b>{word}</b>
         </div>
+        <div className="flex flex-wrap gap-x-3 text-xs text-muted border-t border-line pt-2">
+          <span className="grow">เลขาใช้วันนี้ <b className="text-ink">{kTokens(usage.today)}</b> โทเคน (งานเบื้องหลัง {kTokens(usage.jobs_today)}) · 7 วัน {kTokens(usage.week)}</span>
+          {q.at && <span>อ่านเมื่อ {when(q.at)}</span>}
+        </div>
+        <span className="text-[11px] text-muted">Claude บอกโควตาสัปดาห์ทีละ 1% งานไม่กี่งานอาจยังไม่ขยับเลขนี้ · 5 ชั่วโมงขยับเร็วกว่า</span>
       </div>
     </Card>
   );
@@ -101,8 +107,9 @@ function NewJob({ page, say }: { page: JobsPage; say: Say }) {
   const [open, setOpen] = useState(false);
   const [project, setProject] = useState("");
   const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
   if (!open) return <Button sm icon="plus" onClick={() => setOpen(true)} disabled={!page.projects.length}
-    title={page.projects.length ? "" : "เปิด “ให้เลขาทำต่อได้” ที่หน้าโปรเจคก่อน"}>สั่งทำต่อ</Button>;
+    title={page.projects.length ? "สั่งให้เลขาทำต่อในโปรเจค (วางแผนทันที)" : "เปิด “ให้เลขาทำต่อได้” ที่หน้าโปรเจคก่อน"}>ทำต่อ</Button>;
   return (
     <span className="flex flex-wrap items-center gap-1.5">
       <select value={project} onChange={(e) => setProject(e.target.value)} className="h-8 rounded-s border border-line-2 bg-panel px-2 text-xs">
@@ -111,8 +118,9 @@ function NewJob({ page, say }: { page: JobsPage; say: Say }) {
       </select>
       <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="ให้ทำอะไร (ว่างไว้ = ขั้นถัดไปใน PROGRESS.md)"
         className="h-8 w-64 max-w-full rounded-s border border-line-2 bg-panel px-2 text-xs" />
-      <Button sm kind="p" disabled={!project} onClick={() => api.addJob(Number(project), note)
-        .then((r) => { setOpen(false); setNote(""); say("ใส่คิวแล้ว · รอวางแผน", r.action_id); }, (e) => say((e as Error).message))}>ใส่คิว</Button>
+      <Button sm kind="p" disabled={!project || busy} onClick={() => { setBusy(true); api.addJob(Number(project), note)
+        .then((r) => { setOpen(false); setNote(""); say(r.go === null ? r.why : r.go ? `วางแผนแล้ว · ผ่านกฎ รอทำ · ${r.why}` : `วางแผนแล้ว · ส่งไปถามใน #อนุมัติ · ${r.why}`, r.action_id); },
+          (e) => say((e as Error).message)).finally(() => setBusy(false)); }}>{busy ? <Spinner label="Opus กำลังวางแผน…" /> : "ทำต่อ"}</Button>
       <Button sm kind="ghost" onClick={() => setOpen(false)}>ยกเลิก</Button>
     </span>
   );
@@ -178,8 +186,11 @@ function ModelBox({ j, editable, say }: { j: JobRow; editable: boolean; say: Say
       </div>
       <div className="flex items-center gap-1.5"><span className="grow">งบโทเคน</span>
         {budget === null ? (
-          <button type="button" disabled={!editable} title={editable ? "ตั้งงบเอง (ค่าเริ่มคือค่าประมาณ × 1.2)" : ""} onClick={() => setBudget(String(Math.round(j.budget / 1000)))}
-            className="font-mono font-bold enabled:hover:underline enabled:cursor-pointer">{kTokens(j.budget)}{editable && <Icon name="edit" size={12} className="inline ml-1 text-muted" />}</button>
+          <>
+            <b className="font-mono">{kTokens(j.budget)}</b>
+            {editable && <Button sm kind="ghost" icon="edit" title="ตั้งงบเอง (ค่าเริ่มคือค่าประมาณ × 1.2) เช่น ตั้งต่ำๆ เพื่อดูว่าเลขาหยุดเองเมื่อเกินงบ"
+              onClick={() => setBudget(String(Math.round(j.budget / 1000)))}>แก้งบ</Button>}
+          </>
         ) : (
           <>
             <input type="number" min={1} value={budget} onChange={(e) => setBudget(e.target.value)} autoFocus
@@ -280,7 +291,9 @@ function Recent({ rows, say }: { rows: JobRow[]; say: Say }) {
                   <Icon name="notes" size={14} /></button>
                 <span className="text-xs text-muted whitespace-nowrap">{kTokens(j.used)} / {kTokens(j.budget)} · {when(j.finished_at)}</span>
               </div>
-              <span className={`text-xs text-ink-2 ${open === j.id ? "whitespace-pre-wrap" : "truncate"}`}>{open === j.id ? j.result : j.result.split("\n")[0]}</span>
+              {open === j.id
+                ? <div className="rounded-s bg-panel-2 px-3 py-2"><Markdown small text={j.result.split("\n").slice(1).join("\n").trim() || j.result} /></div>
+                : <span className="text-xs text-ink-2 truncate">{j.result.split("\n")[0]} · <span className="text-accent-strong">กดดูรายละเอียด</span></span>}
             </li>
           );
         })}
@@ -296,6 +309,7 @@ export function Jobs() {
   const [page, setPage] = useState<JobsPage | null>(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState<ToastMsg | null>(null);
+  const [reading, setReading] = useState(false);
   const load = useCallback(() => { api.jobs().then(setPage, (e) => setError((e as Error).message)); }, []);
   useEffect(load, [load]);
   useEffect(() => { // while a job runs, its tokens fill up: look again every few seconds
@@ -315,7 +329,16 @@ export function Jobs() {
     <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)]">
       <div className="flex flex-col gap-4 min-w-0">
         <div className="grid gap-4 md:grid-cols-2">
-          <QuotaCard q={page.quota} onRead={() => api.readQuota().then(() => say("อ่านโควตาแล้ว"), (e) => say((e as Error).message))} />
+          <QuotaCard q={page.quota} usage={page.usage} reading={reading} onRead={() => {
+            const before = page.quota.week_left;
+            setReading(true);
+            api.readQuota().then((r) => {
+              const now = r.quota?.week_left;
+              say(now === undefined ? "อ่านโควตาไม่ได้" : before === undefined || Math.round(now) === Math.round(before)
+                ? `อ่านแล้ว · เหลือ ${Math.round(now)}% เท่าเดิม`
+                : `อ่านแล้ว · เหลือ ${Math.round(now)}% (เดิม ${Math.round(before)}%)`);
+            }, (e) => say((e as Error).message)).finally(() => setReading(false));
+          }} />
           <div className="grid grid-cols-3 gap-3">
             <Kpi n={page.kpi.auto} label="ทำเองได้ตามกฎ" />
             <Kpi n={page.kpi.asking} label="รอคุณอนุมัติ" />
