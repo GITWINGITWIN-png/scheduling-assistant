@@ -55,8 +55,24 @@ async def switch(body: SwitchIn) -> dict:
     except recorder.RecorderError as exc:
         raise HTTPException(422, str(exc)) from exc
     if body.on:  # read at once, so the page shows something without waiting a quarter of an hour
-        await pull.run()
+        if await asyncio.to_thread(_answers_within, 15):  # awatcher waits 5 s for the desktop, then starts its server
+            await pull.run()
     return {"action_id": action_id, **privacy_card()}
+
+
+def _answers_within(seconds: int) -> bool:
+    """Wait (blocking) until ActivityWatch's server answers, at most `seconds`."""
+    import time
+
+    from app.connectors import activitywatch as aw
+
+    for _ in range(seconds):
+        try:
+            aw.info()
+            return True
+        except (aw.Unreachable, aw.Refused):
+            time.sleep(1)
+    return False
 
 
 class PauseIn(Strict):
