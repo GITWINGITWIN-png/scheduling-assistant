@@ -55,11 +55,16 @@ def _link(s, source: str, ref: str) -> str:
 # ------------------------------------------------------------------ the week
 @router.get("/schedule")
 def week(start: str, end: str) -> dict:
-    """Everything between start and end: appointments, work blocks, due dates, and the last plan."""
-    lo, hi = _local(start), _local(end)
+    """Everything between start and end: appointments (and the ones waiting for you to รับ, drawn
+    dashed as in the plan's W5 ④), work blocks, due dates, and the last plan."""
+    lo, hi, at = _local(start), _local(end), now()
     with session() as s:
-        events = s.scalars(select(Event).where(Event.status == "placed", Event.starts_at < hi, Event.ends_at > lo)).all()
-        blocks = s.execute(select(Block, Task.title).join(Task, Task.id == Block.task_id)
+        asked = {d.detail.get("event_id"): d for d in s.scalars(select(Decision).where(Decision.kind == "appointment",
+                                                                                      Decision.status == "pending"))}
+        events = s.scalars(select(Event).where(
+            (Event.status == "placed") | ((Event.status == "proposed") & Event.id.in_([k for k in asked if k])),
+            Event.starts_at < hi, Event.ends_at > lo)).all()
+        blocks = s.execute(select(Block, Task.title, Task.status).join(Task, Task.id == Block.task_id)
                            .where(Block.status.in_(("planned", "pinned")), Block.starts_at < hi, Block.ends_at > lo)).all()
         due = s.scalars(select(Task).where(Task.status == "open", Task.due_at >= lo, Task.due_at < hi)).all()
         out = {
@@ -67,9 +72,12 @@ def week(start: str, end: str) -> dict:
                         "location": e.location, "description": e.description,
                         "source": e.source, "source_name": SOURCE_NAMES.get(e.source, e.source),
                         "recurring": e.recurring, "link": e.link,
-                        "mail": _link(s, "email", e.source_ref) if e.source == "email" else ""} for e in events],
+                        "mail": _link(s, "email", e.source_ref) if e.source == "email" else "",
+                        "status": e.status, "decision_id": asked[e.id].id if e.id in asked else None,
+                        "from": asked[e.id].detail.get("from", "") if e.id in asked else ""} for e in events],
             "blocks": [{"id": b.id, "task_id": b.task_id, "title": title, "start": _iso(b.starts_at), "end": _iso(b.ends_at),
-                        "pinned": b.status == "pinned", "past": b.ends_at <= now()} for b, title in blocks],
+                        "pinned": b.status == "pinned", "past": b.ends_at <= at, "running": b.starts_at <= at < b.ends_at,
+                        "task_status": task_status} for b, title, task_status in blocks],
             "deadlines": [{"task_id": t.id, "title": t.title, "due": _iso(t.due_at), "source": SOURCE_NAMES.get(t.source, t.source),
                            "link": _link(s, t.source, t.source_ref)} for t in due],
         }

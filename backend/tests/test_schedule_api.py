@@ -179,3 +179,26 @@ def test_a_calendar_description_becomes_plain_text_and_keeps_its_links():
     assert gcal.plain_text('ส่งที่ <a href="https://x.com/a">โฟลเดอร์</a><br>ห้อง 405<br><br><br>ลงโดยเลขา') \
         == "ส่งที่ โฟลเดอร์ (https://x.com/a)\nห้อง 405"
     assert gcal.plain_text("a < b &amp; c") == "a < b & c"  # not HTML: left as it is, entities read
+
+
+def test_the_week_shows_appointments_waiting_for_you_and_whether_a_blocks_task_is_done(calendar):
+    from app.core.tables import Decision
+    start = datetime(2026, 11, 25, 14, 0, tzinfo=BKK)
+    with session() as s:
+        waiting = Event(title="ประชุมกลุ่ม", starts_at=start, ends_at=start + timedelta(hours=1), source="email", status="proposed")
+        ignored = Event(title="นัดที่ไม่ได้ถาม", starts_at=start, ends_at=start + timedelta(hours=1), source="email", status="proposed")
+        s.add_all([waiting, ignored])
+        s.flush()
+        s.add(Decision(kind="appointment", title="ประชุมกลุ่ม", detail={"event_id": waiting.id, "from": "มายด์"}))
+        task = Task(title="งานที่เสร็จแล้ว", source="you", status="done")
+        s.add(task)
+        s.flush()
+        s.add(Block(task_id=task.id, starts_at=start - timedelta(hours=3), ends_at=start - timedelta(hours=2)))
+        waiting_id = waiting.id
+    w = api.week("2026-11-23T00:00", "2026-11-30T00:00")
+    shown = {e["title"]: e for e in w["events"]}
+    assert "นัดที่ไม่ได้ถาม" not in shown  # proposed but not waiting for you: not drawn
+    assert shown["ประชุมกลุ่ม"]["status"] == "proposed" and shown["ประชุมกลุ่ม"]["from"] == "มายด์"
+    assert shown["ประชุมกลุ่ม"]["decision_id"] is not None and shown["ประชุมกลุ่ม"]["id"] == waiting_id
+    [b] = [b for b in w["blocks"] if b["title"] == "งานที่เสร็จแล้ว"]
+    assert b["task_status"] == "done" and not b["running"]
