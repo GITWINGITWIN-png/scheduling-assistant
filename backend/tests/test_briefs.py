@@ -248,3 +248,39 @@ def test_the_today_page_repeats_the_morning_briefs_numbers(night, monkeypatch):
     assert page["greeting"] == "สวัสดีตอนเช้าครับ"
     assert [i["kind"] for i in page["plan"]] == ["block", "meet", "dead"]
     assert all(m["who"] for m in page["important"])
+
+
+def test_a_stored_brief_waits_for_the_bot_then_is_posted_once(monkeypatch):
+    """The clock catches up before Discord connects: the brief must wait, not be lost or sent twice."""
+    from app.connectors import discord_bot as dc
+    from app.features.briefs import post
+
+    sent: list[tuple[str, str]] = []
+
+    class Row:
+        id = 4242
+
+    async def fake_send(channel, **kw):
+        sent.append((channel, kw["kind"]))
+        return Row(), None
+
+    monkeypatch.setattr(dc, "configured", lambda: True)
+    monkeypatch.setattr(dc.bot, "send", fake_send)
+
+    async def startup():
+        dc.bot.ready_event.clear()
+        bid = post.store("morning", at(13, 7), {"title": "t", "headline": "h", "fields": [], "footer": ""})
+        assert post.send_soon(bid, "morning", lambda b: (None, None))
+        await asyncio.sleep(0.05)
+        assert sent == []  # Discord isn't up yet: waiting
+        dc.bot.ready_event.set()  # ...now it is
+        await asyncio.sleep(0.05)
+        post.send_soon(bid, "morning", lambda b: (None, None))  # asked again (a second catch-up): not posted twice
+        await asyncio.sleep(0.05)
+        dc.bot.ready_event.clear()
+        return bid
+
+    bid = asyncio.run(startup())
+    assert sent == [("summary", "brief_morning")]
+    with session() as s:
+        assert s.get(Brief, bid).message_id == 4242
