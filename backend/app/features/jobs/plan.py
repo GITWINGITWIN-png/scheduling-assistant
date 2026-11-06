@@ -284,6 +284,26 @@ def set_effort(job_id: int, model: str, effort: str, *, via: Via = WEB) -> Job:
     return job
 
 
+def set_budget(job_id: int, tokens: int, *, via: Via = WEB) -> Job:
+    """Before you approve: a budget of your own (the plan's is its estimate × 1.2). The runner
+    stops past it, whatever the estimate said."""
+    lo, hi = 1_000, ESTIMATE_RANGE[1]
+    if not lo <= tokens <= hi:
+        raise PlanError(f"งบต้องอยู่ระหว่าง {lo:,}–{hi:,} โทเคน")
+    with session() as s:
+        job = s.get(Job, job_id)
+        if job is None or job.status != "asking":
+            raise PlanError("ปรับได้เฉพาะแผนที่รอคุณอนุมัติ")
+        before, job.budget = job.budget, tokens
+        if d := s.get(Decision, job.decision_id):
+            d.detail = {**d.detail, "budget": tokens}
+        s.flush()
+        s.expunge(job)
+    actions.record("job.budget", "ตั้งงบของแผนเอง", f"{job.project}: {before:,} → {tokens:,} โทเคน", source_label=via[0],
+                   source_url=via[1])
+    return job
+
+
 async def revise(decision_id: int, change: str, *, via: Via = WEB) -> Verdict:
     """แก้แผน: Opus plans again with your change; the old request is marked revised."""
     if not change.strip():

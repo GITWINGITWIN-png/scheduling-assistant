@@ -146,6 +146,19 @@ def set_effort(job_id: int, body: EffortIn) -> dict:
         raise HTTPException(400, str(exc))
 
 
+class BudgetIn(Strict):
+    budget: int
+
+
+@router.put("/jobs/{job_id}/budget")
+def set_budget(job_id: int, body: BudgetIn) -> dict:
+    """ตั้งงบเอง before approving (e.g. a low one, to see the runner stop by itself)."""
+    try:
+        return job_view(plans.set_budget(job_id, body.budget))
+    except plans.PlanError as exc:
+        raise HTTPException(400, str(exc))
+
+
 class AnswerIn(Strict):
     approve: bool
 

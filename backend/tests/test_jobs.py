@@ -212,6 +212,16 @@ def test_changing_the_effort_before_approving_scales_the_budget(projects):
         plan.set_effort(job_of("jobs-alpha").id + 999, "opus", "low")
 
 
+def test_you_can_set_a_budget_of_your_own_before_approving(projects):
+    job = job_of("jobs-beta")
+    with pytest.raises(plan.PlanError):
+        plan.set_budget(job.id, 500)  # too small to be a budget
+    plan.set_budget(job.id, 8_000)
+    assert job_of("jobs-beta").budget == 8_000
+    plan.set_effort(job.id, "opus", "high")  # the effort's budget again
+    assert job_of("jobs-beta").budget == 100_000
+
+
 def test_approving_makes_the_plan_good_for_three_days_then_it_can_be_undone(projects, monkeypatch):
     job = job_of("jobs-beta")
     with pytest.raises(ask.DecisionError):

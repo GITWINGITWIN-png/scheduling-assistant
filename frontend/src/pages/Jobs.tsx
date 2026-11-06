@@ -156,6 +156,7 @@ function Queue({ page, picked, pick, say }: { page: JobsPage; picked: number | n
 
 // ------------------------------------------------------------------ the plan panel
 function ModelBox({ j, editable, say }: { j: JobRow; editable: boolean; say: Say }) {
+  const [budget, setBudget] = useState<string | null>(null); // thousands, while you type a budget of your own
   const i = EFFORTS.indexOf(j.effort);
   const set = (model: string, effort: string) =>
     api.setJobEffort(j.id, model, effort).then(() => say(`ปรับเป็น ${cap(model)} · ${effort} แล้ว · งบ ${kTokens(j.efforts[effort])}`), (e) => say((e as Error).message));
@@ -175,7 +176,21 @@ function ModelBox({ j, editable, say }: { j: JobRow; editable: boolean; say: Say
           <button type="button" aria-label="เพิ่ม effort" disabled={!editable || !higher} onClick={() => set(j.model, higher)} className="px-3 py-1 disabled:opacity-40 cursor-pointer">+</button>
         </span>
       </div>
-      <div className="flex items-center"><span className="grow">งบโทเคน</span><b className="font-mono">{kTokens(j.budget)}</b></div>
+      <div className="flex items-center gap-1.5"><span className="grow">งบโทเคน</span>
+        {budget === null ? (
+          <button type="button" disabled={!editable} title={editable ? "ตั้งงบเอง (ค่าเริ่มคือค่าประมาณ × 1.2)" : ""} onClick={() => setBudget(String(Math.round(j.budget / 1000)))}
+            className="font-mono font-bold enabled:hover:underline enabled:cursor-pointer">{kTokens(j.budget)}{editable && <Icon name="edit" size={12} className="inline ml-1 text-muted" />}</button>
+        ) : (
+          <>
+            <input type="number" min={1} value={budget} onChange={(e) => setBudget(e.target.value)} autoFocus
+              className="w-20 h-7 rounded-s border border-line-2 bg-panel px-1.5 text-right font-mono text-[13px]" />
+            <span className="text-xs">k</span>
+            <Button sm kind="p" onClick={() => api.setJobBudget(j.id, Math.round(Number(budget) * 1000))
+              .then(() => { setBudget(null); say(`ตั้งงบ ${budget}k แล้ว · เกินแล้วหยุดเอง`); }, (e) => say((e as Error).message))}>ตั้ง</Button>
+            <Button sm kind="ghost" onClick={() => setBudget(null)}>✕</Button>
+          </>
+        )}
+      </div>
       <span className="text-xs text-muted">{[lower && `ลดเป็น ${lower} ≈ ${kTokens(j.efforts[lower])}`, higher && `เพิ่มเป็น ${higher} ≈ ${kTokens(j.efforts[higher])}`].filter(Boolean).join(" · ")}</span>
     </div>
   );

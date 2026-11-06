@@ -235,6 +235,7 @@ export const api = {
   addJob: (projectId: number, note: string) => call<{ id: number; action_id: number }>("POST", "/api/jobs", { project_id: projectId, note }),
   planJob: (id: number) => call<{ go: boolean; why: string }>("POST", `/api/jobs/${id}/plan`),
   setJobEffort: (id: number, model: string, effort: string) => call<JobRow>("PUT", `/api/jobs/${id}/effort`, { model, effort }),
+  setJobBudget: (id: number, budget: number) => call<JobRow>("PUT", `/api/jobs/${id}/budget`, { budget }),
   answerJob: (decisionId: number, approve: boolean) =>
     call<{ job: JobRow; action_id: number }>("POST", `/api/jobs/decisions/${decisionId}`, { approve }),
   reviseJob: (decisionId: number, change: string) => call<{ go: boolean; why: string }>("POST", `/api/jobs/decisions/${decisionId}/revise`, { change }),
