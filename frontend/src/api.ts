@@ -35,7 +35,10 @@ export type Answer = {
 };
 
 // W5 ตาราง (B3)
-export type CalItem = { id: number; title: string; start: string; end: string; all_day: boolean; location: string; source: string; recurring: boolean; link: string };
+export type CalItem = {
+  id: number; title: string; start: string; end: string; all_day: boolean; location: string;
+  source: string; source_name: string; recurring: boolean; link: string; mail: string; // link: Google Calendar · mail: the email it came from
+};
 export type BlockItem = { id: number; task_id: number; title: string; start: string; end: string; pinned: boolean; past: boolean };
 export type DeadlineItem = { task_id: number; title: string; due: string; source: string; link: string };
 export type Week = { events: CalItem[]; blocks: BlockItem[]; deadlines: DeadlineItem[]; plan: { planned_at: string | null; short: { task_id: number; title: string; minutes: number }[] } };
@@ -43,7 +46,11 @@ export type PlanMode = "early" | "late";
 export type TaskRow = {
   id: number; title: string; due: string | null; status: "open" | "done" | "dropped"; source: string;
   est_minutes: number | null; est_default: number; plan_mode: PlanMode; done_minutes: number; booked_minutes: number; link: string;
+  block_minutes: number | null; daily_minutes: number | null; // null: the rules' (กติกาตาราง)
 };
+export type NewTask = { title: string; due: string | null; est_minutes: number | null; plan_mode: PlanMode; block_minutes: number | null; daily_minutes: number | null };
+export type NewEvent = { title: string; start: string; end: string; all_day: boolean; location: string; description: string };
+export type Saved = { action_id: number; plan: string | null };
 export type ScheduleRules = {
   rules: { day_start: string; day_end: string; min_block: number; max_block: number; gap: number; per_task_per_day: number; horizon_days: number };
   estimates: Record<string, number>;
@@ -90,10 +97,11 @@ export const api = {
   week: (start: string, end: string) => call<Week>("GET", `/api/schedule?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`),
   replan: () => call<{ line: string }>("POST", "/api/schedule/replan"),
   tasks: () => call<{ items: TaskRow[] }>("GET", "/api/tasks"),
-  addTask: (t: { title: string; due: string | null; est_minutes: number | null; plan_mode: PlanMode }) => call<{ id: number; plan: string | null }>("POST", "/api/tasks", t),
-  editTask: (id: number, change: Partial<{ title: string; due: string; clear_due: boolean; est_minutes: number; clear_est: boolean; plan_mode: PlanMode }>) =>
-    call<{ action_id: number; plan: string | null }>("PATCH", `/api/tasks/${id}`, change),
-  taskDone: (id: number) => call<{ action_id: number; plan: string | null }>("POST", `/api/tasks/${id}/done`),
+  addTask: (t: NewTask) => call<Saved & { id: number }>("POST", "/api/tasks", t),
+  // Only the fields sent change; null puts one back to its default.
+  editTask: (id: number, change: Partial<NewTask>) => call<Saved>("PATCH", `/api/tasks/${id}`, change),
+  taskDone: (id: number) => call<Saved>("POST", `/api/tasks/${id}/done`),
+  addEvent: (e: NewEvent) => call<Saved & { id: number }>("POST", "/api/events", e),
   rules: () => call<ScheduleRules>("GET", "/api/schedule/rules"),
   saveRules: (r: { day_start: string; day_end: string; max_block: number; per_task_per_day: number; gap: number; estimates: Record<string, number>; reminders: string[] }) =>
     call<{ action_id: number }>("PUT", "/api/schedule/rules", r),

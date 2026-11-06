@@ -65,6 +65,7 @@ body { background: var(--bg); color: var(--ink); }
   --fc-event-bg-color: var(--accent-soft);
   --fc-event-border-color: var(--accent);
   --fc-event-text-color: var(--ink);
+  --fc-highlight-color: color-mix(in srgb, var(--accent) 16%, transparent); /* the slot you clicked or dragged */
   font-size: 13px;
   color: var(--ink);
 }
@@ -73,12 +74,18 @@ body { background: var(--bg); color: var(--ink); }
 .schedule-cal .fc .fc-button-active, .schedule-cal .fc .fc-button-primary:not(:disabled).fc-button-active { color: var(--accent-ink); }
 .schedule-cal .fc .fc-col-header-cell-cushion, .schedule-cal .fc .fc-daygrid-day-number { color: var(--ink-2); }
 .schedule-cal .fc .fc-timegrid-slot-label-cushion, .schedule-cal .fc .fc-timegrid-axis-cushion { color: var(--muted); }
-.schedule-cal .fc-event { cursor: default; border-radius: 6px; }
-.schedule-cal .fc-event:has(a[href]), .schedule-cal .ev-meet, .schedule-cal .ev-dead { cursor: pointer; }
+.schedule-cal .fc-event { cursor: pointer; border-radius: 6px; }
+/* "+ สร้าง", top left like Google Calendar's Create */
+.schedule-cal .fc .fc-create-button, .schedule-cal .fc .fc-create-button:hover, .schedule-cal .fc .fc-create-button:focus {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; padding: 4px 16px;
+}
+.schedule-cal .fc .fc-create-button:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+.schedule-cal .fc-timegrid-slot-lane, .schedule-cal .fc-daygrid-day-frame { cursor: cell; }
 .schedule-cal .ev-meet, .legend.ev-meet { --fc-event-bg-color: var(--bad-soft); --fc-event-border-color: var(--bad); background: var(--bad-soft); border-color: var(--bad); }
 .schedule-cal .ev-dead, .legend.ev-dead { --fc-event-bg-color: var(--warn-soft); --fc-event-border-color: var(--warn); --fc-event-text-color: var(--ink); background: var(--warn-soft); border-color: var(--warn); }
 .schedule-cal .ev-block, .legend.ev-block { --fc-event-bg-color: var(--accent-soft); --fc-event-border-color: var(--accent); background: var(--accent-soft); border: 1px dashed var(--accent); }
 .schedule-cal .ev-block.ev-pinned, .legend.ev-block.ev-pinned { border-style: solid; }
 .schedule-cal .ev-done { opacity: 0.5; }
+.schedule-cal .ev-ghost { box-shadow: 0 0 0 2px var(--accent), 0 6px 16px rgba(0,0,0,0.18); z-index: 5; }
 .schedule-cal .ev-recurring, .legend.ev-recurring { opacity: 0.6; }
 .legend { display: inline-block; width: 14px; height: 10px; border-radius: 3px; border: 1px solid; }
