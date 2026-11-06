@@ -36,7 +36,7 @@ from app.core.config import get_config
 from app.core.db import now, session
 from app.core.tables import Block, Event, Task
 from app.core.timefmt import local
-from app.features.schedule.planner import Plan, Rules, Work, plan
+from app.features.schedule.planner import Placed, Plan, Rules, Work, plan
 
 log = logging.getLogger(__name__)
 
@@ -117,8 +117,8 @@ def refresh_calendar(start: datetime, end: datetime) -> list[tuple[datetime, dat
 
 
 # ------------------------------------------------------------------ 2. what to plan
-def _inputs(at: datetime, busy: list[tuple[datetime, datetime]]) -> tuple[list[Work], list, list[Block], str]:
-    """-> (work still to place, busy incl. kept blocks, movable future blocks, fingerprint)."""
+def _inputs(at: datetime, busy: list[tuple[datetime, datetime]]) -> tuple[list[Work], list, list[Placed], list[Block], str]:
+    """-> (work still to place, busy incl. kept blocks, kept blocks, movable future blocks, fingerprint)."""
     est = estimates()
     with session() as s:
         tasks = s.scalars(select(Task).where(Task.status == "open")).all()
@@ -144,7 +144,7 @@ def _inputs(at: datetime, busy: list[tuple[datetime, datetime]]) -> tuple[list[W
         "deleted": sorted(b.id for b in deleted),
         "rules": rules_dict(),
     }, sort_keys=True).encode()).hexdigest()[:16]
-    return work, all_busy, movable, fingerprint
+    return work, all_busy, [Placed(b.task_id, b.starts_at, b.ends_at) for b in kept], movable, fingerprint
 
 
 # ------------------------------------------------------------------ 3. write the difference
@@ -179,11 +179,11 @@ def _plan_now(force: bool) -> str | None:
     at = now()
     r = rules()
     busy = refresh_calendar(at - timedelta(days=1), at + timedelta(days=r.horizon_days + 1))
-    work, all_busy, movable, fingerprint = _inputs(at, busy)
+    work, all_busy, kept, movable, fingerprint = _inputs(at, busy)
     state = settings.get(STATE_KEY, {})
     if not force and state.get("fingerprint") == fingerprint:
         return None
-    result = plan(work, all_busy, now=at, rules=r, tz=get_config().tz)
+    result = plan(work, all_busy, now=at, rules=r, tz=get_config().tz, kept=kept)
     added, removed = _write(result, movable, at)
     settings.put(STATE_KEY, {"fingerprint": fingerprint, "planned_at": at.isoformat(),
                              "short": {str(k): v for k, v in result.short.items()}})

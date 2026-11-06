@@ -19,7 +19,10 @@ How it decides:
 4. A block is 30–120 minutes and starts on a quarter hour. One task gets at most 3 hours
    a day, so big work spreads over several days instead of eating one. A task can set its
    own longest block and daily limit (`Work.max_block`, `Work.per_day`); the rules are
-   only the default.
+   only the default. Blocks already fixed (`kept`: running, about to start, or moved by
+   you) count towards their task's daily limit too. Two blocks of the same task are never
+   back to back: the gap (15 minutes) is kept between them as a break, otherwise "1-hour
+   blocks" would just be one long sitting.
 5. Whatever doesn't fit before the due date is reported (`Plan.short`), never placed late.
 """
 
@@ -152,10 +155,10 @@ def _fill(work: Work, free: list[Interval], until: datetime, remaining: int, use
                 break
             if backwards:
                 piece = (end - timedelta(minutes=length), end)
-                e = piece[0]
+                e = piece[0] - timedelta(minutes=rules.gap)  # a break before this task's next block
             else:
                 piece = (begin, begin + timedelta(minutes=length))
-                s = piece[1]
+                s = piece[1] + timedelta(minutes=rules.gap)
             _take(free, piece)
             used[(work.task_id, day)] = used.get((work.task_id, day), 0) + length
             placed.append(Placed(work.task_id, *piece))
@@ -164,12 +167,18 @@ def _fill(work: Work, free: list[Interval], until: datetime, remaining: int, use
 
 
 def plan(work: list[Work], busy: list[Interval], *, now: datetime, rules: Rules = Rules(),
-         tz: ZoneInfo = ZoneInfo("Asia/Bangkok")) -> Plan:
-    """Blocks for all the work, in the free time around `busy`. See the module docstring."""
+         tz: ZoneInfo = ZoneInfo("Asia/Bangkok"), kept: list[Placed] = ()) -> Plan:
+    """Blocks for all the work, in the free time around `busy`. See the module docstring.
+
+    `kept` are blocks that stay where they are (their time is already in `busy`); they only
+    count towards their task's limit for that day."""
     free = free_time(busy, now=now, rules=rules, tz=tz)
     horizon = datetime.combine(_ceil(now.astimezone(tz), rules.step).date() + timedelta(days=rules.horizon_days),
                                time(0), tz)
     used: dict[tuple[int, date], int] = {}
+    for b in kept:
+        day = (b.task_id, b.start.astimezone(tz).date())
+        used[day] = used.get(day, 0) + b.minutes
     result = Plan()
     ordered = sorted(work, key=lambda w: (w.due is None, w.due or horizon, w.task_id))
     for w in ordered:

@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.features.schedule.planner import Rules, Work, free_time, plan
+from app.features.schedule.planner import Placed, Rules, Work, free_time, plan
 
 BKK = ZoneInfo("Asia/Bangkok")
 NOW = datetime(2026, 11, 9, 8, 0, tzinfo=BKK)  # a Monday
@@ -84,6 +84,23 @@ def test_per_task_limits_do_not_change_other_tasks():
     p = plan([Work(1, 240, due=at(14, 17), per_day=60), Work(2, 240, due=at(14, 18))], [], now=NOW)
     first_day = [b for b in p.blocks if b.start.date() == at(9, 0).date()]
     assert minutes(first_day, 1) == 60 and minutes(first_day, 2) == 180
+
+
+def test_a_kept_block_counts_towards_its_days_limit():
+    # A block that already runs 09:00-10:00 today stays (sync keeps it): with 2 hours a day,
+    # only one more hour goes on today, and the rest moves to tomorrow.
+    kept = [Placed(1, at(9, 9), at(9, 10))]
+    busy = [(at(9, 9), at(9, 10))]  # sync passes a kept block's time as busy too
+    p = plan([Work(1, 180, due=at(14, 17), max_block=60, per_day=120)], busy, now=NOW, kept=kept)
+    assert minutes([b for b in p.blocks if b.start.date() == at(9, 0).date()]) == 60
+    assert minutes(p.blocks) == 180
+
+
+@pytest.mark.parametrize("mode", ["early", "late"])
+def test_blocks_of_one_task_have_a_break_between_them(mode):
+    p = plan([Work(1, 180, due=at(9, 21), mode=mode, max_block=60)], [], now=NOW)
+    spans = sorted((b.start, b.end) for b in p.blocks)
+    assert [int((b[0] - a[1]).total_seconds() // 60) for a, b in zip(spans, spans[1:])] == [15, 15]
 
 
 def test_early_task_uses_the_last_day_only_when_it_must():
