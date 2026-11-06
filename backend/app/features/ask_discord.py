@@ -115,7 +115,7 @@ class PlanButton(discord.ui.DynamicItem[discord.ui.Button], template=r"plan:(?P<
         except ask.DecisionError as exc:
             await interaction.response.send_message(str(exc), ephemeral=True)
             return
-        done = ("✅ ใช้แผนนี้แล้ว · เก็บไว้ในเรื่องที่ตัดสินแล้ว (เลขาเริ่มงานเองได้เมื่อถึง B5)"
+        done = ("✅ ใช้แผนนี้แล้ว · เก็บไว้ในเรื่องที่ตัดสินแล้ว (งานโค้ดในโปรเจค สั่งได้ที่ปุ่มทำต่อ หน้าโปรเจค)"
                 if self.act == "approve" else "ไม่เอาแผนนี้")
         # the three buttons go away; ย้อนกลับ stays until the plan starts
         await interaction.response.edit_message(content=done, view=dc.buttons(UndoButton(action_id)))

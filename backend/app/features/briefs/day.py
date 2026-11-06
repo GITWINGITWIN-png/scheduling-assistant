@@ -207,6 +207,46 @@ def waiting_text(rows: list[Decision]) -> str:
     return " · ".join(one(d) for d in rows[:6]) + (f" · และอีก {len(rows) - 6}" if len(rows) > 6 else "")
 
 
+def project_news(since: datetime, until: datetime, limit: int = 8) -> list[tuple[str, str, bool]]:
+    """ข่าวโปรเจค (2.3, D2 ⑤): what projects dropped in the inbox, the ones that matter most first.
+    -> [(project, title, urgent)]"""
+    from app.features.projects.tables import Project, ProjectNews
+
+    order = {"S": 0, "A": 1, "B": 2, "C": 3, "D": 4, "F": 5}
+    with session() as s:
+        rows = s.execute(select(ProjectNews, Project.potential, Project.urgency)
+                         .outerjoin(Project, Project.id == ProjectNews.project_id)
+                         .where(ProjectNews.at >= since, ProjectNews.at < until, ProjectNews.kind != "bad")).all()
+    rows.sort(key=lambda r: (not r[0].urgent, order.get(r[1] or "C", 3), -(r[2] if r[2] is not None else 2), -r[0].at.timestamp()))
+    return [(n.project, n.title, n.urgent) for n, _, _ in rows[:limit]]
+
+
+def job_line(result: str) -> str:
+    """A job's result, first part: "ทำเสร็จ · 2 commit บน secretary/7-finance" (the tokens are on the jobs page)."""
+    first = (result or "").split("\n", 1)[0]
+    return first.split(" · ใช้ ", 1)[0]
+
+
+def jobs_finished(since: datetime, until: datetime) -> list[str]:
+    """งานเบื้องหลังที่จบในช่วงนี้ (B5): "finance: ทำ backtest ต่อ · ทำเสร็จ · 2 commit บน secretary/7-finance"."""
+    from app.features.jobs.tables import Job
+
+    with session() as s:
+        rows = s.scalars(select(Job).where(Job.status.in_(("done", "stopped", "failed")), Job.finished_at >= since,
+                                           Job.finished_at < until).order_by(Job.finished_at)).all()
+        return [f"{j.project}: {j.title or j.stuck_at} · {job_line(j.result)}" for j in rows]
+
+
+def jobs_waiting() -> str:
+    """What the background work will do next, in queue order: "ทำ: finance · รอคุณอนุมัติ: datacom · รอวางแผน: research-lab"."""
+    from app.features.jobs import queue
+
+    jobs = queue.ordered()
+    groups = [("ทำ", "ready"), ("รอคุณอนุมัติ", "asking"), ("รอวางแผน", "queued")]
+    return " · ".join(f"{word}: {', '.join(j.project for j in jobs if j.status == st)}" for word, st in groups
+                      if any(j.status == st for j in jobs))
+
+
 def new_materials(since: datetime, until: datetime) -> list[str]:
     """สื่อการเรียนใหม่ (U1: "บอกในสรุปเช้า"): what Classroom's round downloaded, per course."""
     with session() as s:

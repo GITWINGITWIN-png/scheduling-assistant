@@ -3,7 +3,8 @@
 export type Status = {
   pending: number; tokens_week: number; discord: boolean; theme: string;
   stale?: boolean; // the backend code on disk is newer than the running one: restart (older backends don't send it)
-  counts?: { people?: number; decisions?: number }; // the side menu's red numbers (people: today's เรื่องสำคัญ; decisions: what waits for you)
+  counts?: { people?: number; decisions?: number; jobs?: number; projects?: number }; // the side menu's numbers (people: today's เรื่องสำคัญ; decisions: what waits for you; jobs: plans waiting for you; projects: on the go)
+  quota?: { week_left: number; at: string; line: number; auto?: boolean } | null; // B5: what's left of your Claude week (null: not read yet); line and auto: the rule book's rule
 };
 
 export type Task = { task: string; label: string; model: string; effort: string; default_model: string; default_effort: string };
@@ -19,6 +20,7 @@ export type Settings = {
   discord: { configured: boolean; connected: boolean; user: string; channels: string[]; problem: string };
   google: { id: string; label: string; does: string; connected: boolean; problem: string; address: string }[];
   services: { icon: string; name: string; detail: string; phase: string }[];
+  jobs_rule: { auto: boolean; line: number; approval_days: number }; // B5: อนุมัติเอง (set in the rule book)
 };
 
 export type LogItem = {
@@ -32,6 +34,9 @@ export type Decision = {
   when: string; from: string; subject: string; // appointment (B2)
   folder: string; exists: boolean; link: string; // course (B3)
   clash?: string | null; // appointment: what else is at that time ("" = nothing), null for other kinds
+  rule?: string; // appointment: a rule in your rule book it goes against ("" = none) (B5)
+  job_id?: number | null; budget?: number | null; risks?: string[]; why?: string; stuck_at?: string; // background plan (B5)
+  project_id?: number | null; // new project (B5)
 };
 
 export type Answer = {
@@ -83,7 +88,66 @@ export type TodayPage = {
   greeting: string; brief: BriefView | null; headline: string; morning_on: boolean;
   plan: DayItem[]; secretary: RoundMark[]; hours: [number, number];
   important: { id: string; who: string; summary: string; at: string; done: string[]; link: string }[];
+  news: { id: number; project: string; title: string; body: string; at: string; potential: string; urgent: boolean; failed: boolean; needs_you: boolean; link: string }[];
+  jobs: {
+    running: { id: number; project: string; title: string; used: number; budget: number; started_at: string; model: string; effort: string } | null;
+    queue: { id: number; project: string; title: string; status: string; approved_until: string | null }[];
+    runs: { id: number; project: string; title: string; status: string; start: string; end: string; line: string }[];
+    round_on: boolean;
+  };
 };
+
+// W8 สมุดกติกา (B5)
+export type Part = "planner" | "mail" | "jobs" | "ask" | "clock" | "all";
+/** A rule that lives in your settings, shown in the rule book (its value is set where `edit` points). */
+export type SystemRule = {
+  key: "schedule" | "mail" | "jobs" | "never"; text: string; used_by: Part[];
+  edit?: string; enabled?: boolean; line?: number; fixed?: boolean; note?: string;
+};
+export type RuleRow = {
+  id: number; kind: "yours" | "learned" | "high_risk"; text: string; used_by: Part[]; enabled: boolean;
+  status: "active" | "pending" | "dismissed"; effect: { type: string } | null; evidence: string; fixed: boolean; updated_at: string | null;
+};
+export type RiskRow = { id: number; key: string; text: string; fixed: boolean; hint: string };
+export type RulesPage = {
+  system: SystemRule[]; yours: RuleRow[]; learned: RuleRow[]; risks: RiskRow[]; parts: Record<Part, string>;
+  counts: { yours: number; learned: number; risks: number };
+};
+/** What a sentence would become (nothing saved yet). kind "unsupported": `why` says why not. */
+export type Proposal = {
+  kind: string; text: string; used_by: Part[]; why: string; ok: boolean; tokens: number;
+  effect: Record<string, unknown> | null; change: Record<string, unknown> | null;
+};
+
+// W4 งานเบื้องหลัง · W3 โปรเจค (B5)
+export type JobStatus = "queued" | "asking" | "ready" | "running" | "done" | "stopped" | "failed" | "rejected" | "dropped" | "paused";
+export type JobRow = {
+  id: number; project_id: number; project: string; potential: string; source: "progress" | "you"; stuck_at: string; note: string; status: JobStatus;
+  title: string; steps: string[]; model: string; effort: string; estimate: number; budget: number; used: number;
+  risks: string[]; high_risk: boolean; rule_ok: boolean | null; rule_why: string; decision_id: number | null; why: string;
+  approved_until: string | null; branch: string; result: string; plan_tokens: number;
+  planned_at: string | null; started_at: string | null; finished_at: string | null;
+  efforts: Record<string, number>; // the budget at each effort (the − + stepper)
+  start_from?: string; // waiting jobs: where the job will start (the secretary's unmerged branch, or your HEAD)
+};
+export type JobsPage = {
+  quota: { week_left?: number; week_resets_at?: string | null; five_left?: number | null; at?: string; line: number; auto: boolean };
+  kpi: { auto: number; asking: number; over_budget: number };
+  usage: { today: number; jobs_today: number; week: number }; // tokens the secretary itself used (they move with every job)
+  running: JobRow | null; queue: JobRow[]; recent: JobRow[]; projects: { id: number; name: string }[];
+  round_on: boolean; window: string; approval_days: number;
+};
+export type ProjectRow = {
+  id: number; name: string; path: string; status: string; status_name: string; potential: string; urgency: number;
+  level_set: boolean; hidden: boolean; allow_jobs: boolean; can_work: boolean; is_self: boolean; is_git: boolean;
+  last_activity: string | null; commits_14d: number; missing: boolean; decision_id: number | null;
+  progress: { next?: string; done?: number; todo?: number };
+  news: { title: string; at: string; urgent: boolean; kind: string } | null;
+  job: { id: number; status: JobStatus; title: string } | null;
+  secretary?: { branch: string; ahead: number } | null; // the secretary's work waiting for you to merge
+};
+export type Advice = { project_id: number; project: string; kind: "stale" | "short"; title: string; detail: string; next: string };
+export type ProjectsPage = { items: ProjectRow[]; advice: Advice[]; root: string; scanned: boolean };
 
 export class ApiError extends Error {}
 
@@ -158,6 +222,40 @@ export const api = {
     call<{ id: number; status: string; action_id: number | null }>("POST", `/api/appointments/${id}`, { accept }),
   decide: (id: number, action: "approve" | "reject") => call<{ id: number; status: string; action_id: number }>("POST", `/api/decisions/${id}`, { action }),
   revise: (id: number, change: string) => call<Answer>("POST", `/api/decisions/${id}/revise`, { change }),
+  // W8 สมุดกติกา (B5)
+  ruleBook: () => call<RulesPage>("GET", "/api/rules"),
+  parseRule: (text: string) => call<Proposal>("POST", "/api/rules/parse", { text }),
+  addRule: (r: { kind: string; text: string; used_by?: Part[]; effect?: Record<string, unknown> | null; change?: Record<string, unknown> | null }) =>
+    call<{ rule_id?: number; action_id: number; why: string }>("POST", "/api/rules", r),
+  editRule: (id: number, change: { text?: string; used_by?: Part[]; enabled?: boolean }) =>
+    call<RuleRow & { action_id: number }>("PATCH", `/api/rules/${id}`, change),
+  deleteRule: (id: number) => call<{ action_id: number }>("DELETE", `/api/rules/${id}`),
+  answerLearned: (id: number, accept: boolean) => call<RuleRow & { action_id: number }>("POST", `/api/rules/${id}/answer`, { accept }),
+  setJobsRule: (r: { auto?: boolean; line?: number }) => call<{ auto: boolean; line: number; action_id: number }>("PUT", "/api/rules/jobs", r),
+  // W4 งานเบื้องหลัง (B5)
+  jobs: () => call<JobsPage>("GET", "/api/jobs"),
+  readQuota: () => call<{ quota: JobsPage["quota"] | null }>("POST", "/api/quota/read"),
+  // ทำต่อ: queued and planned at once (go: may start · false: waits for you in #อนุมัติ · null: the plan failed)
+  addJob: (projectId: number, note: string) =>
+    call<{ id: number; action_id: number; go: boolean | null; why: string }>("POST", "/api/jobs", { project_id: projectId, note }),
+  planJob: (id: number) => call<{ go: boolean; why: string }>("POST", `/api/jobs/${id}/plan`),
+  setJobEffort: (id: number, model: string, effort: string) => call<JobRow>("PUT", `/api/jobs/${id}/effort`, { model, effort }),
+  setJobBudget: (id: number, budget: number) => call<JobRow>("PUT", `/api/jobs/${id}/budget`, { budget }),
+  answerJob: (decisionId: number, approve: boolean) =>
+    call<{ job: JobRow; action_id: number }>("POST", `/api/jobs/decisions/${decisionId}`, { approve }),
+  reviseJob: (decisionId: number, change: string) => call<{ go: boolean; why: string }>("POST", `/api/jobs/decisions/${decisionId}/revise`, { change }),
+  dropJob: (id: number) => call<{ action_id: number }>("DELETE", `/api/jobs/${id}`),
+  runJob: (id: number) => call<{ line: string }>("POST", `/api/jobs/${id}/run`),
+  stopJob: (id: number) => call<{ ok: boolean }>("POST", `/api/jobs/${id}/stop`),
+  // W3 โปรเจค (B5)
+  projects: () => call<ProjectsPage>("GET", "/api/projects"),
+  editProject: (id: number, change: Partial<Pick<ProjectRow, "status" | "potential" | "urgency" | "hidden" | "allow_jobs">>) =>
+    call<{ action_id: number }>("PATCH", `/api/projects/${id}`, change),
+  scanProjects: () => call<{ line: string | null }>("POST", "/api/projects/scan"),
+  connect: () => call<{ text: string; inbox: string; example: string }>("GET", "/api/projects/connect"),
+  bookProject: (id: number, minutes = 120) => call<{ task_id: number; action_id?: number }>("POST", `/api/projects/${id}/book`, { minutes }),
+  answerLevel: (decisionId: number, potential: string, urgency: number) =>
+    call<{ ok: boolean }>("POST", `/api/projects/decisions/${decisionId}`, { potential, urgency }),
 };
 
 export type AskEvents = {

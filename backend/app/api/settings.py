@@ -11,8 +11,10 @@ from app.core import codestamp, llm, themes
 from app.core import clock as clock_mod
 from app.core.clock import clock
 from app.core.db import now, session
+from app.core.rules import book as rules_book
+from app.core.rules.check import APPROVAL_DAYS
 from app.core.tables import Decision, LLMUsage
-from app.features.decisions import clashes
+from app.features.decisions import clashes, rule_notes
 from app.features.briefs import day as briefs_day
 from app.features.mail import watch
 
@@ -51,6 +53,8 @@ def get_settings() -> dict:
         # on each (the mail settings card that listed them moved here, W10)
         "google": [{**g, "address": watch.address_of(g["id"])} for g in google.status()],
         "services": SERVICES,
+        # B5: the rule "งานเบื้องหลังทำเองได้เมื่อโควตาเหลือเกิน 70%" (W10's อนุมัติเอง; changed in the rule book)
+        "jobs_rule": {"auto": rules_book.auto(), "line": rules_book.line(), "approval_days": APPROVAL_DAYS},
     }
 
 
@@ -108,9 +112,26 @@ def status() -> dict:
         pending = s.scalar(select(func.count()).select_from(Decision).where(Decision.status == "pending")) or 0
         week = s.scalar(select(func.sum(LLMUsage.tokens_in + LLMUsage.tokens_out))
                         .where(LLMUsage.at >= now() - timedelta(days=7))) or 0
+    from app.features.jobs import quota  # the side menu's quota (B5)
+    reading = quota.latest(max_age=None)
     return {"pending": pending, "tokens_week": int(week), "discord": discord_bot.status()["connected"],
             "theme": themes.current_theme(), "stale": codestamp.stale(),
-            "counts": {"people": briefs_day.important_today(), "decisions": pending}}
+            "counts": {"people": briefs_day.important_today(), "decisions": pending, **work_counts()},
+            "quota": {"week_left": reading.week_left, "at": reading.at.isoformat(), "line": rules_book.line(),
+                      "auto": rules_book.auto()} if reading else None}
+
+
+def work_counts() -> dict:
+    """counts.jobs: background plans waiting for you (red, W4) · counts.projects: projects on the go
+    (grey, W3: กำลังทำ and รันอัตโนมัติ, not hidden)."""
+    from app.features.jobs.tables import Job
+    from app.features.projects.tables import Project
+
+    with session() as s:
+        asking = s.scalar(select(func.count()).select_from(Job).where(Job.status == "asking")) or 0
+        going = s.scalar(select(func.count()).select_from(Project).where(Project.status.in_(("active", "auto")),
+                                                                         Project.hidden.is_(False), Project.missing.is_(False))) or 0
+    return {"jobs": asking, "projects": going}
 
 
 @router.get("/decisions")
@@ -119,12 +140,15 @@ def decisions(status: str = "pending") -> dict:
     Classroom courses (B3). An appointment says what else is at that time (clash: "" = nothing)."""
     with session() as s:
         rows = s.scalars(select(Decision).where(Decision.status == status).order_by(Decision.created_at.desc()).limit(50)).all()
-    clash = clashes(rows)
+    clash, against = clashes(rows), rule_notes(rows)
     return {"items": [{"id": d.id, "kind": d.kind, "title": d.title, "plan": d.detail.get("plan", ""),
                        "request": d.detail.get("request", ""), "model": d.detail.get("model", ""),
                        "effort": d.detail.get("effort", ""), "tokens": d.detail.get("tokens"),
                        "when": d.detail.get("when", ""), "from": d.detail.get("from", ""),  # appointment (B2)
                        "subject": d.detail.get("subject", ""),
+                       "job_id": d.detail.get("job_id"), "budget": d.detail.get("budget"),  # background plan (B5)
+                       "risks": d.detail.get("risks", []), "why": d.detail.get("why", ""), "stuck_at": d.detail.get("stuck_at", ""),
+                       "project_id": d.detail.get("project_id"),  # new project (B5)
                        "folder": d.detail.get("folder", ""), "exists": d.detail.get("exists", False),  # course (B3)
-                       "link": d.detail.get("link", ""), "clash": clash.get(d.id),
+                       "link": d.detail.get("link", ""), "clash": clash.get(d.id), "rule": against.get(d.id, ""),
                        "created_at": d.created_at.isoformat()} for d in rows]}

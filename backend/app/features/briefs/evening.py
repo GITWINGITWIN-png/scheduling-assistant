@@ -55,8 +55,8 @@ def short_of_time() -> list[str]:
 
 
 def tonight(at: datetime) -> str:
-    """คืนนี้เลขาจะทำ: the rounds you switched on that run between now and 07:00 tomorrow
-    (B5 adds the background work it will do)."""
+    """คืนนี้เลขาจะทำ: the rounds you switched on that run between now and 07:00 tomorrow, and the
+    background work waiting in the queue (B5)."""
     from app.core import clock
 
     end = datetime.combine(day.today(at) + timedelta(days=1), time(7, 0), get_config().tz)
@@ -77,6 +77,8 @@ def tonight(at: datetime) -> str:
     parts = [" · ".join(f"{local(f):%H:%M} {title}" for f, title in sorted(once))] if once else []
     if often:
         parts.append("รอบประจำ: " + " · ".join(often))
+    if jobs := day.jobs_waiting():
+        parts.append(("งานเบื้องหลัง 01:00–06:00: " if clock.enabled("jobs") else "งานเบื้องหลัง (รอบปิดอยู่ ไม่ทำคืนนี้): ") + jobs)
     return "\n".join(parts) or "ไม่มีรอบที่เปิดไว้คืนนี้"
 
 

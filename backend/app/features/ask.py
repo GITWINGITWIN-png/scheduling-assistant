@@ -33,6 +33,7 @@ from sqlalchemy import func, select
 from app.core import actions, llm
 from app.core.clock import clock
 from app.core.db import now, session
+from app.core.rules import book
 from app.core.tables import Action, Decision, LLMUsage
 from app.core.timefmt import thai_datetime
 
@@ -52,13 +53,12 @@ ASK_SYSTEM = """คุณคือ "เลขา" เลขาส่วนตั
 ให้ตอบเพียงบรรทัดเดียว: HANDOFF: <สรุปสิ่งที่ผู้ใช้ขอ 1 ประโยค>
 แล้วระบบจะส่งต่อให้ Opus วางแผน
 
-ตอนนี้เลขาอยู่ในช่วงพัฒนา B2 (ใช้งานได้แล้ว: B1 พื้นฐาน และ B2 อีเมลและคน)
-- เครื่องมือของแชท: บันทึกสิ่งที่เลขาทำ (รวมนัดที่ลงปฏิทินและงานจากอีเมล) เรื่องที่รอตัดสิน (แผน และนัดที่รอรับ) การใช้โมเดล นาฬิกาเลขา
-- อีเมลและคน: เลขาเฝ้าอีเมลทุก 5 นาที อีเมลจากคนสำคัญหรือที่มีคำสำคัญขึ้นการ์ดใน Discord ห้อง #ด่วน
-  นัดที่รอรับอยู่ใน #อนุมัติ และกระดิ่งบนเว็บ สรุปรายคนรอบ 00:00 และ 12:00 อยู่ใน #สรุป
-  ทะเบียนคน ระดับ และอีเมลรายคนอยู่ในหน้าเว็บ "คนและอีเมล" แต่แชทยังค้นอีเมลเองไม่ได้ (มาใน B7 ถามเลขาแบบเต็ม)
-  ถ้าถามเรื่องอีเมล ให้บอกว่าดูได้ที่ไหน
-- ยังไม่มี: ตาราง (B3) สรุปเช้า-เย็น (B4) โปรเจค (B5) ไอเดียและการใช้เวลา (B6) ถ้าถามเรื่องเหล่านี้ ให้บอกว่ามาในช่วงไหน"""
+ใช้งานได้แล้ว: B1–B5 (พื้นฐาน · อีเมลและคน · ตาราง · สรุปเช้า-เย็น · โปรเจคและงานเบื้องหลัง)
+- เครื่องมือของแชท: บันทึกสิ่งที่เลขาทำ เรื่องที่รอตัดสิน การใช้โมเดล นาฬิกาเลขา · ข้อมูลส่วนอื่นแชทยังค้นเองไม่ได้ (มาใน B7)
+- ถ้าถามเรื่องอื่น ให้บอกว่าดูได้ที่ไหน: หน้าเว็บ วันนี้ · คนและอีเมล · โปรเจค · งานเบื้องหลัง · ตาราง · สมุดกติกา
+  และใน Discord: #ด่วน (เรื่องรีบ) #อนุมัติ (เรื่องที่รอตัดสิน) #สรุป (สรุปเช้า-เย็น)
+- งานโค้ดในโปรเจค: เลขาทำต่อให้เฉพาะโปรเจคที่เปิด "ให้เลขาทำต่อได้" ที่หน้าโปรเจค ทำตอนกลางคืนบน branch แยก ไม่ push
+- ยังไม่มี: ไอเดียและการใช้เวลา (B6)"""
 
 PLAN_SYSTEM = """คุณคือ "เลขา" เลขาส่วนตัวของผู้ใช้ กำลังวางแผนตามที่ผู้ใช้ขอ ตอบภาษาไทย
 รูปแบบคำตอบ:
@@ -66,8 +66,9 @@ PLAN_SYSTEM = """คุณคือ "เลขา" เลขาส่วนต�
 จากนั้น ขั้นตอนเป็นรายการเลข 3–7 ข้อ แต่ละข้อบอกว่าใครทำ (เลขา หรือ คุณ) และทำเมื่อไร
 ถ้ามีงานที่เลขาทำเอง บอกโมเดล effort และงบโทเคนโดยประมาณ
 ถ้ามีเวลาที่ผู้ใช้ต้องใช้ ปิดด้วยบรรทัด "เวลาคุณ: ..."
-ตอนนี้เลขายังเริ่มงานในโปรเจคเองไม่ได้ (มาในช่วง B5) ยังไม่เห็นตาราง (B3) และยังค้นอีเมลเองไม่ได้ (B7)
-ให้วางแผนจากสิ่งที่ผู้ใช้บอก และบอกตรงๆ ว่าส่วนไหนต้องรอช่วงนั้น"""
+แผนนี้เลขาเก็บไว้ให้ผู้ใช้ตัดสิน ยังไม่เริ่มเอง · งานโค้ดในโปรเจค ให้บอกผู้ใช้กด "ทำต่อ" ที่หน้าโปรเจค
+(เลขาวางแผนงบและความเสี่ยงอีกรอบ ทำตอนกลางคืนบน branch แยก) · ยังไม่เห็นตารางและค้นอีเมลเองไม่ได้ (B7)
+ให้วางแผนจากสิ่งที่ผู้ใช้บอก และบอกตรงๆ ว่าส่วนไหนเลขายังทำให้ไม่ได้"""
 
 
 # ------------------------------------------------------------------ tools (read-only)
@@ -163,7 +164,8 @@ async def ask(text: str, history: list[tuple[str, str]] = (), on_text: TextSink 
         if on_text and not chunk.lstrip().upper().startswith("HANDOFF"):
             await on_text(chunk)
 
-    reply = await llm.run("ask", _prompt(text, history), system=ASK_SYSTEM, tools=TOOLS, on_text=stream_unless_handoff)
+    reply = await llm.run("ask", _prompt(text, history), system=ASK_SYSTEM + book.prompt_block("ask"), tools=TOOLS,
+                          on_text=stream_unless_handoff)
     if reply.text.lstrip().upper().startswith("HANDOFF"):
         if on_note:
             await on_note(HANDOFF_NOTE)
@@ -175,7 +177,8 @@ async def ask(text: str, history: list[tuple[str, str]] = (), on_text: TextSink 
 async def deepen(text: str, history: list[tuple[str, str]] = (), on_text: TextSink = None, via: Via = WEB) -> Answer:
     """"ให้ Opus คิดต่อ": the same question, thought through by Opus."""
     system = ASK_SYSTEM + "\nตอนนี้ผู้ใช้ขอให้คิดละเอียดขึ้นกว่าคำตอบเร็ว: ค้นให้ครบ อธิบายเหตุผล"
-    reply = await llm.run("ask_deep", _prompt(text, history), system=system, tools=TOOLS, on_text=on_text)
+    reply = await llm.run("ask_deep", _prompt(text, history), system=system + book.prompt_block("ask"), tools=TOOLS,
+                          on_text=on_text)
     if reply.text.lstrip().upper().startswith("HANDOFF"):
         return await plan(text, history, on_text=on_text, via=via)
     actions.record("ask.deep", "ตอบคำถาม · Opus คิดต่อ", text, source_label=via[0], source_url=via[1], tokens=reply.tokens)
@@ -189,7 +192,7 @@ async def plan(text: str, history: list[tuple[str, str]] = (), on_text: TextSink
     prompt = _prompt(text, history)
     if previous is not None:
         prompt += f"\n\n[แผนเดิม]\n{previous.detail.get('plan', '')}\n\n[ผู้ใช้ขอแก้]\n{change}\nเขียนแผนใหม่ทั้งแผนตามที่ขอแก้"
-    reply = await llm.run("plan", prompt, system=PLAN_SYSTEM, tools=TOOLS, on_text=on_text)
+    reply = await llm.run("plan", prompt, system=PLAN_SYSTEM + book.prompt_block("ask"), tools=TOOLS, on_text=on_text)
     lines = reply.text.strip().splitlines()
     title = (lines[0].strip(" #*") if lines else "แผน")[:200]
     body = "\n".join(lines[1:]).strip() or reply.text
@@ -223,6 +226,8 @@ def decide(decision_id: int, action: str, note: str = "", via: Via = WEB) -> tup
         d = s.get(Decision, decision_id)
         if d is None:
             raise DecisionError("ไม่พบเรื่องนี้")
+        if d.kind != "plan":  # appointments, courses, projects and background plans have their own answers
+            raise DecisionError("เรื่องนี้ตอบที่ปุ่มของมันเอง")
         if d.status != "pending":
             raise DecisionError(f"เรื่องนี้ตัดสินไปแล้ว ({d.status})")
         d.status = "approved" if action == "approve" else "rejected"
@@ -255,7 +260,7 @@ async def revise(decision_id: int, change: str, via: Via = WEB) -> Answer:
     """แก้: Opus rewrites the plan with your change; the old one is marked revised."""
     with session() as s:
         old = s.get(Decision, decision_id)
-        if old is None or old.status != "pending":
+        if old is None or old.status != "pending" or old.kind != "plan":
             raise DecisionError("แผนนี้แก้ไม่ได้แล้ว (ไม่พบ หรือตัดสินไปแล้ว)")
         old.status, old.answer, old.answered_at = "revised", change, now()
     return await plan(old.detail.get("request", old.title), previous=old, change=change, via=via)

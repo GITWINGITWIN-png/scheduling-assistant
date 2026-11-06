@@ -3,8 +3,11 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { Shell } from "./components/Shell";
 import { PAGES } from "./nav";
+import { Jobs } from "./pages/Jobs";
 import { Log } from "./pages/Log";
 import { People } from "./pages/People";
+import { Projects } from "./pages/Projects";
+import { Rules } from "./pages/Rules";
 import { Today } from "./pages/Today";
 import { Settings } from "./pages/Settings";
 import { Soon } from "./pages/Soon";
@@ -14,7 +17,7 @@ import { StatusProvider } from "./status";
 // The schedule page carries FullCalendar (~250 KB), so it loads only when you open it.
 const Schedule = lazy(() => import("./pages/Schedule").then((m) => ({ default: m.Schedule })));
 
-const READY: Record<string, () => React.ReactElement> = { "/": () => <Today />, "/people": () => <People />, "/schedule": () => <Suspense fallback={<Spinner />}><Schedule /></Suspense>, "/log": () => <Log />, "/settings": () => <Settings /> };
+const READY: Record<string, () => React.ReactElement> = { "/": () => <Today />, "/people": () => <People />, "/schedule": () => <Suspense fallback={<Spinner />}><Schedule /></Suspense>, "/projects": () => <Projects />, "/jobs": () => <Jobs />, "/rules": () => <Rules />, "/log": () => <Log />, "/settings": () => <Settings /> };
 
 export default function App() {
   return (

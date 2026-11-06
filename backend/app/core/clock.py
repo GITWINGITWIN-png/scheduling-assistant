@@ -68,6 +68,8 @@ ROUNDS: dict[str, Round] = {r.id: r for r in (
     Round("remind", "เตือนก่อนถึงกำหนด", "ทุก 5 นาที", {"minute": "*/5"}, "B3"),
     Round("classroom", "ดึงงานและสื่อจาก Classroom", "ทุก 2 ชั่วโมง", {"hour": "*/2", "minute": 10}, "B3"),
     Round("projects", "สแกนโปรเจคใน ~/Projects", "06:30", {"hour": 6, "minute": 30}, "B5"),
+    Round("inbox", "อ่านข่าวจากโปรเจค (~/.secretary/inbox)", "ทุก 5 นาที", {"minute": "*/5"}, "B5"),
+    Round("jobs", "งานเบื้องหลังในโปรเจค", "ทุก 15 นาที 01:00–06:00", {"hour": "1-5", "minute": "*/15"}, "B5"),
     Round("morning", "สรุปเช้า", "07:00", {"hour": 7, "minute": 0}, "B4"),
     Round("evening", "ทบทวนเย็น", "21:00", {"hour": 21, "minute": 0}, "B4"),
     Round("ideas", "จัดกลุ่มไอเดีย", "00:00 และ 12:00", {"hour": "0,12", "minute": 5}, "B6"),

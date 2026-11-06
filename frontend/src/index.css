@@ -129,3 +129,4 @@ body { background: var(--bg); color: var(--ink); }
 .blk.dead { background: var(--warn-soft); color: var(--warn); border-left-color: var(--warn); }
 .blk.bg { background: var(--panel-2); color: var(--ink-2); border-left-color: var(--muted); }
 .blk.miss { background: transparent; color: var(--muted); border: 1.5px dashed var(--line-2); }
+.blk.job { background: var(--panel-2); color: var(--ink-2); border-left-color: #A855C9; } /* background work (the mockup's purple) */

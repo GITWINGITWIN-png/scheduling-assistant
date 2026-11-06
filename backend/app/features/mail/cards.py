@@ -21,6 +21,7 @@ from sqlalchemy import select
 
 from app.connectors import discord_bot as dc
 from app.core import actions
+from app.core.rules import book
 from app.core.db import session
 from app.core.tables import Decision, Event
 from app.core.timefmt import local
@@ -128,9 +129,11 @@ async def ask_appointment(event_id: int, decision_id: int, e: Email) -> None:
     with session() as s:
         ev, d = s.get(Event, event_id), s.get(Decision, decision_id)
         title, when, place, why = ev.title, d.detail.get("when", ""), ev.location, d.detail.get("why", "")
-    card = dc.embed(title, f"**{when}**" + (f" · {place}" if place else ""), tone="info",
+        against = book.appointment_note(ev.starts_at)  # B5: a rule in your rule book this goes against
+    card = dc.embed(title, f"**{when}**" + (f" · {place}" if place else ""), tone="warn" if against else "info",
                     author=f"นัดรอคุณรับ · {e.sender_name or e.sender} ({LEVELS.get(e.level, e.level)})",
-                    fields=[("จากอีเมล", e.subject or "(ไม่มีหัวข้อ)", False)] + ([("ทำไมต้องถาม", why, False)] if why else []),
+                    fields=[("จากอีเมล", e.subject or "(ไม่มีหัวข้อ)", False)] + ([("ทำไมต้องถาม", why, False)] if why else [])
+                    + ([("ขัดกติกาของคุณ", against, False)] if against else []),
                     footer="กดรับแล้วเลขาลงปฏิทินให้ · ย้อนกลับได้")
     sent_row, _ = await dc.bot.send("approve", embed=card, view=dc.buttons(AppointmentButton(decision_id, "yes"),
                                     AppointmentButton(decision_id, "no"), _open_email(e)),

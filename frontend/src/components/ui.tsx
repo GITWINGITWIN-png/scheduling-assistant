@@ -42,6 +42,7 @@ const BTN = {
   ok: "bg-ok text-white hover:brightness-95 border-transparent", // รับ (the plan's .btn-ok)
   q: "bg-panel text-ink border-line-2 hover:bg-panel-2",
   ghost: "bg-transparent text-ink-2 border-transparent hover:bg-panel-2",
+  bad: "bg-bad-soft text-bad border-transparent hover:brightness-95", // หยุด (the plan's .btn-d)
 } as const;
 
 export function Button({ children, kind = "q", icon, sm = false, disabled = false, onClick, title, type = "button" }: {
@@ -93,6 +94,18 @@ export function Tabs<T extends string>({ options, value, onChange }: {
   );
 }
 
+/** An on/off switch, as the plan's mockups draw it (look.css .toggle): green when on. Without
+ *  `onChange` it only shows the state (a rule that can't be switched off here). */
+export function Switch({ on, onChange, title }: { on: boolean; onChange?: (on: boolean) => void; title?: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} title={title} disabled={!onChange} onClick={() => onChange?.(!on)}
+      className={`relative shrink-0 w-[34px] h-5 rounded-full transition-colors cursor-pointer disabled:cursor-default
+        ${on ? "bg-ok" : "bg-line-2"} ${onChange ? "" : "opacity-60"}`}>
+      <span className={`absolute top-0.5 size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-[left] ${on ? "left-4" : "left-0.5"}`} />
+    </button>
+  );
+}
+
 // The plan's avatar colours (look.css .av-1 … .av-8): white letters on solid colours, the same
 // colour for the same person every time.
 const AV = ["#5B7BD5", "#2E9C8A", "#D98E2B", "#A35BC5", "#D25C77", "#64748B", "#4E9B4E", "#B5684A"];
@@ -116,9 +129,9 @@ export function Banner({ icon = "log", children }: { icon?: IconName; children: 
   );
 }
 
-export function Markdown({ text }: { text: string }) {
+export function Markdown({ text, small = false }: { text: string; small?: boolean }) {
   return (
-    <div className="prose-answer text-[15px]">
+    <div className={`prose-answer ${small ? "text-[13px]" : "text-[15px]"}`}>
       <ReactMarkdown remarkPlugins={[remarkGfm]}
         components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer">{children}</a> }}>
         {text}

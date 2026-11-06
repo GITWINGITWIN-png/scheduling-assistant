@@ -29,6 +29,7 @@ from typing import Literal
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    RateLimitEvent,
     ResultMessage,
     SdkMcpTool,
     TextBlock,
@@ -58,9 +59,23 @@ DEFAULT_TASKS: dict[str, dict[str, str]] = {
     "ask_deep": {"model": "opus", "effort": "high", "label": "ให้ Opus คิดต่อ"},
     "plan": {"model": "opus", "effort": "high", "label": "วางแผน · สั่งงาน"},
     "mail": {"model": "opus", "effort": "medium", "label": "อ่านอีเมลทุกระดับ"},  # B2: you asked for no weak model on mail
+    "rule": {"model": "sonnet", "effort": "low", "label": "แปลงประโยคเป็นกติกา"},  # B5: only when you add a rule
+    "job_plan": {"model": "opus", "effort": "high", "label": "วางแผนงานเบื้องหลัง"},  # B5: "Opus วางแผน" (3.2)
 }
 
 TOOL_SERVER = "secretary"  # tools appear to the model as mcp__secretary__<name>
+
+# Called with the raw rate-limit data the CLI reports (how much of your plan is left, B5's quota
+# watcher). Every call carries it, so the secretary's own work keeps the reading fresh.
+RATE_LIMITS: list[Callable[[dict], None]] = []
+
+
+def rate_limit(message: RateLimitEvent) -> None:
+    for hook in RATE_LIMITS:
+        try:
+            hook(message.rate_limit_info.raw)
+        except Exception:
+            log.exception("rate-limit hook failed")
 
 
 @dataclass
@@ -153,6 +168,8 @@ async def run(
                         used.append(block.name.removeprefix(f"mcp__{TOOL_SERVER}__"))
             elif isinstance(message, ResultMessage):
                 result = message
+            elif isinstance(message, RateLimitEvent):
+                rate_limit(message)
     except Exception as exc:  # the CLI failed to start or died: record it, then surface it
         _record(task, model, effort, {}, int((time.monotonic() - started) * 1000), ok=False)
         raise LLMError(f"เรียก Claude ไม่สำเร็จ: {exc}") from exc
@@ -182,6 +199,11 @@ def _record(task: str, model: str, effort: str, usage: dict, duration_ms: int, o
     with session() as s:
         s.add(LLMUsage(task=task, model=model, effort=effort, tokens_in=tokens_in,
                        tokens_out=tokens_out, duration_ms=duration_ms, ok=ok))
+
+
+def record_usage(task: str, model: str, effort: str, usage: dict, duration_ms: int, *, ok: bool) -> None:
+    """Count a Claude call made outside run() (B5's runner) the same way, so the totals include it."""
+    _record(task, model, effort, usage, duration_ms, ok)
 
 
 # ------------------------------------------------------------------ changing it from the settings page

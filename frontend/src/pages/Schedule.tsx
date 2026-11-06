@@ -15,7 +15,8 @@ import { Icon } from "../icons";
 import { useStatus } from "../status";
 import { DetailCard, type Picked } from "./schedule/DetailCard";
 import { EditCard, type Done, type Draft, type Ghost } from "./schedule/EditCard";
-import { Toast, type Anchor, type ToastMsg } from "./schedule/Floating";
+import { Toast, type ToastMsg } from "../components/Toast";
+import { type Anchor } from "./schedule/Floating";
 import { sourceLabel } from "./schedule/links";
 import { Week, type Create } from "./schedule/Week";
 
