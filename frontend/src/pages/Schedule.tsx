@@ -20,6 +20,7 @@ import { useStatus } from "../status";
 import { DetailCard, type Picked } from "./schedule/DetailCard";
 import { EditCard, field, type Done, type Draft, type Ghost } from "./schedule/EditCard";
 import { Toast, type Anchor, type ToastMsg } from "./schedule/Floating";
+import { sourceLabel } from "./schedule/links";
 
 type Create = (sel: { start: Date; end: Date; allDay: boolean } | null, anchor: Anchor, tab?: "event" | "task") => void;
 
@@ -130,7 +131,10 @@ function TaskLine({ t, onEdit, onFinish }: { t: TaskRow; onEdit: (t: TaskRow, a:
     <li className={`py-1.5 flex items-start gap-1.5 ${closed ? "opacity-55" : ""}`}>
       <button type="button" disabled={closed} onClick={(e) => onEdit(t, { x: e.clientX, y: e.clientY })}
         className="grow min-w-0 text-left rounded-s -ml-1.5 px-1.5 py-1 cursor-pointer hover:bg-panel-2 disabled:cursor-default disabled:hover:bg-transparent">
-        <span className="font-medium block truncate">{t.title}</span>
+        <span className="font-medium flex items-center gap-1.5 min-w-0">
+          <span className="truncate">{t.title}</span>
+          {t.details && <span title={t.details} className="text-muted shrink-0"><Icon name="notes" size={13} /></span>}
+        </span>
         <span className="block text-xs text-muted">
           {[t.due ? `ส่ง ${when(t.due)}` : "ไม่มีกำหนดส่ง", t.source, closed ? (t.status === "done" ? "เสร็จแล้ว" : "เอาออกแล้ว")
             : `จองแล้ว ${duration(have)} จาก ${duration(need)}`, ...sizes].join(" · ")}
@@ -141,7 +145,7 @@ function TaskLine({ t, onEdit, onFinish }: { t: TaskRow; onEdit: (t: TaskRow, a:
           </span>
         )}
       </button>
-      {t.link && <a href={t.link} target="_blank" rel="noopener" title="เปิดที่มา" className="p-1.5 mt-0.5 text-muted hover:text-ink"><Icon name="ext" size={15} /></a>}
+      {t.link && <a href={t.link} target="_blank" rel="noopener" title={sourceLabel(t.source)} className="p-1.5 mt-0.5 text-muted hover:text-ink"><Icon name="ext" size={15} /></a>}
       {!closed && <Button sm icon="check" disabled={busy} onClick={async () => { setBusy(true); try { await onFinish(t); } finally { setBusy(false); } }}>เสร็จ</Button>}
     </li>
   );
@@ -153,7 +157,7 @@ function Tasks({ items, onAdd, onEdit, onFinish }: {
   const open = items?.filter((t) => t.status === "open") ?? [];
   return (
     <Card title={`งาน · ${open.length}`} right={<Button sm kind="p" icon="plus" onClick={onAdd}>เพิ่มงาน</Button>}>
-      <p className="text-xs text-muted pb-1">เลขาจองเวลาทำให้จากรายการนี้ · คลิกงานเพื่อแก้กำหนดส่ง เวลาที่ใช้ หรือขนาดบล็อก</p>
+      <p className="text-xs text-muted pb-1">เลขาจองเวลาทำให้จากรายการนี้ · คลิกงานเพื่อแก้กำหนดส่ง รายละเอียด เวลาที่ใช้ หรือขนาดบล็อก</p>
       {items === null ? <Spinner /> : (
         <ul className="divide-y divide-line">
           {items.length === 0 && <li className="py-3 text-sm text-muted">ยังไม่มีงาน · งานจากอีเมลและ Classroom จะขึ้นที่นี่เอง</li>}

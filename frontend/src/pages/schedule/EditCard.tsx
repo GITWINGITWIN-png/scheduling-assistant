@@ -11,6 +11,7 @@ import { Button, Chip } from "../../components/ui";
 import { duration, hm, shortDay, ymd } from "../../format";
 import { Icon } from "../../icons";
 import { Floating, type Anchor } from "./Floating";
+import { findLinks, shortLink, sourceLabel } from "./links";
 
 export const field = "bg-panel border border-line-2 rounded-lg px-2.5 py-1.5 text-sm text-ink min-w-0";
 
@@ -156,7 +157,7 @@ export function EditCard({ draft, anchor, rules, onClose, onDone, onPreview }: {
   const initial = useMemo(() => ({
     noDue: due0 === null, dueDate: ymd(due0 ?? addDays(new Date(), 1)), dueTime: due0 ? hm(due0) : "17:00",
     est: editing?.est_minutes ?? estDefault, block: editing?.block_minutes ?? d.block, daily: editing?.daily_minutes ?? d.daily,
-    mode: editing?.plan_mode ?? ("early" as PlanMode),
+    mode: editing?.plan_mode ?? ("early" as PlanMode), details: editing?.details ?? "",
   }), []); // eslint-disable-line react-hooks/exhaustive-deps -- the values the card opened with
   const [noDue, setNoDue] = useState(initial.noDue);
   const [dueDate, setDueDate] = useState(initial.dueDate);
@@ -165,6 +166,8 @@ export function EditCard({ draft, anchor, rules, onClose, onDone, onPreview }: {
   const [block, setBlock] = useState(initial.block);
   const [daily, setDaily] = useState(initial.daily);
   const [mode, setMode] = useState<PlanMode>(initial.mode);
+  const [details, setDetails] = useState(initial.details);
+  const links = findLinks(details);
 
   const due = noDue ? null : at(dueDate, dueTime || "23:59");
 
@@ -201,7 +204,7 @@ export function EditCard({ draft, anchor, rules, onClose, onDone, onPreview }: {
   const fieldsOf = (v: typeof initial): NewTask => ({
     title: title.trim(), due: v.noDue ? null : `${v.dueDate}T${v.dueTime || "23:59"}`, plan_mode: v.noDue ? "early" : v.mode,
     est_minutes: v.est === estDefault ? null : v.est, block_minutes: v.block === d.block ? null : v.block,
-    daily_minutes: v.daily === d.daily ? null : v.daily,
+    daily_minutes: v.daily === d.daily ? null : v.daily, details: v.details.trim(),
   });
 
   const save = async () => {
@@ -213,7 +216,7 @@ export function EditCard({ draft, anchor, rules, onClose, onDone, onPreview }: {
           start: allDay ? date : `${date}T${startTime}`, end: allDay ? endDate : `${date}T${endTime}` });
         onDone({ text: `ลงปฏิทินแล้ว: ${title.trim()}`, saved: r });
       } else {
-        const now = fieldsOf({ noDue, dueDate, dueTime, est, block, daily, mode });
+        const now = fieldsOf({ noDue, dueDate, dueTime, est, block, daily, mode, details });
         if (!editing) {
           const r = await api.addTask(now);
           onDone({ text: `เพิ่มงานแล้ว: ${now.title}` + (r.plan ? ` · ${r.plan}` : ""), saved: r });
@@ -298,6 +301,19 @@ export function EditCard({ draft, anchor, rules, onClose, onDone, onPreview }: {
               <label className="inline-flex items-center gap-1.5 text-sm text-ink-2 w-fit cursor-pointer">
                 <input type="checkbox" checked={noDue} onChange={(e) => setNoDue(e.target.checked)} />ไม่มีกำหนดส่ง</label>
             </Row>
+            <Row label="รายละเอียด" hint="ทำอะไร ที่ไหน ส่งที่ไหน">
+              <textarea rows={3} aria-label="รายละเอียดงาน" className={`${field} resize-y`} value={details} onChange={(e) => setDetails(e.target.value)}
+                placeholder={"เช่น ทำแบบฝึกหัดข้อ 1–5 ส่งเป็น PDF\nส่งที่: วางลิงก์ได้เลย"} />
+              {links.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {links.map((u) => (
+                    <a key={u} href={u} target="_blank" rel="noopener" title={u}
+                      className="inline-flex items-center gap-1 max-w-full text-xs rounded-full border border-line px-2 py-0.5 text-accent-strong hover:bg-panel-2">
+                      <Icon name="ext" size={12} /><span className="truncate">{shortLink(u)}</span></a>
+                  ))}
+                </div>
+              )}
+            </Row>
             <Row label="ใช้เวลาทำรวม" hint="ทั้งงาน ไม่ใช่ต่อวัน">
               <Minutes label="เวลาทำรวม" value={est} onChange={setEst} />
               <div className="flex flex-wrap gap-1">
@@ -340,7 +356,7 @@ export function EditCard({ draft, anchor, rules, onClose, onDone, onPreview }: {
         <div className="flex items-center gap-2 pt-2 pb-1 -mb-1 sticky bottom-0 bg-panel">
           {editing && <Button sm icon="check" disabled={busy} onClick={finish}>ทำเสร็จแล้ว</Button>}
           {editing?.link && <a href={editing.link} target="_blank" rel="noopener" className="text-xs text-ink-2 hover:underline inline-flex items-center gap-1">
-            <Icon name="ext" size={13} />เปิดที่มา</a>}
+            <Icon name="ext" size={13} />{sourceLabel(editing.source)}</a>}
           <span className="grow" />
           <Button kind="ghost" onClick={onClose}>ยกเลิก</Button>
           <Button kind="p" type="submit" disabled={busy || !title.trim() || !!problem}>{busy ? "กำลังบันทึก…" : "บันทึก"}</Button>

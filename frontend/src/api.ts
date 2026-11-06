@@ -47,8 +47,12 @@ export type TaskRow = {
   id: number; title: string; due: string | null; status: "open" | "done" | "dropped"; source: string;
   est_minutes: number | null; est_default: number; plan_mode: PlanMode; done_minutes: number; booked_minutes: number; link: string;
   block_minutes: number | null; daily_minutes: number | null; // null: the rules' (กติกาตาราง)
+  details: string; // รายละเอียดงาน: what, where, where to hand it in (links allowed)
 };
-export type NewTask = { title: string; due: string | null; est_minutes: number | null; plan_mode: PlanMode; block_minutes: number | null; daily_minutes: number | null };
+export type NewTask = {
+  title: string; due: string | null; est_minutes: number | null; plan_mode: PlanMode;
+  block_minutes: number | null; daily_minutes: number | null; details: string;
+};
 export type NewEvent = { title: string; start: string; end: string; all_day: boolean; location: string; description: string };
 export type Saved = { action_id: number; plan: string | null };
 export type ScheduleRules = {

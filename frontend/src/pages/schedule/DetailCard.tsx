@@ -8,6 +8,7 @@ import { duration, hm, shortDay, when, ymd } from "../../format";
 import { Icon, type IconName } from "../../icons";
 import type { Done } from "./EditCard";
 import { Floating, type Anchor } from "./Floating";
+import { Linked, sourceLabel } from "./links";
 
 export type Picked =
   | { type: "meet"; ev: CalItem }
@@ -80,14 +81,15 @@ export function DetailCard({ picked, task, anchor, onClose, onEdit, onDone }: {
       {task ? <Line icon="clock">{task.due ? `ส่ง ${when(task.due)}` : "ไม่มีกำหนดส่ง"} · {task.source}
         <span className="block text-muted">จองแล้ว {duration(task.done_minutes + task.booked_minutes)} จาก {duration(need)}</span></Line>
         : <Line icon="clock">{dl?.source ?? "งานนี้ปิดไปแล้ว"}</Line>}
+      {task?.details && <Line icon="notes"><Linked text={task.details} className="max-h-48 overflow-y-auto text-ink" /></Line>}
       {task?.status === "open" && (
         <div className="flex flex-wrap gap-2 pt-1">
           <Button sm icon="check" disabled={busy} onClick={() => finish(task)}>ทำเสร็จแล้ว</Button>
           <Button sm icon="edit" onClick={() => onEdit(task)}>แก้งาน</Button>
-          {task.link && <LinkButton href={task.link}>เปิดที่มา</LinkButton>}
+          {task.link && <LinkButton href={task.link}>{sourceLabel(task.source)}</LinkButton>}
         </div>
       )}
-      {!task && dl?.link && <div className="pt-1"><LinkButton href={dl.link}>เปิดที่มา</LinkButton></div>}
+      {!task && dl?.link && <div className="pt-1"><LinkButton href={dl.link}>{sourceLabel(dl.source)}</LinkButton></div>}
     </>;
   }
 
