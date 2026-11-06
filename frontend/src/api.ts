@@ -40,6 +40,7 @@ export type Answer = {
 // W5 ตาราง (B3)
 export type CalItem = {
   id: number; title: string; start: string; end: string; all_day: boolean; location: string;
+  description: string; // รายละเอียด: what you typed, or its description in Google Calendar
   source: string; source_name: string; recurring: boolean; link: string; mail: string; // link: Google Calendar · mail: the email it came from
 };
 export type BlockItem = { id: number; task_id: number; title: string; start: string; end: string; pinned: boolean; past: boolean };

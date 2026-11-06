@@ -16,6 +16,8 @@ Synchronous, like gmail.py: call through asyncio.to_thread.
 
 from __future__ import annotations
 
+import html
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -43,6 +45,25 @@ class CalEvent:
     mark: str  # what the secretary wrote it as ("block", "appointment"), or "" if it's yours
     busy: bool  # False for events marked "free" (transparency) or ones you declined
     recurring: bool  # one day of a repeating event (a weekly class): not reminded about
+    description: str = ""  # as plain text (see plain_text)
+
+
+SIGNATURE = "ลงโดยเลขา"  # the last line of every description the secretary writes
+
+
+def plain_text(description: str) -> str:
+    """An event description as plain text. Google Calendar's own editor stores HTML (<br>, <b>,
+    <a href>); a link's address is kept. The secretary's "ลงโดยเลขา" line is dropped."""
+    text = description or ""
+    if re.search(r"<[a-zA-Z/][^>]*>", text):
+        text = re.sub(r'<a\s[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
+                      lambda m: m.group(2) if m.group(2).strip() == m.group(1) else f"{m.group(2)} ({m.group(1)})",
+                      text, flags=re.S | re.I)
+        text = re.sub(r"<br\s*/?>|</p>|</div>|</li>", "\n", text, flags=re.I)
+        text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text).replace("\r\n", "\n")
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return text[: -len(SIGNATURE)].rstrip() if text.endswith(SIGNATURE) else text
 
 
 def _service():
@@ -166,7 +187,7 @@ def window(start: datetime, end: datetime, *, calendar: str = "primary") -> list
                                 location=e.get("location", ""), link=e.get("htmlLink", ""),
                                 mark=e.get("extendedProperties", {}).get("private", {}).get(MARK, ""),
                                 busy=e.get("transparency") != "transparent" and not declined,
-                                recurring="recurringEventId" in e))
+                                recurring="recurringEventId" in e, description=plain_text(e.get("description", ""))))
         token = r.get("nextPageToken")
         if not token:
             return out

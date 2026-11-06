@@ -131,6 +131,9 @@ class Event(Base):
     ends_at: Mapped[datetime] = mapped_column(UTCDateTime)
     all_day: Mapped[bool] = mapped_column(Boolean, default=False)
     location: Mapped[str] = mapped_column(Text, default="")
+    # รายละเอียด: what you typed when adding it, or the event's description in Google Calendar
+    # (as plain text, without the secretary's own "ลงโดยเลขา" line). Shown when you click it.
+    description: Mapped[str] = mapped_column(Text, default="", server_default="")
     source: Mapped[str] = mapped_column(String(20))  # email · calendar · you · project
     source_ref: Mapped[str] = mapped_column(String(64), default="")  # e.g. the Gmail message id
     gcal_id: Mapped[str] = mapped_column(String(128), default="")

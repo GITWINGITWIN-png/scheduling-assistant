@@ -64,7 +64,8 @@ def week(start: str, end: str) -> dict:
         due = s.scalars(select(Task).where(Task.status == "open", Task.due_at >= lo, Task.due_at < hi)).all()
         out = {
             "events": [{"id": e.id, "title": e.title, "start": _iso(e.starts_at), "end": _iso(e.ends_at), "all_day": e.all_day,
-                        "location": e.location, "source": e.source, "source_name": SOURCE_NAMES.get(e.source, e.source),
+                        "location": e.location, "description": e.description,
+                        "source": e.source, "source_name": SOURCE_NAMES.get(e.source, e.source),
                         "recurring": e.recurring, "link": e.link,
                         "mail": _link(s, "email", e.source_ref) if e.source == "email" else ""} for e in events],
             "blocks": [{"id": b.id, "task_id": b.task_id, "title": title, "start": _iso(b.starts_at), "end": _iso(b.ends_at),
@@ -111,7 +112,7 @@ async def add_event(body: EventIn) -> dict:
         raise HTTPException(400, "เวลาจบต้องหลังเวลาเริ่ม")
     with session() as s:
         ev = Event(title=title, starts_at=start, ends_at=end, all_day=body.all_day, location=body.location.strip(),
-                   source="you", status="proposed")
+                   description=body.description.strip(), source="you", status="proposed")
         s.add(ev)
         s.flush()
         event_id = ev.id

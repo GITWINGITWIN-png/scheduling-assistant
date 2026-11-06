@@ -67,8 +67,8 @@ async def place(event_id: int, *, via: tuple[str, str] = ("อีเมล", "")
         title, start, end, all_day, place_, ref = ev.title, ev.starts_at, ev.ends_at, ev.all_day, ev.location, ev.source_ref
         email = s.get(Email, ref) if ev.source == "email" else None
     link = gmail_link(email) if email else ""
-    description = (f"จากอีเมล: {email.sender_name or email.sender} · {email.subject}\n{link}\n\nลงโดยเลขา" if email
-                   else "\n\n".join(x for x in (note.strip(), "ลงโดยเลขา") if x))
+    description = (f"จากอีเมล: {email.sender_name or email.sender} · {email.subject}\n{link}\n\n{gcal.SIGNATURE}" if email
+                   else "\n\n".join(x for x in (note.strip(), gcal.SIGNATURE) if x))
     gcal_id, cal_link = await asyncio.to_thread(gcal.insert, title, start, end, all_day=all_day, location=place_,
                                                 description=description)
     with session() as s:

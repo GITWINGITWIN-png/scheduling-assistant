@@ -164,3 +164,18 @@ def test_a_classroom_task_starts_with_the_instructions_and_the_hand_in_link():
     assert details_of({"alternateLink": "https://classroom.google.com/x"}) == "ส่งงานที่: https://classroom.google.com/x"
     long = details_of({"description": "ก" * 3000, "alternateLink": "https://classroom.google.com/x"})
     assert len(long) < 1600 and long.endswith("ส่งงานที่: https://classroom.google.com/x")  # the link is never cut off
+
+
+def test_an_events_details_are_kept_and_shown(calendar):
+    r = run(api.add_event(api.EventIn(title="สอบย่อย", start="2026-11-18T13:00", end="2026-11-18T14:00",
+                                      description="เอาบัตรนักศึกษาไป\nห้องสอบ: https://example.com/rooms")))
+    [w] = calendar.values()
+    assert w["description"].startswith("เอาบัตรนักศึกษาไป")  # Google Calendar gets it too
+    shown = api.week("2026-11-16T00:00", "2026-11-23T00:00")["events"]
+    assert [e["description"] for e in shown if e["id"] == r["id"]] == ["เอาบัตรนักศึกษาไป\nห้องสอบ: https://example.com/rooms"]
+
+
+def test_a_calendar_description_becomes_plain_text_and_keeps_its_links():
+    assert gcal.plain_text('ส่งที่ <a href="https://x.com/a">โฟลเดอร์</a><br>ห้อง 405<br><br><br>ลงโดยเลขา') \
+        == "ส่งที่ โฟลเดอร์ (https://x.com/a)\nห้อง 405"
+    assert gcal.plain_text("a < b &amp; c") == "a < b & c"  # not HTML: left as it is, entities read

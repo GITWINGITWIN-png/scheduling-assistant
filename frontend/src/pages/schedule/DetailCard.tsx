@@ -60,6 +60,7 @@ export function DetailCard({ picked, task, anchor, onClose, onEdit, onDone }: {
     [swatch, title, time] = ["ev-meet", e.title, span(e.start, e.end, e.all_day)];
     body = <>
       {e.location && <Line icon="pin">{e.location}</Line>}
+      {e.description && <Line icon="notes"><Linked text={e.description} className="max-h-48 overflow-y-auto text-ink" /></Line>}
       <Line icon="calendar">{CAME_FROM[e.source] ?? e.source_name}</Line>
       <Line icon="bell">{e.recurring ? "นัดซ้ำทุกสัปดาห์: เลขาไม่เตือน แต่บล็อกงานจะหลบช่วงนี้" : "เลขาเตือนใน #ด่วน ก่อนถึงเวลา · บล็อกงานจะหลบช่วงนี้"}</Line>
       <div className="flex flex-wrap gap-2 pt-1">
