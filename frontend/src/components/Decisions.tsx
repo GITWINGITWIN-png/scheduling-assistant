@@ -2,8 +2,9 @@
 // one line under it, and its buttons. The bell and the today page show the same rows; answering in
 // either place (or in #อนุมัติ) has the same result (B4: เรื่องที่รอคุณตัดสินรวมที่เดียว).
 import { useState } from "react";
+import { Link } from "react-router";
 import type { Decision } from "../api";
-import { when } from "../format";
+import { kTokens, when } from "../format";
 import { AppointmentActions, CourseActions } from "./Bell";
 import { PlanActions } from "./PlanActions";
 import { Avatar, Markdown } from "./ui";
@@ -21,6 +22,33 @@ export function DecisionRow({ d, onChange }: { d: Decision; onChange?: () => voi
           {d.rule && <span className="block text-xs text-warn">ขัดกติกาของคุณ: {d.rule}</span>}
         </span>
         <AppointmentActions decisionId={d.id} onChange={onChange} />
+      </li>
+    );
+  }
+  if (d.kind === "job") { // a background plan (B5): decided on the jobs page, where its model and effort can change
+    const risky = (d.risks ?? []).length > 0;
+    const cap = (m: string) => (m ? m[0].toUpperCase() + m.slice(1) : "");
+    return (
+      <li className="py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <Avatar name={d.title} size="sm" />
+        <span className="grow min-w-0 basis-48">
+          <span className="block font-semibold text-[13.5px]">แผนทำต่อ {d.title}{risky ? " · งานเสี่ยงสูง" : ""}</span>
+          <span className="block text-xs text-ink-2">{[risky ? d.risks!.join(" · ") : d.why, d.model && `${cap(d.model)} · ${d.effort}`,
+            d.budget ? `งบ ${kTokens(d.budget)} โทเคน` : ""].filter(Boolean).join(" · ")}</span>
+        </span>
+        <Link to={`/jobs?plan=${d.job_id}`} className="inline-flex items-center rounded-full bg-accent text-accent-ink hover:bg-accent-strong px-3 py-1 text-xs font-medium">ดูแผน</Link>
+      </li>
+    );
+  }
+  if (d.kind === "project_level") { // a new folder under ~/Projects (B5)
+    return (
+      <li className="py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <Avatar name={d.title} size="sm" />
+        <span className="grow min-w-0 basis-48">
+          <span className="block font-semibold text-[13.5px]">โปรเจคใหม่ {d.title}</span>
+          <span className="block text-xs text-ink-2">ตั้ง potential และความเร่งด่วน · ระหว่างรอใช้ C · 2</span>
+        </span>
+        <Link to="/projects" className="inline-flex items-center rounded-full border border-line-2 bg-panel hover:bg-panel-2 px-3 py-1 text-xs font-medium">ตั้งระดับ</Link>
       </li>
     );
   }

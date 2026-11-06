@@ -69,10 +69,11 @@ def stop_job(job_id: int) -> dict:
 
 
 # ------------------------------------------------------------------ the page (W4)
-def job_view(j: Job) -> dict:
+def job_view(j: Job, potentials: dict[int, str] | None = None) -> dict:
     risks = plans.names(j.risks)
     efforts = {e: plans.budget_for(plans.rescale(j.estimate, j.effort, e)) for e in plans.EFFORT_COST} if j.estimate else {}
-    return {"id": j.id, "project_id": j.project_id, "project": j.project, "source": j.source, "stuck_at": j.stuck_at,
+    return {"id": j.id, "project_id": j.project_id, "project": j.project, "potential": (potentials or {}).get(j.project_id, ""),
+            "source": j.source, "stuck_at": j.stuck_at,
             "note": j.note, "status": j.status, "title": j.title, "steps": j.steps, "model": j.model, "effort": j.effort,
             "estimate": j.estimate, "budget": j.budget, "used": j.used, "risks": risks, "high_risk": bool(risks),
             "rule_ok": j.rule_ok, "rule_why": j.rule_why, "decision_id": j.decision_id, "why": j.why,
@@ -92,13 +93,14 @@ def jobs_page() -> dict:
         week = now() - timedelta(days=7)
         over = sum(1 for j in s.scalars(select(Job).where(Job.status == "stopped", Job.finished_at >= week))
                    if j.result.startswith("หยุด: เกินงบ"))
-        projects = [{"id": p.id, "name": p.name} for p in s.scalars(select(Project).where(Project.allow_jobs.is_(True)))
-                    if not queue.blocked(p)]
-        views = {"running": job_view(running) if running else None, "recent": [job_view(j) for j in recent]}
+        everyone = s.scalars(select(Project)).all()
+        pot = {p.id: p.potential for p in everyone}
+        projects = [{"id": p.id, "name": p.name} for p in everyone if p.allow_jobs and not queue.blocked(p)]
+        views = {"running": job_view(running, pot) if running else None, "recent": [job_view(j, pot) for j in recent]}
     return {"quota": {**(quota_view(quota.latest(max_age=None)) or {}), "line": book.line(), "auto": book.auto()},
             "kpi": {"auto": sum(1 for j in waiting if j.status == "ready"), "asking": sum(1 for j in waiting if j.status == "asking"),
                     "over_budget": over},
-            "queue": [job_view(j) for j in waiting], **views, "projects": sorted(projects, key=lambda p: p["name"].lower()),
+            "queue": [job_view(j, pot) for j in waiting], **views, "projects": sorted(projects, key=lambda p: p["name"].lower()),
             "round_on": clock_mod.enabled("jobs"), "window": "01:00–06:00", "approval_days": APPROVAL_DAYS}
 
 

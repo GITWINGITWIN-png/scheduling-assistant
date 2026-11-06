@@ -158,3 +158,17 @@ async def answer_level(decision_id: int, body: LevelIn) -> dict:
         raise HTTPException(409, str(exc))
     await decisions.settle_card(decision_id)
     return {"ok": True}
+
+
+@router.get("/projects/connect")
+def connect_guide() -> dict:
+    """คู่มือเชื่อมต่อ (W3 ⑥): CONNECT.md to read on the page, and where the inbox is."""
+    from pathlib import Path
+
+    from app.core.config import REPO_DIR
+    from app.features.projects import inbox
+
+    guide = REPO_DIR / "docs" / "CONNECT.md"
+    where = str(inbox.inbox_dir()).replace(str(Path.home()), "~", 1)
+    example = '{"kind": "report", "title": "feed วันนี้มาแล้ว", "body": "12 paper ใหม่", "link": "https://example.com"}'
+    return {"text": guide.read_text() if guide.is_file() else "", "inbox": f"{where}/<โปรเจค>/*.json", "example": example}

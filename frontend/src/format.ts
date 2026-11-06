@@ -49,3 +49,20 @@ export function tokens(n: number | null | undefined): string {
   if (!n) return "0";
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
+
+/** 150000 -> "150k", 2350 -> "2.4k": budgets and what was used. */
+export function kTokens(n: number | null | undefined): string {
+  if (!n) return "0";
+  return n >= 10_000 ? `${Math.round(n / 1000)}k` : tokens(n);
+}
+
+/** "วันนี้ 06:10", "เมื่อวาน", "9 วันก่อน": how long ago, as the projects page says it. */
+export function ago(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((start(new Date()) - start(d)) / 86_400_000);
+  if (days <= 0) return `วันนี้ ${hm(d)}`;
+  if (days === 1) return "เมื่อวาน";
+  return `${days} วันก่อน`;
+}
