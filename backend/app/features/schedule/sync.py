@@ -35,8 +35,9 @@ from app.core import actions, settings
 from app.core.config import get_config
 from app.core.db import now, session
 from app.core.tables import Block, Event, Task
-from app.core.timefmt import local
+from app.core.timefmt import local, thai_datetime
 from app.features.schedule.planner import Placed, Plan, Rules, Work, plan
+from app.features.schedule.tasks import SOURCE_NAMES
 
 log = logging.getLogger(__name__)
 
@@ -148,6 +149,38 @@ def _inputs(at: datetime, busy: list[tuple[datetime, datetime]]) -> tuple[list[W
 
 
 # ------------------------------------------------------------------ 3. write the difference
+def block_text(task: Task) -> str:
+    """What a block in the "เลขา" calendar says under its title: your รายละเอียดงาน (what to do,
+    where to hand it in), when it's due and where it came from, so the calendar on your
+    phone is enough to start working."""
+    due = " · ".join(x for x in (f"ส่ง {thai_datetime(task.due_at)}" if task.due_at else "",
+                                 f"ที่มา: {SOURCE_NAMES.get(task.source, task.source)}") if x)
+    return "\n\n".join(x for x in (task.details.strip(), due,
+                                     "บล็อกงานจากเลขา · ย้ายเวลาได้เลย เลขาจะไม่ย้ายกลับ · ลบทิ้งได้ถ้าช่วงนั้นไม่ว่าง") if x)
+
+
+def retext_blocks(task_id: int) -> int:
+    """A task's title or details changed: rewrite its upcoming blocks (blocking). -> how many."""
+    with session() as s:
+        task = s.get(Task, task_id)
+        if task is None:
+            return 0
+        title, text = task.title, block_text(task)
+        ids = list(s.scalars(select(Block.gcal_id).where(Block.task_id == task_id, Block.status.in_(("planned", "pinned")),
+                                                         Block.gcal_id != "", Block.ends_at > now())))
+    cal_id = gcal.blocks_calendar(create=False) if ids else None
+    return sum(gcal.retext(gid, title, text, calendar=cal_id) for gid in ids) if cal_id else 0
+
+
+async def retext(task_id: int) -> None:
+    """retext_blocks, best effort: if the calendar can't be reached, the task itself still has
+    the change and only the calendar's copy is behind."""
+    try:
+        await asyncio.to_thread(retext_blocks, task_id)
+    except Exception as exc:
+        log.warning("couldn't rewrite the blocks of task %s: %s", task_id, exc)
+
+
 def _write(result: Plan, movable: list[Block], at: datetime) -> tuple[int, int]:
     """Make the calendar match the plan. -> (added, removed)."""
     wanted = {(p.task_id, p.start, p.end) for p in result.blocks}
@@ -163,12 +196,10 @@ def _write(result: Plan, movable: list[Block], at: datetime) -> tuple[int, int]:
         with session() as s:
             s.get(Block, b.id).status = "removed"
     with session() as s:
-        titles = {t.id: (t.title, t.source) for t in s.scalars(select(Task).where(Task.id.in_({p.task_id for p in new})))}
+        texts = {t.id: (t.title, block_text(t)) for t in s.scalars(select(Task).where(Task.id.in_({p.task_id for p in new})))}
     for p in new:
-        title, source = titles[p.task_id]
-        gcal_id, _ = gcal.insert(title, p.start, p.end, calendar=cal_id, mark="block",
-                                 description=f"บล็อกงานจากเลขา · ที่มา: {source}\n"
-                                             "ย้ายเวลาได้เลย เลขาจะไม่ย้ายกลับ · ลบทิ้งได้ถ้าช่วงนั้นไม่ว่าง")
+        title, text = texts[p.task_id]
+        gcal_id, _ = gcal.insert(title, p.start, p.end, calendar=cal_id, mark="block", description=text)
         with session() as s:
             s.add(Block(task_id=p.task_id, starts_at=p.start, ends_at=p.end, gcal_id=gcal_id))
     return len(new), len(gone)

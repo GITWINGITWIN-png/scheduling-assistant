@@ -1,5 +1,7 @@
 """B3's web API: the schedule page (W5), tasks, planner rules, and Classroom courses."""
 
+import asyncio
+import logging
 from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, HTTPException
@@ -19,8 +21,9 @@ from app.features.mail.tables import Email
 from app.features.schedule import remind, sync, tasks
 
 router = APIRouter(prefix="/api")
+log = logging.getLogger(__name__)
 
-SOURCE_NAMES = {"email": "อีเมล", "classroom": "Classroom", "you": "คุณเพิ่ม", "project": "โปรเจค", "calendar": "ปฏิทิน"}
+SOURCE_NAMES = tasks.SOURCE_NAMES
 
 
 def _local(value: str | None) -> datetime | None:
@@ -148,7 +151,7 @@ def list_tasks() -> dict:
             slot[0 if b.ends_at <= at else 1] += minutes
         items = [{"id": t.id, "title": t.title, "due": _iso(t.due_at), "status": t.status, "source": SOURCE_NAMES.get(t.source, t.source),
                   "est_minutes": t.est_minutes, "est_default": est.get(t.source, 60), "plan_mode": t.plan_mode,
-                  "block_minutes": t.block_minutes, "daily_minutes": t.daily_minutes,
+                  "block_minutes": t.block_minutes, "daily_minutes": t.daily_minutes, "details": t.details,
                   "done_minutes": booked.get(t.id, [0, 0])[0], "booked_minutes": booked.get(t.id, [0, 0])[1],
                   "link": _link(s, t.source, t.source_ref)} for t in rows]
     return {"items": items}
@@ -161,6 +164,7 @@ class TaskIn(BaseModel):
     plan_mode: str = "early"
     block_minutes: int | None = None  # None: the rules' longest block
     daily_minutes: int | None = None  # None: the rules' limit per task per day
+    details: str = ""  # รายละเอียดงาน: what, where, where to hand it in; links allowed
 
 
 @router.post("/tasks")
@@ -168,7 +172,7 @@ async def add_task(body: TaskIn) -> dict:
     try:
         task_id, action_id = tasks.add(body.title, due_at=_local(body.due), est_minutes=body.est_minutes,
                                        plan_mode=body.plan_mode, block_minutes=body.block_minutes,
-                                       daily_minutes=body.daily_minutes, via=("หน้าตาราง", ""))
+                                       daily_minutes=body.daily_minutes, details=body.details, via=("หน้าตาราง", ""))
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     return {"id": task_id, "action_id": action_id, "plan": await _replan_if_on()}
@@ -184,10 +188,11 @@ class TaskEdit(BaseModel):
     plan_mode: str | None = None
     block_minutes: int | None = None
     daily_minutes: int | None = None
+    details: str | None = None
 
 
 EDIT_FIELDS = {"title": "title", "due": "due_at", "est_minutes": "est_minutes", "plan_mode": "plan_mode",
-               "block_minutes": "block_minutes", "daily_minutes": "daily_minutes"}
+               "block_minutes": "block_minutes", "daily_minutes": "daily_minutes", "details": "details"}
 
 
 @router.patch("/tasks/{task_id}")
@@ -204,6 +209,8 @@ async def edit_task(task_id: int, body: TaskEdit) -> dict:
         action_id = tasks.edit(task_id, via=("หน้าตาราง", ""), **changes)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+    if {"title", "details"} & changes.keys():  # the blocks already in the calendar say the new text too
+        await sync.retext(task_id)
     return {"action_id": action_id, "plan": await _replan_if_on()}
 
 

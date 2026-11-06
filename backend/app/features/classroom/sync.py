@@ -92,6 +92,19 @@ def _ask(s, course: Course) -> int:
     return d.id
 
 
+DETAILS_MAX = 1500  # characters of the teacher's instructions copied into the task
+
+
+def details_of(cw: dict) -> str:
+    """A new Classroom task's รายละเอียดงาน: the teacher's instructions, then where to hand it in
+    (the assignment's page, where ส่งงาน is). Written once; after that it's yours to edit."""
+    text = (cw.get("description") or "").strip()
+    if len(text) > DETAILS_MAX:
+        text = text[:DETAILS_MAX].rstrip() + "…"
+    link = cw.get("alternateLink", "")
+    return "\n\n".join(x for x in (text, f"ส่งงานที่: {link}" if link else "") if x)
+
+
 def _deadlines(course: Course) -> tuple[int, int]:
     """Assignments of a followed course → tasks. -> (tasks added, tasks closed as turned in)."""
     states = cr.submissions(course.id)
@@ -111,7 +124,8 @@ def _deadlines(course: Course) -> tuple[int, int]:
             item.turned_in, item.updated_at, item.synced_at = turned_in, cr.stamp(cw), at
             task = s.get(Task, item.task_id) if item.task_id else None
             if task is None and due and due > at and not turned_in:
-                task = Task(title=f"{item.title} ({course.name})", due_at=due, source="classroom", source_ref=item.id)
+                task = Task(title=f"{item.title} ({course.name})", due_at=due, source="classroom", source_ref=item.id,
+                            details=details_of(cw))
                 s.add(task)
                 s.flush()
                 item.task_id = task.id

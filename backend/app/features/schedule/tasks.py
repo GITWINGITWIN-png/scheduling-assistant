@@ -14,8 +14,10 @@ from app.core.db import session
 from app.core.tables import Task
 from app.core.timefmt import thai_datetime
 
-EDITABLE = ("title", "due_at", "est_minutes", "plan_mode", "block_minutes", "daily_minutes")
+EDITABLE = ("title", "due_at", "est_minutes", "plan_mode", "block_minutes", "daily_minutes", "details")
 MODES = {"early": "เริ่มเร็ว", "late": "ชิดเดดไลน์"}
+SOURCE_NAMES = {"email": "อีเมล", "classroom": "Classroom", "you": "คุณเพิ่ม", "project": "โปรเจค", "calendar": "ปฏิทิน"}
+DETAILS_MAX = 5000  # characters of รายละเอียดงาน
 
 # The minutes a task may ask for (None always means "the default"). The upper ends only
 # catch typing mistakes: 200 hours of work, an 8-hour block, 16 hours in one day.
@@ -34,6 +36,8 @@ def _check(values: dict) -> None:
         raise ValueError(f"plan_mode ต้องเป็น {', '.join(MODES)}")
     if "title" in values and not (values["title"] or "").strip():
         raise ValueError("ใส่ชื่องานก่อน")
+    if len(values.get("details") or "") > DETAILS_MAX:
+        raise ValueError(f"รายละเอียดยาวเกิน {DETAILS_MAX:,} ตัวอักษร")
     for key, (name, lo, hi) in LIMITS.items():
         v = values.get(key)
         if v is not None and not lo <= v <= hi:
@@ -41,14 +45,14 @@ def _check(values: dict) -> None:
 
 
 def add(title: str, *, due_at: datetime | None = None, est_minutes: int | None = None, plan_mode: str = "early",
-        block_minutes: int | None = None, daily_minutes: int | None = None,
+        block_minutes: int | None = None, daily_minutes: int | None = None, details: str = "",
         via: tuple[str, str] = ("หน้าเว็บ", "")) -> tuple[int, int]:
     """A task you typed in yourself. -> (task id, action id)."""
     _check({"title": title, "est_minutes": est_minutes, "plan_mode": plan_mode,
-            "block_minutes": block_minutes, "daily_minutes": daily_minutes})
+            "block_minutes": block_minutes, "daily_minutes": daily_minutes, "details": details})
     with session() as s:
         task = Task(title=title.strip(), due_at=due_at, est_minutes=est_minutes, plan_mode=plan_mode, source="you",
-                    block_minutes=block_minutes, daily_minutes=daily_minutes)
+                    block_minutes=block_minutes, daily_minutes=daily_minutes, details=details.strip())
         s.add(task)
         s.flush()
         task_id = task.id
@@ -68,6 +72,8 @@ def edit(task_id: int, *, via: tuple[str, str] = ("หน้าเว็บ", ""
     _check(changes)
     if "title" in changes:
         changes["title"] = changes["title"].strip()
+    if "details" in changes:
+        changes["details"] = (changes["details"] or "").strip()
     with session() as s:
         task = s.get(Task, task_id)
         if task is None:
@@ -89,6 +95,8 @@ def edit(task_id: int, *, via: tuple[str, str] = ("หน้าเว็บ", ""
         words.append(f"ส่ง {thai_datetime(changes['due_at'])}" if changes["due_at"] else "ไม่มีกำหนดส่ง")
     if "title" in changes:
         words.append("เปลี่ยนชื่อ")
+    if "details" in changes:
+        words.append("แก้รายละเอียด" if changes["details"] else "ลบรายละเอียด")
     return actions.record("task.edit", f"แก้งาน: {title}", " · ".join(words), source_label=via[0], source_url=via[1],
                           undo={"task_id": task_id, "old": {k: v.isoformat() if isinstance(v, datetime) else v
                                                             for k, v in old.items()}})
@@ -112,6 +120,10 @@ async def _undo_edit(undo: dict) -> None:
         if task := s.get(Task, undo["task_id"]):
             for k, v in undo["old"].items():
                 setattr(task, k, datetime.fromisoformat(v) if k == "due_at" and v else v)
+    if {"title", "details"} & undo["old"].keys():
+        from app.features.schedule import sync  # here, not at the top: sync imports this module
+
+        await sync.retext(undo["task_id"])
 
 
 async def _undo_done(undo: dict) -> None:

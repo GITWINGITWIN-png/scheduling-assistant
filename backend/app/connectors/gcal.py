@@ -121,6 +121,18 @@ def move(event_id: str, start: datetime, end: datetime, *, calendar: str = "prim
         raise
 
 
+def retext(event_id: str, title: str, description: str, *, calendar: str = "primary") -> bool:
+    """Change an event's title and description. False if it no longer exists."""
+    try:
+        _service().events().patch(calendarId=calendar, eventId=event_id,
+                                  body={"summary": title, "description": description}).execute()
+        return True
+    except HttpError as exc:
+        if _missing(exc):
+            return False
+        raise
+
+
 def delete(event_id: str, *, calendar: str = "primary") -> None:
     """Remove the event; an event already deleted by hand counts as done."""
     try:

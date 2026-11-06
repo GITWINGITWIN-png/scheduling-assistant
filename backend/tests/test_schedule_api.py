@@ -6,7 +6,7 @@ reaches your real calendar. The schedule round is treated as off, so nothing re-
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -16,8 +16,9 @@ from sqlalchemy import select
 from app.api import schedule as api
 from app.connectors import gcal, google
 from app.core import actions, clock, db
-from app.core.db import session
-from app.core.tables import Event, Task
+from app.core.db import now, session
+from app.core.tables import Block, Event, Task
+from app.features.classroom.sync import details_of
 
 BKK = ZoneInfo("Asia/Bangkok")
 
@@ -41,8 +42,14 @@ def calendar(monkeypatch):
     def delete(event_id, *, calendar="primary"):
         written.pop(event_id, None)
 
+    def retext(event_id, title, description, *, calendar="primary"):
+        written[event_id] = {"title": title, "description": description, "calendar": calendar}
+        return True
+
     monkeypatch.setattr(gcal, "insert", insert)
     monkeypatch.setattr(gcal, "delete", delete)
+    monkeypatch.setattr(gcal, "retext", retext)
+    monkeypatch.setattr(gcal, "blocks_calendar", lambda *, create=True: "blocks")
     monkeypatch.setattr(clock, "enabled", lambda name: False)
     return written
 
@@ -124,3 +131,36 @@ def test_an_edit_cannot_blank_the_title(calendar):
     for body in (api.TaskEdit(title=None), api.TaskEdit(title="  ")):
         with pytest.raises(HTTPException):
             run(api.edit_task(r["id"], body))
+
+
+# ------------------------------------------------------------------ รายละเอียดงาน
+def test_details_are_kept_cleared_with_null_and_limited(calendar):
+    r = run(api.add_task(api.TaskIn(title="แล็บ 3", details="  ทำข้อ 1-4 ส่งเป็น PDF\nhttps://example.com/hand-in  ")))
+    with session() as s:
+        assert s.get(Task, r["id"]).details == "ทำข้อ 1-4 ส่งเป็น PDF\nhttps://example.com/hand-in"
+    run(api.edit_task(r["id"], api.TaskEdit(details=None)))
+    with session() as s:
+        assert s.get(Task, r["id"]).details == ""
+    with pytest.raises(HTTPException):
+        run(api.add_task(api.TaskIn(title="ยาวไป", details="ก" * 5001)))
+
+
+def test_changing_details_rewrites_the_blocks_already_in_the_calendar(calendar):
+    r = run(api.add_task(api.TaskIn(title="รายงาน", due="2026-11-20T17:00")))
+    with session() as s:
+        s.add(Block(task_id=r["id"], starts_at=now() + timedelta(hours=2), ends_at=now() + timedelta(hours=3), gcal_id="b-up"))
+        s.add(Block(task_id=r["id"], starts_at=now() - timedelta(hours=3), ends_at=now() - timedelta(hours=2), gcal_id="b-past"))
+    edit = run(api.edit_task(r["id"], api.TaskEdit(details="ส่งในกลุ่ม LINE ของแล็บ")))
+    assert set(calendar) == {"b-up"}  # a block that's over is left as it was
+    assert calendar["b-up"]["calendar"] == "blocks" and calendar["b-up"]["title"] == "รายงาน"
+    assert calendar["b-up"]["description"].startswith("ส่งในกลุ่ม LINE ของแล็บ") and "ส่ง " in calendar["b-up"]["description"]
+    run(actions.undo(edit["action_id"]))  # undoing puts the calendar's text back too
+    assert "ส่งในกลุ่ม LINE" not in calendar["b-up"]["description"]
+
+
+def test_a_classroom_task_starts_with_the_instructions_and_the_hand_in_link():
+    cw = {"description": "อ่านบทที่ 3 แล้วตอบคำถามท้ายบท", "alternateLink": "https://classroom.google.com/c/1/a/2/details"}
+    assert details_of(cw) == "อ่านบทที่ 3 แล้วตอบคำถามท้ายบท\n\nส่งงานที่: https://classroom.google.com/c/1/a/2/details"
+    assert details_of({"alternateLink": "https://classroom.google.com/x"}) == "ส่งงานที่: https://classroom.google.com/x"
+    long = details_of({"description": "ก" * 3000, "alternateLink": "https://classroom.google.com/x"})
+    assert len(long) < 1600 and long.endswith("ส่งงานที่: https://classroom.google.com/x")  # the link is never cut off

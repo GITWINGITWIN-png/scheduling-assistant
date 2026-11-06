@@ -162,6 +162,9 @@ class Task(Base):
     # trying B3): the longest block, and the most time it may take in one day. None: the rules'.
     block_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     daily_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # รายละเอียดงาน: what to do, where, where to hand it in; free text, links allowed. A
+    # Classroom task starts with the teacher's instructions and the link to hand it in.
+    details: Mapped[str] = mapped_column(Text, default="", server_default="")
     status: Mapped[str] = mapped_column(String(10), default="open", index=True)  # open · done · dropped
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
 

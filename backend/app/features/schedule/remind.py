@@ -133,7 +133,7 @@ def _source_link(source: str, ref: str) -> tuple[str, str]:
         if source == "email" and (email := s.get(Email, ref)):
             return "เปิดอีเมล", gmail_link(email)
         if source == "classroom" and (item := s.get(CourseItem, ref)):
-            return "เปิดใน Classroom", item.link
+            return "ส่งงานใน Classroom", item.link
     return "", ""
 
 
@@ -152,7 +152,8 @@ async def _send_task(t: Task, lead: str) -> int:
     label, url = _source_link(t.source, t.source_ref)
     head = "อีก 1 ชั่วโมง" if lead == "1h" else _when_words(t.due_at)
     card = dc.embed(t.title, f"ต้องส่ง **{thai_datetime(t.due_at)}**", tone="bad" if lead == "1h" else "warn",
-                    author=f"เดดไลน์ · {head}", footer="เตือนก่อนถึงกำหนด · กดทำเสร็จแล้ว ตารางจะเอาบล็อกที่เหลือออก")
+                    author=f"เดดไลน์ · {head}", fields=[("รายละเอียด", t.details, False)] if t.details.strip() else (),
+                    footer="เตือนก่อนถึงกำหนด · กดทำเสร็จแล้ว ตารางจะเอาบล็อกที่เหลือออก")
     row, _ = await dc.bot.send("urgent", embed=card, view=dc.buttons(TaskDoneButton(t.id), *_link_button(label, url)),
                                kind="reminder", ref=f"task:{t.id}", text_copy=f"เดดไลน์ {head}: {t.title}")
     return row.id
