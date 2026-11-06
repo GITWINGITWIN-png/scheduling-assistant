@@ -44,6 +44,7 @@ from app.features.briefs import evening as briefs_evening
 from app.features.briefs import morning as briefs_morning
 from app.features.classroom import cards as classroom_cards
 from app.features.jobs import quota as jobs_quota
+from app.features.jobs import runner as jobs_runner
 from app.features.classroom import materials as classroom_materials
 from app.features.classroom import sync as classroom_sync
 from app.features.mail import cards as mail_cards
@@ -82,6 +83,7 @@ async def start_background() -> None:
     projects_scan.setup()  # B5: the project registry, rescanned 06:30 (off until B5's check)
     projects_cards.setup()  # "ตั้งระดับโปรเจคใหม่" in #อนุมัติ, urgent project news in #ด่วน
     projects_inbox.setup()  # B5: news from ~/.secretary/inbox every 5 min (off until the check)
+    jobs_runner.setup()  # B5: background work 01:00–06:00 (off until the check); a job cut off by a stop is kept
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button

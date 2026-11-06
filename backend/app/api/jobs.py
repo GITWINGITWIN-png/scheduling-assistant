@@ -3,10 +3,10 @@ and the runner. The rule book (W8) has its own, api/rules.py."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.core.rules import book
-from app.features.jobs import quota
+from app.features.jobs import quota, runner
 
 router = APIRouter(prefix="/api")
 
@@ -33,3 +33,23 @@ def get_quota() -> dict:
 async def read_quota() -> dict:
     """อ่านตอนนี้: a tiny call to hear the current numbers."""
     return {"quota": quota_view(await quota.probe()), "line": book.line()}
+
+
+# ------------------------------------------------------------------ ทำเลย · หยุด (B5.7)
+@router.post("/jobs/{job_id}/run")
+async def run_now(job_id: int) -> dict:
+    """ทำเลย: start a ready job now, outside the night window too (it is checked again first)."""
+    try:
+        return {"line": await runner.start(job_id, night=False)}
+    except runner.RunError as exc:
+        raise HTTPException(409, str(exc))
+
+
+@router.post("/jobs/{job_id}/stop")
+def stop_job(job_id: int) -> dict:
+    """หยุด: the run stops within seconds and keeps what it did, committed on its branch."""
+    try:
+        runner.stop(job_id)
+    except runner.RunError as exc:
+        raise HTTPException(409, str(exc))
+    return {"ok": True}

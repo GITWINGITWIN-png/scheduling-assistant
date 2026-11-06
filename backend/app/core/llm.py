@@ -201,6 +201,11 @@ def _record(task: str, model: str, effort: str, usage: dict, duration_ms: int, o
                        tokens_out=tokens_out, duration_ms=duration_ms, ok=ok))
 
 
+def record_usage(task: str, model: str, effort: str, usage: dict, duration_ms: int, *, ok: bool) -> None:
+    """Count a Claude call made outside run() (B5's runner) the same way, so the totals include it."""
+    _record(task, model, effort, usage, duration_ms, ok)
+
+
 # ------------------------------------------------------------------ changing it from the settings page
 def set_task(task: str, model: str, effort: str) -> int:
     """Save a task's model and effort; logged with undo. Returns the action id."""

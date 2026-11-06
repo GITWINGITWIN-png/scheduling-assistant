@@ -59,7 +59,7 @@ def blocked(p: Project | None) -> str:
     return ""
 
 
-def _replan(job: Job) -> None:
+def replan(job: Job) -> None:
     """Back to the start of the queue: the plan has to be made (and checked) again."""
     job.status, job.title, job.steps, job.planned_at, job.decision_id = "queued", "", [], None, None
     job.rule_ok, job.rule_why, job.approved_until, job.result = None, "", None, ""
@@ -82,7 +82,7 @@ def refresh(at: datetime | None = None) -> list[int]:
                 continue
             nxt = (p.progress or {}).get("next", "")
             if job is None and (paused := paused_by.get(p.id)) is not None:
-                _replan(paused)  # the project is back: so is its job (planned again, things may have moved)
+                replan(paused)  # the project is back: so is its job (planned again, things may have moved)
                 if paused.source == "progress" and nxt:
                     paused.stuck_at = nxt
             elif job is None and nxt and (p.id, nxt) not in ended:
