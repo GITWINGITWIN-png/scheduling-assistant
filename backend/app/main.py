@@ -30,11 +30,14 @@ from app.api import log as log_api
 from app.api import mail as mail_api
 from app.api import schedule as schedule_api
 from app.api import settings as settings_api
+from app.api import today as today_api
 from app.connectors import discord_bot
 from app.core import backup, db, worker
 from app.core.clock import clock
 from app.core.config import REPO_DIR
 from app.features import actions_discord, ask_discord
+from app.features.briefs import evening as briefs_evening
+from app.features.briefs import morning as briefs_morning
 from app.features.classroom import cards as classroom_cards
 from app.features.classroom import materials as classroom_materials
 from app.features.classroom import sync as classroom_sync
@@ -66,6 +69,8 @@ async def start_background() -> None:
     classroom_sync.setup()  # B3: Classroom deadlines and materials every 2 h (off until the check)
     classroom_cards.setup()  # "ติดตามวิชานี้ไหม" in #อนุมัติ
     classroom_materials.setup()  # new materials into the course folder, inside the Classroom round
+    briefs_morning.setup()  # B4: สรุปเช้า 07:00 in #สรุป (off until B4's check)
+    briefs_evening.setup()  # B4: ทบทวนเย็น 21:00 in #สรุป (off until B4's check)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button
@@ -109,6 +114,7 @@ app.include_router(log_api.router)
 app.include_router(mail_api.router)
 app.include_router(schedule_api.router)
 app.include_router(settings_api.router)
+app.include_router(today_api.router)
 
 
 @app.exception_handler(RequestValidationError)

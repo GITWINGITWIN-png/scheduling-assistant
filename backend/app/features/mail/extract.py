@@ -53,6 +53,16 @@ def gmail_link(e: Email) -> str:
     return f"https://mail.google.com/mail/?authuser={me}#all/{e.id}" if me else f"https://mail.google.com/mail/#all/{e.id}"
 
 
+def done_for(s, email_ids: list[str]) -> dict[str, list[str]]:
+    """What the secretary did with each of these emails, in the words the people page and the
+    briefs use: ลงปฏิทินแล้ว · นัดรอคุณรับ · เพิ่มเป็นงานแล้ว."""
+    placed = set(s.scalars(select(Event.source_ref).where(Event.source_ref.in_(email_ids), Event.status == "placed")))
+    proposed = set(s.scalars(select(Event.source_ref).where(Event.source_ref.in_(email_ids), Event.status == "proposed")))
+    tasked = set(s.scalars(select(Task.source_ref).where(Task.source_ref.in_(email_ids), Task.status == "open")))
+    return {i: [label for label, on in (("ลงปฏิทินแล้ว", i in placed), ("นัดรอคุณรับ", i in proposed),
+                                         ("เพิ่มเป็นงานแล้ว", i in tasked)) if on] for i in email_ids}
+
+
 def _direct(e: Email) -> bool:
     return e.level == "important" or e.flagged == "awaiting"
 

@@ -18,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.core import llm
-from app.features import ask
+from app.features import ask, decisions
 
 router = APIRouter(prefix="/api", tags=["ask"])
 
@@ -68,11 +68,12 @@ class DecideIn(BaseModel):
 
 
 @router.post("/decisions/{decision_id}")
-def decide(decision_id: int, body: DecideIn) -> dict:
+async def decide(decision_id: int, body: DecideIn) -> dict:
     try:
         d, action_id = ask.decide(decision_id, body.action, body.note)
     except ask.DecisionError as exc:
         raise HTTPException(409, str(exc)) from exc
+    await decisions.settle_card(decision_id)  # a card for it in #อนุมัติ (if any) says so too
     return {"id": d.id, "status": d.status, "action_id": action_id}
 
 

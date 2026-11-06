@@ -1,0 +1,94 @@
+"""The today page (W1): everything of today on one page, from what the other features know.
+
+- hello: the morning brief's numbers ("เช้านี้: …", W1 ②), the same line as in #สรุป, with the
+  brief in full behind "ดูสรุปเช้าฉบับเต็ม"; before today's brief exists, the same numbers
+  counted now.
+- the day as rows (W1 ③): แผน (appointments, work blocks, due dates) and เลขา (the daily rounds
+  that ran today, and the ones still to come). ทำจริง (ActivityWatch) comes in B6.
+- เรื่องสำคัญ (W1 ⑤): today's mail from important people or matching a keyword, with what
+  the secretary did; the same count as the side menu's number.
+What waits for you comes from /api/decisions (the bell's rows); background work and project
+news come with B5.
+"""
+
+from datetime import datetime, time, timedelta
+
+from fastapi import APIRouter
+from sqlalchemy import select
+
+from app.connectors import discord_bot as dc
+from app.core import clock
+from app.core.config import get_config
+from app.core.db import now, session
+from app.core.tables import Action, Message
+from app.core.timefmt import local
+from app.features.briefs import day, morning
+from app.features.briefs.tables import Brief
+
+router = APIRouter(prefix="/api")
+
+# The rounds the เลขา row shows: the ones that run once or twice a day. The frequent ones (every
+# few minutes) would only be noise on a day's row.
+DAILY = ("mail_big", "morning", "mail_small", "evening", "backup", "projects", "weekly")
+
+
+def _iso(dt: datetime | None) -> str | None:
+    return dt.isoformat() if dt else None
+
+
+def greeting(at: datetime) -> str:
+    h = local(at).hour
+    return "สวัสดีตอนเช้าครับ" if h < 12 else "สวัสดีตอนบ่ายครับ" if h < 17 else "สวัสดีตอนเย็นครับ"
+
+
+def _brief(d: str) -> dict | None:
+    with session() as s:
+        b = s.scalar(select(Brief).where(Brief.kind == "morning", Brief.day == d))
+        if b is None:
+            return None
+        m = s.get(Message, b.message_id) if b.message_id else None
+        link = ""
+        if m is not None and (ch := dc.bot.channels.get(m.channel)) is not None:
+            link = f"https://discord.com/channels/{ch.guild.id}/{ch.id}/{m.discord_id}"
+        return {"made_at": _iso(b.made_at), "title": b.title, "headline": b.headline, "fields": b.fields,
+                "footer": b.footer, "sent": m is not None, "link": link}
+
+
+def _secretary(at: datetime) -> list[dict]:
+    """The เลขา row: daily rounds that ran today (from the log), then the ones still to come today."""
+    start = day.day_start(day.today(at))
+    with session() as s:
+        ran = s.scalars(select(Action).where(Action.kind.in_([f"round.{r}" for r in DAILY]), Action.at >= start,
+                                             Action.at < at).order_by(Action.at)).all()
+        out = [{"at": _iso(a.at), "title": clock.ROUNDS[a.kind.removeprefix("round.")].title, "done": True,
+                "line": a.target} for a in ran]
+    end = start + timedelta(days=1)
+    for rid in DAILY:
+        rnd = clock.ROUNDS[rid]
+        if rnd.handler is None or not clock.enabled(rid):
+            continue
+        nxt = rnd.trigger().get_next_fire_time(None, at)
+        if nxt is not None and nxt < end:
+            out.append({"at": _iso(nxt), "title": rnd.title, "done": False, "line": ""})
+    return out
+
+
+@router.get("/today")
+def today_page() -> dict:
+    at = now()
+    d = day.today(at)
+    brief = _brief(d.isoformat())
+    items = day.agenda(d)
+    return {
+        "greeting": greeting(at),
+        "brief": brief,
+        "headline": brief["headline"] if brief else morning.compose(at)["headline"],
+        "morning_on": clock.enabled("morning"),
+        "plan": [{"start": _iso(i.start), "end": _iso(i.end), "title": i.title, "kind": i.kind, "sub": i.sub} for i in items],
+        "secretary": _secretary(at),
+        "important": [{"id": m.id, "who": m.who, "summary": m.summary, "at": _iso(m.sent_at), "done": m.done, "link": m.link}
+                      for m in day.important_mail(day.day_start(d), at)],
+        "hours": [7, 23],
+        "web": get_config().web_url,
+        "day_start": _iso(datetime.combine(d, time(0), get_config().tz)),
+    }

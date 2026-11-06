@@ -13,6 +13,7 @@ from app.core import actions, clock, settings
 from app.core.config import get_config
 from app.core.db import now, session
 from app.core.tables import Block, Decision, Event, Task
+from app.features import decisions
 from app.features.classroom import sync as classroom
 from app.features.classroom.tables import STATES, Course, CourseItem
 from app.features.mail import extract
@@ -312,6 +313,7 @@ class CourseAnswer(Strict):
 async def answer_course(decision_id: int, body: CourseAnswer) -> dict:
     try:
         d, action_id = await classroom.decide(decision_id, body.follow, folder=body.folder, via=("หน้าเว็บ", ""))
+        await decisions.settle_card(decision_id)  # its #อนุมัติ card says so too
     except ValueError as exc:
         raise HTTPException(409, str(exc))
     return {"status": d.status, "action_id": action_id}

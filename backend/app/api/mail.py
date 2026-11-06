@@ -8,7 +8,8 @@ from sqlalchemy import func, select
 
 from app.connectors import google
 from app.core.db import now, session
-from app.core.tables import Action, Event, Task
+from app.core.tables import Action
+from app.features import decisions
 from app.features.mail import extract, followups, people, rounds, watch
 from app.features.mail.tables import LEVELS, SOURCES, Email, Followup, Person
 
@@ -49,16 +50,12 @@ def get_person(person_id: int) -> dict:
         open_fu = s.scalars(select(Followup).where(Followup.person_id == person_id, Followup.closed_at.is_(None))).all()
         mails = s.scalars(select(Email).where(Email.person_id == person_id)
                           .order_by(Email.sent_at.desc()).limit(20)).all()
-        ids = [e.id for e in mails]
-        placed = set(s.scalars(select(Event.source_ref).where(Event.source_ref.in_(ids), Event.status == "placed")))
-        proposed = set(s.scalars(select(Event.source_ref).where(Event.source_ref.in_(ids), Event.status == "proposed")))
-        tasked = set(s.scalars(select(Task.source_ref).where(Task.source_ref.in_(ids), Task.status == "open")))
+        done = extract.done_for(s, [e.id for e in mails])
         out = _person(s, p, {person_id} if any(f.waiting_on == "them" for f in open_fu) else set())
         out["emails"] = [{
             "id": e.id, "sent_at": e.sent_at.isoformat(), "subject": e.subject, "from_me": e.from_me,
             "summary": e.summary, "stage": e.stage, "link": extract.gmail_link(e), "needs_reply": e.needs_reply,
-            "done": [x for x, on in (("ลงปฏิทินแล้ว", e.id in placed), ("นัดรอคุณรับ", e.id in proposed),
-                                     ("เพิ่มเป็นงานแล้ว", e.id in tasked)) if on],
+            "done": done[e.id],
         } for e in mails]
         out["followups"] = [_followup(f, p.name) for f in open_fu]
     return out
@@ -151,6 +148,7 @@ async def answer_appointment(decision_id: int, body: AppointmentIn) -> dict:
     """รับนัด (into the calendar, undoable) or ไม่ไป, for an appointment waiting in the bell / #อนุมัติ."""
     try:
         d, action_id = await extract.decide(decision_id, body.accept, via=("หน้าเว็บ", ""))
+        await decisions.settle_card(decision_id)  # its #อนุมัติ card says so too
     except ValueError as exc:
         raise HTTPException(409, str(exc))
     return {"id": d.id, "status": d.status, "action_id": action_id}
