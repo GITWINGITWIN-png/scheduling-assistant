@@ -3,7 +3,7 @@
 export type Status = {
   pending: number; tokens_week: number; discord: boolean; theme: string;
   stale?: boolean; // the backend code on disk is newer than the running one: restart (older backends don't send it)
-  counts?: { people?: number }; // the side menu's red numbers (people: emails from important people today)
+  counts?: { people?: number; decisions?: number }; // the side menu's red numbers (people: today's เรื่องสำคัญ; decisions: what waits for you)
 };
 
 export type Task = { task: string; label: string; model: string; effort: string; default_model: string; default_effort: string };
@@ -75,6 +75,16 @@ export type CourseRow = {
   decision_id: number | null; files: { name: string; path: string }[]; file_count: number;
 };
 
+// W1 วันนี้ (B4)
+export type DayItem = { start: string; end: string; title: string; kind: "meet" | "block" | "dead" | "allday"; sub: string };
+export type RoundMark = { at: string; title: string; done: boolean; line: string };
+export type BriefView = { made_at: string; title: string; headline: string; fields: [string, string][]; footer: string; sent: boolean; link: string };
+export type TodayPage = {
+  greeting: string; brief: BriefView | null; headline: string; morning_on: boolean;
+  plan: DayItem[]; secretary: RoundMark[]; hours: [number, number];
+  important: { id: string; who: string; summary: string; at: string; done: string[]; link: string }[];
+};
+
 export class ApiError extends Error {}
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -107,6 +117,8 @@ export type MailSettings = {
 };
 
 export const api = {
+  // W1 วันนี้ (B4)
+  today: () => call<TodayPage>("GET", "/api/today"),
   // W5 ตาราง (B3)
   week: (start: string, end: string) => call<Week>("GET", `/api/schedule?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`),
   replan: () => call<{ line: string }>("POST", "/api/schedule/replan"),

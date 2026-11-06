@@ -111,3 +111,21 @@ body { background: var(--bg); color: var(--ink); }
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 4px; background: var(--accent); }
 .swatch.meet { background: var(--bad); } .swatch.dead { background: var(--warn); } .swatch.done { background: var(--ok); }
 .swatch.miss { background: transparent; border: 1.5px dashed var(--line-2); }
+
+/* ------------------------------------------------------------------ W1: the day as rows, as the plan draws it
+   (look.css .tl / .blk): a lane label, then half-hour columns from 07:00 to 23:00, a label every two hours,
+   soft blocks with a coloured left edge, a red line for now (pages/Today.tsx). */
+.day-rows { display: grid; grid-auto-rows: 34px; grid-template-rows: 18px; row-gap: 6px; align-items: stretch; position: relative; }
+.dr-h { font: 11px/16px ui-monospace, "JetBrains Mono", monospace; color: var(--muted); align-self: end; white-space: nowrap; }
+.dr-lane { grid-column: 1; font-size: 11.5px; font-weight: 600; color: var(--muted); align-self: center; }
+.dr-later { align-self: center; display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted);
+  border: 1.5px dashed var(--line); border-radius: 7px; padding: 0 8px; height: 100%; }
+.dr-now { width: 2px; background: var(--bad); border-radius: 1px; justify-self: start; position: relative; z-index: 2; }
+.dr-now::before { content: ""; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--bad); }
+.blk { border-radius: 7px; padding: 3px 6px; font-size: 11px; line-height: 1.3; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  min-width: 0; align-self: stretch; display: flex; align-items: center; margin-right: 2px; cursor: default;
+  background: var(--accent-soft); color: var(--accent-strong); border-left: 3px solid var(--accent); }
+.blk.meet { background: var(--bad-soft); color: var(--bad); border-left-color: var(--bad); }
+.blk.dead { background: var(--warn-soft); color: var(--warn); border-left-color: var(--warn); }
+.blk.bg { background: var(--panel-2); color: var(--ink-2); border-left-color: var(--muted); }
+.blk.miss { background: transparent; color: var(--muted); border: 1.5px dashed var(--line-2); }

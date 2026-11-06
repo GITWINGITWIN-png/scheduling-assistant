@@ -11,11 +11,13 @@ from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
+from sqlalchemy import select
 
 from app.core import db, settings
 from app.core.db import session
 from app.core.tables import Block, Event, LLMUsage, Task
 from app.features.briefs import day, morning
+from app.features.briefs.tables import Brief
 from app.features.mail import rounds
 from app.features.mail.tables import Email, Person
 
@@ -231,3 +233,18 @@ def test_answering_on_the_web_without_discord_leaves_the_card_alone():
         s.flush()
         did = d.id
     asyncio.run(decisions.settle_card(did))  # the bot isn't connected in tests: nothing to do, nothing raised
+
+
+# ------------------------------------------------------------------ the today page
+def test_the_today_page_repeats_the_morning_briefs_numbers(night, monkeypatch):
+    from app.api import today as api
+    monkeypatch.setattr(api, "now", lambda: at(10, 9))
+    monkeypatch.setattr(day, "now", lambda: at(10, 9))
+    morning.make(at(10, 7))  # (or the one an earlier test made: one per day)
+    page = api.today_page()
+    with session() as s:
+        b = s.scalar(select(Brief).where(Brief.kind == "morning", Brief.day == "2027-03-10"))
+    assert page["headline"] == b.headline and page["brief"]["fields"] == b.fields  # B4's check: the numbers match
+    assert page["greeting"] == "สวัสดีตอนเช้าครับ"
+    assert [i["kind"] for i in page["plan"]] == ["block", "meet", "dead"]
+    assert all(m["who"] for m in page["important"])
