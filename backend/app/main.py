@@ -28,6 +28,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from app.api import ask as ask_api
 from app.api import log as log_api
 from app.api import mail as mail_api
+from app.api import projects as projects_api
 from app.api import schedule as schedule_api
 from app.api import settings as settings_api
 from app.api import today as today_api
@@ -42,6 +43,8 @@ from app.features.classroom import cards as classroom_cards
 from app.features.classroom import materials as classroom_materials
 from app.features.classroom import sync as classroom_sync
 from app.features.mail import cards as mail_cards
+from app.features.projects import cards as projects_cards
+from app.features.projects import scan as projects_scan
 from app.features.mail import extract as mail_extract
 from app.features.mail import followups as mail_followups
 from app.features.mail import rounds as mail_rounds
@@ -71,6 +74,8 @@ async def start_background() -> None:
     classroom_materials.setup()  # new materials into the course folder, inside the Classroom round
     briefs_morning.setup()  # B4: สรุปเช้า 07:00 in #สรุป (off until B4's check)
     briefs_evening.setup()  # B4: ทบทวนเย็น 21:00 in #สรุป (off until B4's check)
+    projects_scan.setup()  # B5: the project registry, rescanned 06:30 (off until B5's check)
+    projects_cards.setup()  # "ตั้งระดับโปรเจคใหม่" in #อนุมัติ
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
     actions_discord.setup()  # the ย้อนกลับ button
@@ -112,6 +117,7 @@ app = FastAPI(title="my_secretary", version=VERSION, lifespan=lifespan)
 app.include_router(ask_api.router)
 app.include_router(log_api.router)
 app.include_router(mail_api.router)
+app.include_router(projects_api.router)
 app.include_router(schedule_api.router)
 app.include_router(settings_api.router)
 app.include_router(today_api.router)

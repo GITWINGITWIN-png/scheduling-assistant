@@ -17,6 +17,7 @@ from app.core.db import Base, engine
 import app.features.mail.tables  # noqa: F401,E402  B2: people, emails, followups
 import app.features.classroom.tables  # noqa: F401,E402  B3: courses, course_items
 import app.features.briefs.tables  # noqa: F401,E402  B4: briefs
+import app.features.projects.tables  # noqa: F401,E402  B5: projects, project news
 
 target_metadata = Base.metadata
 

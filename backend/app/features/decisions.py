@@ -24,6 +24,7 @@ SETTLED = {
     ("appointment", "approved"): "✅ รับนัดแล้ว · ลงปฏิทินแล้ว", ("appointment", "rejected"): "ไม่ไปนัดนี้",
     ("course", "approved"): "✅ ติดตามวิชานี้แล้ว", ("course", "rejected"): "ไม่ติดตามวิชานี้",
     ("plan", "approved"): "✅ อนุมัติแผนแล้ว", ("plan", "rejected"): "ไม่เอาแผนนี้",
+    ("project_level", "approved"): "✅ ตั้งระดับโปรเจคแล้ว",
 }
 
 
