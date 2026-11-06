@@ -1,10 +1,12 @@
 // The frame around every page (stage 2's W screens): the left menu and the top bar.
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { thaiDate, tokens } from "../format";
 import { Icon } from "../icons";
 import { NAV, PAGES } from "../nav";
 import { useStatus } from "../status";
 import { AskBox } from "./AskBox";
+import { IdeaCapture } from "./IdeaCapture";
 import { Bell } from "./Bell";
 import { ThemePicker } from "./ThemePicker";
 
@@ -90,11 +92,40 @@ function Top() {
       <AskBox />
       <Bell />
       <ThemePicker />
-      <button type="button" disabled title="จดไอเดียด้วยคีย์ลัด มาในช่วง B6"
-        className="hidden xl:inline-flex items-center gap-1.5 rounded-full border border-line-2 px-3.5 py-1.5 text-sm text-muted opacity-60 cursor-not-allowed">
-        <Icon name="idea" size={16} />จดไอเดีย<kbd className="text-[11px] border border-line-2 rounded px-1">Super+I</kbd>
-      </button>
+      <JotButton />
     </header>
+  );
+}
+
+/** The top bar's จดไอเดีย (W1–W10): the same box as the Super+I popup, over any page. */
+function JotButton() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [open]);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} title="จดไอเดีย (หรือกด Super+I จากหน้าจอไหนก็ได้)"
+        className="hidden xl:inline-flex items-center gap-1.5 rounded-full border border-line-2 px-3.5 py-1.5 text-sm font-semibold text-ink hover:bg-panel-2 cursor-pointer">
+        <Icon name="idea" size={16} />จดไอเดีย<kbd className="text-[11px] font-normal border border-line-2 rounded px-1">Super+I</kbd>
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-40 grid place-items-start justify-center bg-black/30 pt-[18vh]" onMouseDown={() => setOpen(false)}>
+          <div className="w-[min(560px,calc(100vw-32px))] rounded-card border border-line bg-panel p-4 shadow-[0_16px_50px_rgba(0,0,0,0.25)] flex flex-col gap-3"
+            onMouseDown={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <Icon name="idea" /><b className="grow">จดไอเดีย</b>
+              <kbd className="text-[11px] border border-line-2 rounded px-1 text-muted">Super+I</kbd>
+            </div>
+            <IdeaCapture autoFocus onEscape={() => setOpen(false)} />
+            <p className="text-xs text-muted">Esc ปิด · ไอเดียทุกอันอยู่ที่หน้าไอเดีย</p>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

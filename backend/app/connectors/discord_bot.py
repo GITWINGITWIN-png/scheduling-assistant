@@ -20,7 +20,8 @@ What features use (this module is only the connector; *what* to say is the
 features' job):
 - `bot.send(channel, ...)` posts and records the message in the `messages` table
 - `embed(...)` builds a message card in the theme's colour
-- `bot.on_channel_message["chat"]` (and later "ideas") receive your messages
+- `bot.on_channel_message["chat"]` and `["ideas"]` receive your messages; `on_channel_edit` and
+  `on_channel_delete` hear when you edit or delete one (raw events, so also after a restart)
 - `register_buttons(...)` registers button classes that keep working after a
   restart. They are DynamicItems: a button's custom_id carries what it acts on
   (for example "ask:deep:42"), so it needs no memory from before the restart.
@@ -44,13 +45,15 @@ log = logging.getLogger(__name__)
 CATEGORY = "เลขา"
 CHANNELS = {"chat": "คุยกับเลขา", "urgent": "ด่วน", "summary": "สรุป", "approve": "อนุมัติ", "ideas": "ไอเดีย"}
 # What the bot needs in your server: see and post in channels, post cards, read history,
-# and create (and order) its channels the first time.
+# create (and order) its channels the first time, and mark an idea in #ไอเดีย as kept (✅, B6).
 PERMISSIONS = discord.Permissions(view_channel=True, send_messages=True, embed_links=True,
-                                  read_message_history=True, manage_channels=True)
+                                  read_message_history=True, manage_channels=True, add_reactions=True)
 
 TONES = {"ok": 0x16A34A, "warn": 0xD97706, "bad": 0xDC2626, "muted": 0x6B7280}  # "info" = theme accent
 
 MessageHandler = Callable[[discord.Message], Awaitable[None]]
+EditHandler = Callable[[int, str], Awaitable[None]]  # (message id, the new text)
+DeleteHandler = Callable[[int], Awaitable[None]]  # (message id)
 
 
 def _cut(text: str, limit: int) -> str:
@@ -87,6 +90,8 @@ class SecretaryBot(discord.Client):
         super().__init__(intents=intents)
         self.channels: dict[str, discord.TextChannel] = {}
         self.on_channel_message: dict[str, MessageHandler] = {}
+        self.on_channel_edit: dict[str, EditHandler] = {}
+        self.on_channel_delete: dict[str, DeleteHandler] = {}
         self.dynamic_items: list[type[discord.ui.DynamicItem]] = []
         self.ready_event = asyncio.Event()
         self.problem = ""  # why it isn't working, in your words (shown on the settings page)
@@ -124,10 +129,13 @@ class SecretaryBot(discord.Client):
                 log.info("created #%s", name)
             self.channels[key] = channel
 
+    def _key(self, channel_id: int) -> str | None:
+        return next((k for k, c in self.channels.items() if c.id == channel_id), None)
+
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot or message.author.id != get_config().discord_owner_id:
             return  # only you
-        key = next((k for k, c in self.channels.items() if c.id == message.channel.id), None)
+        key = self._key(message.channel.id)
         handler = self.on_channel_message.get(key) if key else None  # a DM matches no channel
         if handler is None:
             await self._point_to_chat(message)
@@ -137,6 +145,26 @@ class SecretaryBot(discord.Client):
         except Exception:
             log.exception("handling a Discord message failed")
             await message.channel.send("ขอโทษครับ เลขาเจอปัญหาตอนทำเรื่องนี้ · ดูรายละเอียดใน log ของเซิร์ฟเวอร์")
+
+    async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent) -> None:
+        """You edited a message (raw: it works for messages from before a restart too)."""
+        handler = self.on_channel_edit.get(self._key(payload.channel_id) or "")
+        author = (payload.data.get("author") or {}).get("id")
+        if handler is None or author is None or int(author) != get_config().discord_owner_id or "content" not in payload.data:
+            return
+        try:
+            await handler(payload.message_id, payload.data["content"])
+        except Exception:
+            log.exception("handling an edited Discord message failed")
+
+    async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent) -> None:
+        handler = self.on_channel_delete.get(self._key(payload.channel_id) or "")
+        if handler is None:
+            return
+        try:
+            await handler(payload.message_id)
+        except Exception:
+            log.exception("handling a deleted Discord message failed")
 
     async def _point_to_chat(self, message: discord.Message) -> None:
         """You wrote somewhere nothing listens (a DM, #general, #ด่วน...). Say where the chat is

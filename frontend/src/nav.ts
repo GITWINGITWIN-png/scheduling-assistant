@@ -16,7 +16,7 @@ export const NAV: (NavItem | { group: string })[] = [
   { path: "/jobs", label: "งานเบื้องหลัง", icon: "jobs", screen: "W4", phase: "B5", ready: true, count: "jobs", about: "" },
   { path: "/schedule", label: "ตาราง", icon: "calendar", screen: "W5", phase: "B3", ready: true,
     about: "ตารางสัปดาห์: นัด เดดไลน์ บล็อกงาน ที่ทำจริง ซิงก์กับ Google Calendar" },
-  { path: "/ideas", label: "ไอเดีย", icon: "idea", screen: "W6", phase: "B6", ready: false,
+  { path: "/ideas", label: "ไอเดีย", icon: "idea", screen: "W6", phase: "B6", ready: true,
     about: "คลังไอเดียเป็นกลุ่ม · กลุ่มที่โตพอเสนอเป็นโปรเจคหรืองาน" },
   { path: "/time", label: "การใช้เวลา", icon: "chart", screen: "W7", phase: "B6", ready: false,
     about: "เวลาต่อวันตามหมวดและโปรเจคจาก ActivityWatch ผ่านตัวกรองความเป็นส่วนตัว" },

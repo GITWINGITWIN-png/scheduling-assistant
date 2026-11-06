@@ -180,7 +180,22 @@ export type MailSettings = {
   accounts: { id: string; label: string; connected: boolean; problem: string; address: string }[];
 };
 
+// W6 ไอเดีย (B6)
+export type IdeaRow = {
+  id: number; text: string; source: "key" | "discord" | "web"; source_name: string; tags: string[];
+  tagged: "" | "you" | "rules"; group_id: number | null; group: string; at: string;
+};
+export type GroupPreview = { name: string; size: number; new: boolean; tag: string } | null;
+export type IdeasPage = { recent: IdeaRow[]; total: number; ungrouped: number };
+export type SavedIdea = { id: number; tags: string[]; group: GroupPreview };
+
 export const api = {
+  // W6 ไอเดีย (B6)
+  ideas: () => call<IdeasPage>("GET", "/api/ideas"),
+  addIdea: (text: string, tags: string[] | null) => call<SavedIdea>("POST", "/api/ideas", { text, tags, source: "web" }),
+  suggestTags: (text: string) => call<{ tags: string[]; group: GroupPreview }>("GET", `/api/ideas/suggest?text=${encodeURIComponent(text)}`),
+  setIdeaTags: (id: number, tags: string[]) => call<SavedIdea>("PUT", `/api/ideas/${id}/tags`, { tags }),
+  removeIdea: (id: number) => call<{ action_id: number | null }>("DELETE", `/api/ideas/${id}`),
   // W1 วันนี้ (B4)
   today: () => call<TodayPage>("GET", "/api/today"),
   // W5 ตาราง (B3)

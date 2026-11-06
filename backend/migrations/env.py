@@ -19,6 +19,7 @@ import app.features.classroom.tables  # noqa: F401,E402  B3: courses, course_ite
 import app.features.briefs.tables  # noqa: F401,E402  B4: briefs
 import app.features.projects.tables  # noqa: F401,E402  B5: projects, project news
 import app.features.jobs.tables  # noqa: F401,E402  B5: quota, jobs (rules are core)
+import app.features.ideas.tables  # noqa: F401,E402  B6: ideas, idea groups
 
 target_metadata = Base.metadata
 
