@@ -34,6 +34,7 @@ from app.api import projects as projects_api
 from app.api import rules as rules_api
 from app.api import schedule as schedule_api
 from app.api import settings as settings_api
+from app.api import time as time_api
 from app.api import today as today_api
 from app.connectors import discord_bot
 from app.core import backup, db, worker
@@ -47,6 +48,9 @@ from app.features.classroom import cards as classroom_cards
 from app.features.ideas import cards as ideas_cards
 from app.features.ideas import groups as ideas_groups
 from app.features.ideas import store as ideas_store
+from app.features.time import privacy as time_privacy
+from app.features.time import pull as time_pull
+from app.features.time import recorder as time_recorder
 from app.features.jobs import cards as jobs_cards
 from app.features.jobs import quota as jobs_quota
 from app.features.jobs import runner as jobs_runner
@@ -92,6 +96,9 @@ async def start_background() -> None:
     jobs_cards.setup()  # B5: "แผนงานเบื้องหลัง · ต้องถามคุณ" in #อนุมัติ (D5)
     ideas_cards.setup()  # B6: every message in #ไอเดีย is an idea (✅ once kept), and the rounds' cards
     ideas_groups.setup()  # B6: group the ideas at 00:05 and 12:05 (off until B6's check)
+    time_pull.setup()  # B6: read ActivityWatch every 15 minutes (off until you switch recording on)
+    if time_recorder.installed():  # awatcher's config always follows the blocklist (its first line of filtering)
+        time_privacy.write_awatcher_config()
     if n := ideas_store.import_outbox():  # ideas the Super+I popup kept while the secretary was down
         log.info("took in %s ideas from the popup's outbox", n)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
@@ -114,6 +121,7 @@ async def lifespan(app: FastAPI):
     db.migrate()  # new tables/columns from a fresh `git pull` are created here
     jobs_quota.setup()  # B5: every Claude call's rate-limit report keeps the quota reading fresh (any copy)
     rules_book.seed()  # B5: the 7 agreed high-risk kinds are always in the rule book
+    time_privacy.seed()  # B6: the blocklist agreed at the plan, the first time only
     waiting: asyncio.Task | None = None
     if worker.claim():
         await start_background()
@@ -143,6 +151,7 @@ app.include_router(projects_api.router)
 app.include_router(rules_api.router)
 app.include_router(schedule_api.router)
 app.include_router(settings_api.router)
+app.include_router(time_api.router)
 app.include_router(today_api.router)
 
 

@@ -196,7 +196,26 @@ export type IdeaGroupRow = {
 export type IdeasPage = { recent: IdeaRow[]; total: number; ungrouped: number; groups: IdeaGroupRow[]; grown: number; round_on: boolean };
 export type SavedIdea = { id: number; tags: string[]; group: GroupPreview };
 
+// W7 การใช้เวลา (B6)
+export type PrivacyRuleRow = { id: number; kind: "app" | "title" | "word"; kind_name: string; value: string; note: string };
+export type Recorder = {
+  installed: boolean; running: boolean; enabled: boolean; extension: "on" | "after_login" | "missing"; round_on: boolean;
+  paused_until: string | null; web: string; pause_minutes: number[];
+};
+export type PrivacyCard = {
+  recorder: Recorder; rules: PrivacyRuleRow[]; kinds: Record<PrivacyRuleRow["kind"], string>;
+  last_read: { to?: string; at?: string; error?: string; error_at?: string };
+};
+export type TimePage = { privacy: PrivacyCard };
+
 export const api = {
+  // W7 การใช้เวลา (B6)
+  time: () => call<TimePage>("GET", "/api/time"),
+  setRecording: (on: boolean) => call<PrivacyCard & { action_id: number }>("PUT", "/api/time/recording", { on }),
+  pauseRecording: (minutes: number) => call<PrivacyCard & { until: string; action_id: number }>("POST", "/api/time/pause", { minutes }),
+  resumeRecording: () => call<PrivacyCard & { action_id: number }>("POST", "/api/time/resume"),
+  addPrivacyRule: (kind: string, value: string, note = "") => call<PrivacyCard & { action_id: number }>("POST", "/api/time/privacy", { kind, value, note }),
+  removePrivacyRule: (id: number) => call<PrivacyCard & { action_id: number }>("DELETE", `/api/time/privacy/${id}`),
   // W6 ไอเดีย (B6)
   ideas: () => call<IdeasPage>("GET", "/api/ideas"),
   addIdea: (text: string, tags: string[] | null) => call<SavedIdea>("POST", "/api/ideas", { text, tags, source: "web" }),

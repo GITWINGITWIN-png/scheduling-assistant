@@ -18,7 +18,7 @@ export const NAV: (NavItem | { group: string })[] = [
     about: "ตารางสัปดาห์: นัด เดดไลน์ บล็อกงาน ที่ทำจริง ซิงก์กับ Google Calendar" },
   { path: "/ideas", label: "ไอเดีย", icon: "idea", screen: "W6", phase: "B6", ready: true,
     about: "คลังไอเดียเป็นกลุ่ม · กลุ่มที่โตพอเสนอเป็นโปรเจคหรืองาน" },
-  { path: "/time", label: "การใช้เวลา", icon: "chart", screen: "W7", phase: "B6", ready: false,
+  { path: "/time", label: "การใช้เวลา", icon: "chart", screen: "W7", phase: "B6", ready: true,
     about: "เวลาต่อวันตามหมวดและโปรเจคจาก ActivityWatch ผ่านตัวกรองความเป็นส่วนตัว" },
   { group: "ระบบ" },
   { path: "/rules", label: "สมุดกติกา", icon: "book", screen: "W8", phase: "B5", ready: true, about: "" },
