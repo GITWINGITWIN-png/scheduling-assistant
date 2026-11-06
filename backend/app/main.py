@@ -26,6 +26,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from app.api import ask as ask_api
+from app.api import jobs as jobs_api
 from app.api import log as log_api
 from app.api import mail as mail_api
 from app.api import projects as projects_api
@@ -40,6 +41,7 @@ from app.features import actions_discord, ask_discord
 from app.features.briefs import evening as briefs_evening
 from app.features.briefs import morning as briefs_morning
 from app.features.classroom import cards as classroom_cards
+from app.features.jobs import quota as jobs_quota
 from app.features.classroom import materials as classroom_materials
 from app.features.classroom import sync as classroom_sync
 from app.features.mail import cards as mail_cards
@@ -96,6 +98,7 @@ async def wait_to_take_over() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.migrate()  # new tables/columns from a fresh `git pull` are created here
+    jobs_quota.setup()  # B5: every Claude call's rate-limit report keeps the quota reading fresh (any copy)
     waiting: asyncio.Task | None = None
     if worker.claim():
         await start_background()
@@ -117,6 +120,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="my_secretary", version=VERSION, lifespan=lifespan)
 app.include_router(ask_api.router)
+app.include_router(jobs_api.router)
 app.include_router(log_api.router)
 app.include_router(mail_api.router)
 app.include_router(projects_api.router)

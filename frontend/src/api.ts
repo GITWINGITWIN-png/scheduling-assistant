@@ -4,6 +4,7 @@ export type Status = {
   pending: number; tokens_week: number; discord: boolean; theme: string;
   stale?: boolean; // the backend code on disk is newer than the running one: restart (older backends don't send it)
   counts?: { people?: number; decisions?: number }; // the side menu's red numbers (people: today's เรื่องสำคัญ; decisions: what waits for you)
+  quota?: { week_left: number; at: string; line: number } | null; // B5: what's left of your Claude week (null: not read yet)
 };
 
 export type Task = { task: string; label: string; model: string; effort: string; default_model: string; default_effort: string };

@@ -108,9 +108,12 @@ def status() -> dict:
         pending = s.scalar(select(func.count()).select_from(Decision).where(Decision.status == "pending")) or 0
         week = s.scalar(select(func.sum(LLMUsage.tokens_in + LLMUsage.tokens_out))
                         .where(LLMUsage.at >= now() - timedelta(days=7))) or 0
+    from app.features.jobs import quota  # the side menu's quota (B5)
+    reading = quota.latest(max_age=None)
     return {"pending": pending, "tokens_week": int(week), "discord": discord_bot.status()["connected"],
             "theme": themes.current_theme(), "stale": codestamp.stale(),
-            "counts": {"people": briefs_day.important_today(), "decisions": pending}}
+            "counts": {"people": briefs_day.important_today(), "decisions": pending},
+            "quota": {"week_left": reading.week_left, "at": reading.at.isoformat(), "line": quota.LINE} if reading else None}
 
 
 @router.get("/decisions")

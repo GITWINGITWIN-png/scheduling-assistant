@@ -18,6 +18,7 @@ import app.features.mail.tables  # noqa: F401,E402  B2: people, emails, followup
 import app.features.classroom.tables  # noqa: F401,E402  B3: courses, course_items
 import app.features.briefs.tables  # noqa: F401,E402  B4: briefs
 import app.features.projects.tables  # noqa: F401,E402  B5: projects, project news
+import app.features.jobs.tables  # noqa: F401,E402  B5: quota, rules, jobs
 
 target_metadata = Base.metadata
 

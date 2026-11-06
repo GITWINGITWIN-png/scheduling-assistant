@@ -29,6 +29,7 @@ from typing import Literal
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    RateLimitEvent,
     ResultMessage,
     SdkMcpTool,
     TextBlock,
@@ -61,6 +62,18 @@ DEFAULT_TASKS: dict[str, dict[str, str]] = {
 }
 
 TOOL_SERVER = "secretary"  # tools appear to the model as mcp__secretary__<name>
+
+# Called with the raw rate-limit data the CLI reports (how much of your plan is left, B5's quota
+# watcher). Every call carries it, so the secretary's own work keeps the reading fresh.
+RATE_LIMITS: list[Callable[[dict], None]] = []
+
+
+def rate_limit(message: RateLimitEvent) -> None:
+    for hook in RATE_LIMITS:
+        try:
+            hook(message.rate_limit_info.raw)
+        except Exception:
+            log.exception("rate-limit hook failed")
 
 
 @dataclass
@@ -153,6 +166,8 @@ async def run(
                         used.append(block.name.removeprefix(f"mcp__{TOOL_SERVER}__"))
             elif isinstance(message, ResultMessage):
                 result = message
+            elif isinstance(message, RateLimitEvent):
+                rate_limit(message)
     except Exception as exc:  # the CLI failed to start or died: record it, then surface it
         _record(task, model, effort, {}, int((time.monotonic() - started) * 1000), ok=False)
         raise LLMError(f"เรียก Claude ไม่สำเร็จ: {exc}") from exc
