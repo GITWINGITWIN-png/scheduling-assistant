@@ -71,13 +71,27 @@ function Top() {
   );
 }
 
+/** The page is read from disk on every visit, the backend only when it starts: after new code
+ *  arrives, the page can be newer than the running backend, and new fields are lost. Say so. */
+function Restart() {
+  const { status } = useStatus();
+  if (!status?.stale) return null;
+  return (
+    <div className="flex items-start gap-2.5 rounded-s border border-warn/40 bg-warn-soft px-4 py-3 mb-4 text-sm text-ink">
+      <Icon name="refresh" className="text-warn mt-0.5 shrink-0" />
+      <span><b>เลขากำลังรันโค้ดรุ่นก่อน</b> โค้ดบนเครื่องใหม่กว่า สิ่งที่เพิ่งเพิ่มในหน้านี้อาจยังไม่ทำงานหรือไม่ถูกบันทึก ·
+        รีสตาร์ทเลขา: <code className="font-mono text-[13px] bg-panel rounded px-1.5 py-0.5">systemctl --user restart my-secretary</code></span>
+    </div>
+  );
+}
+
 export function Shell() {
   return (
     <div className="h-screen grid grid-cols-[236px_minmax(0,1fr)]">
       <Side />
       <div className="flex flex-col min-w-0 min-h-0">
         <Top />
-        <main className="flex-1 overflow-auto p-6"><Outlet /></main>
+        <main className="flex-1 overflow-auto p-6"><Restart /><Outlet /></main>
       </div>
     </div>
   );

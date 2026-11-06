@@ -5,7 +5,7 @@ import logging
 from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
 from app.connectors import google
@@ -22,6 +22,12 @@ from app.features.schedule import remind, sync, tasks
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger(__name__)
+
+
+class Strict(BaseModel):
+    """A request body that refuses fields it doesn't know (main.py says why in words)."""
+
+    model_config = ConfigDict(extra="forbid")
 
 SOURCE_NAMES = tasks.SOURCE_NAMES
 
@@ -75,7 +81,7 @@ def week(start: str, end: str) -> dict:
 
 
 # ------------------------------------------------------------------ กิจกรรม (appointments you add)
-class EventIn(BaseModel):
+class EventIn(Strict):
     title: str
     start: str  # local: "2026-11-12T10:00", or "2026-11-12" for an all-day event
     end: str  # for an all-day event, the last day (inclusive), as the page shows it
@@ -157,7 +163,7 @@ def list_tasks() -> dict:
     return {"items": items}
 
 
-class TaskIn(BaseModel):
+class TaskIn(Strict):
     title: str
     due: str | None = None  # local time, "2026-11-10T17:00"
     est_minutes: int | None = None  # None: the default for tasks you add (กติกาตาราง)
@@ -178,7 +184,7 @@ async def add_task(body: TaskIn) -> dict:
     return {"id": task_id, "action_id": action_id, "plan": await _replan_if_on()}
 
 
-class TaskEdit(BaseModel):
+class TaskEdit(Strict):
     """Only the fields sent change. Sending null puts one back to its default: no due date,
     the default estimate, or the rules' block length and daily limit."""
 
@@ -229,7 +235,7 @@ def get_rules() -> dict:
     return {"rules": sync.rules_dict(), "estimates": sync.estimates(), "reminders": list(remind.leads())}
 
 
-class RulesIn(BaseModel):
+class RulesIn(Strict):
     day_start: str
     day_end: str
     max_block: int
@@ -288,7 +294,7 @@ def courses() -> dict:
                        "files": files.get(c.id, [])[:5], "file_count": len(files.get(c.id, []))} for c in rows]}
 
 
-class CourseAnswer(BaseModel):
+class CourseAnswer(Strict):
     follow: bool
     folder: str | None = None
 

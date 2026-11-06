@@ -1,6 +1,9 @@
 // Every call the web page makes to the secretary (backend/app/api/*). One place, typed.
 
-export type Status = { pending: number; tokens_week: number; discord: boolean; theme: string };
+export type Status = {
+  pending: number; tokens_week: number; discord: boolean; theme: string;
+  stale?: boolean; // the backend code on disk is newer than the running one: restart (older backends don't send it)
+};
 
 export type Task = { task: string; label: string; model: string; effort: string; default_model: string; default_effort: string };
 export type Round = { id: string; title: string; when: string; phase: string; active: boolean; enabled: boolean; last_run: string | null; next_run: string | null };

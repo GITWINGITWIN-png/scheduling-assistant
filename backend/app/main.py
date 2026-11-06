@@ -21,8 +21,9 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from app.api import ask as ask_api
 from app.api import log as log_api
@@ -108,6 +109,20 @@ app.include_router(log_api.router)
 app.include_router(mail_api.router)
 app.include_router(schedule_api.router)
 app.include_router(settings_api.router)
+
+
+@app.exception_handler(RequestValidationError)
+async def _refused(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """A request the API can't take, said in words the page shows as they are. A field the
+    backend doesn't know means the page is newer than the running backend: say so, rather
+    than drop the field without a word (what happened to task details on 2026-11-06)."""
+    errors = exc.errors()
+    unknown = sorted({str(e["loc"][-1]) for e in errors if e.get("type") == "extra_forbidden"})
+    if unknown:
+        text = f"เลขายังไม่รู้จักช่อง {', '.join(unknown)} · หน้าเว็บอาจใหม่กว่าเลขาที่รันอยู่: รีสตาร์ทเลขาแล้วลองอีกครั้ง"
+    else:
+        text = "ข้อมูลไม่ครบหรือไม่ถูกต้อง: " + ", ".join(sorted({".".join(str(x) for x in e["loc"][1:]) or "body" for e in errors}))
+    return JSONResponse(status_code=422, content={"detail": text})
 
 
 @app.get("/api/health")
