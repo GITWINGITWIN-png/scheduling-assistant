@@ -85,6 +85,8 @@ def test_done_missed_away_and_unknown():
     assert outcome(away) == ("away", 0, "")
     assert outcome(unknown) == ("unknown", 0, "")
     assert followed.check(m(500), present, covered) == []  # once only
+    day = followed.followed(m(-60), m(600))
+    assert (day["checked"], day["percent"]) == (3, 50)  # 1 of done + missed; away isn't in the share, unknown isn't checked
 
 
 def test_a_block_is_checked_only_once_it_has_ended_for_a_moment():
@@ -162,10 +164,16 @@ def test_the_evening_review_says_how_the_plan_went(monkeypatch):
     kept(120, 180, "code", project="my_secretary")
     followed.check(m(300), spans((0, 60), (120, 180)), spans((0, 200)))
     later = block(t, 600, 660)  # the planner booked its time again tonight (19:00)
+    other = task("datacom report", project="datacom-report")
+    block(other, 180, 240)  # 12:00–13:00, missed too, but its time went to tomorrow: nothing to move
+    kept(180, 240, "firefox", "YouTube", category="web")
+    followed.check(m(300), spans((180, 240)), spans((0, 300)))
+    block(other, 24 * 60, 24 * 60 + 60)
     b = evening.compose(m(540))  # 18:00
-    assert b["title"] == "วันนี้ทำตามตารางได้ 1 จาก 2 บล็อก (50%)"
+    assert b["title"] == "วันนี้ทำตามตารางได้ 1 จาก 3 บล็อก (33%)"
     fields = dict(b["fields"])
-    assert fields["หลุดแผน"] == "Finance: backtest 11:00 · คุณทำ my_secretary แทน · เลขาหาเวลาใหม่: คืนนี้ 19:00"
-    assert fields["เวลาจริงวันนี้"] == "โค้ด 1.8 ชม."
+    assert fields["หลุดแผน"] == ("Finance: backtest 11:00 · คุณทำ my_secretary แทน · เลขาหาเวลาใหม่: คืนนี้ 19:00\n"
+                                 "datacom report 12:00 · ช่วงนั้นเป็นเว็บและโซเชียล · เลขาหาเวลาใหม่: พรุ่งนี้ 09:00")
+    assert fields["เวลาจริงวันนี้"] == "โค้ด 1.8 ชม. · เว็บ 1"
     assert evening.to_move(m(540)) == [(t.id, "Finance: backtest")]  # offered: ย้ายไปพรุ่งนี้
     assert later and done
