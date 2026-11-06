@@ -185,3 +185,82 @@ def test_the_night_round_starts_work_only_in_its_window(project, monkeypatch):
         return line, started
     line, started = asyncio.run(go())
     assert started == [job_id] and line.startswith("เริ่ม ")
+
+
+# ------------------------------------------------------------------ stopping for real (B5.8)
+def branch_files(root: Path, job: Job) -> list[str]:
+    return sorted(git(root, "ls-tree", "-r", "--name-only", job.branch).splitlines())
+
+
+def test_over_budget_it_really_stops_and_keeps_what_it_did(project, monkeypatch):
+    root, project_id = project
+    script = [("tool", "Write", {"file_path": "a.py", "content": "a = 1\n"}, 8_000),
+              ("tool", "Write", {"file_path": "b.py", "content": "b = 2\n"}, 9_000),  # 17k: past the 15k budget
+              ("tool", "Bash", {"command": "git add -A && git -c user.email=t@e.x -c user.name=t commit -q -m all"}, 1_000)]
+    job = run_job(ready_job(project_id, budget=15_000), monkeypatch, script)
+    assert job.status == "stopped" and job.result.startswith("หยุด: เกินงบ")
+    assert job.used == 17_000 and "ใช้ 17,000 / งบ 15,000" in job.result
+    assert FakeClient.last.interrupted and FakeClient.last.ran == []  # nothing after the stop ran
+    assert "a.py" in branch_files(root, job) and "b.py" not in branch_files(root, job)  # kept: what it did before
+    assert git(root, "log", "-1", "--format=%s", job.branch) == f"เลขา: งานค้างของงาน #{job.id} (หยุดเพราะเกินงบ)"
+
+
+def test_going_round_in_circles_stops_it(project, monkeypatch):
+    _, project_id = project
+    again = ("tool", "Bash", {"command": "python -c 'print(1)'"}, 1_000)
+    job = run_job(ready_job(project_id), monkeypatch, [again, again, again, again, again])
+    assert job.status == "stopped" and job.result.startswith("หยุด: วนซ้ำ")
+    assert len(FakeClient.last.ran) == 2  # the third time was stopped before it ran
+
+
+def test_you_can_stop_it(project, monkeypatch):
+    root, project_id = project
+    monkeypatch.setattr(runner, "WATCH_EVERY", 0.05)
+    script = [("tool", "Write", {"file_path": "a.py", "content": "a = 1\n"}, 1_000), ("wait", 5),
+              ("tool", "Write", {"file_path": "late.py", "content": "x\n"}, 1_000)]
+    job_id = ready_job(project_id)
+    FakeClient.script = script
+    monkeypatch.setattr(runner, "Client", FakeClient)
+
+    async def go():
+        await runner.start(job_id)
+        await asyncio.sleep(0.2)
+        runner.stop(job_id)
+        await runner.RUNNING[job_id].task
+    asyncio.run(go())
+    with session() as s:
+        job = s.get(Job, job_id)
+        s.expunge(job)
+    assert job.status == "stopped" and job.result.startswith("หยุด: คุณสั่งหยุด")
+    assert "late.py" not in branch_files(root, job) and "a.py" in branch_files(root, job)
+
+
+def test_out_of_time_it_stops(project, monkeypatch):
+    _, project_id = project
+    monkeypatch.setattr(runner, "WATCH_EVERY", 0.05)
+    monkeypatch.setattr(runner, "MAX_MINUTES", 0)
+    job = run_job(ready_job(project_id), monkeypatch, [("wait", 5), ("tool", "Write", {"file_path": "x.py", "content": "x\n"}, 1)])
+    assert job.status == "stopped" and job.result.startswith("หยุด: ครบ 0 นาที")
+
+
+def test_refused_calls_dont_happen_and_are_counted(project, monkeypatch):
+    root, project_id = project
+    outside = root.parent / "outside.txt"
+    script = [("tool", "Bash", {"command": "git push origin HEAD"}, 1_000),
+              ("tool", "Bash", {"command": "curl --version"}, 1_000),  # download: not approved for this job
+              ("tool", "Write", {"file_path": str(outside), "content": "x\n"}, 1_000),
+              ("tool", "Write", {"file_path": "ok.py", "content": "ok = True\n"}, 1_000)]
+    job = run_job(ready_job(project_id, approved=False), monkeypatch, script)  # ready by the rules, not by you
+    assert job.status == "done" and "ถูกห้าม 3 ครั้ง" in job.result
+    assert [n for n, _ in FakeClient.last.denied] == ["Bash", "Bash", "Write"] and FakeClient.last.ran == []
+    assert not outside.exists() and "ok.py" in branch_files(root, job)
+
+
+def test_an_approved_kind_is_allowed_but_only_that_kind(project, monkeypatch):
+    _, project_id = project
+    script = [("tool", "Bash", {"command": "curl --version > /dev/null"}, 1_000),  # download: approved
+              ("tool", "Bash", {"command": "rm -rf build"}, 1_000)]  # delete: not in the plan
+    job = run_job(ready_job(project_id, risks=["download"]), monkeypatch, script)
+    assert FakeClient.last.ran == ["curl --version > /dev/null"] and [n for n, _ in FakeClient.last.denied] == ["Bash"]
+    assert "WebFetch" in FakeClient.last.options.tools  # the web too, with download approved
+    assert job.status == "done"

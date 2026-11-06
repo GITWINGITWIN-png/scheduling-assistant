@@ -340,7 +340,7 @@ async def _drive(job: Job, wt: Path, run: Run) -> tuple[str, int, list[str], boo
             watcher.cancel()
     # The final report has the whole run's usage, except after an interrupt (then it may have none):
     # whichever says more is right.
-    final = result.usage if result is not None and Budget.tokens(result.usage) >= budget.used else budget.usage
+    final = result.usage if result is not None and result.usage and Budget.tokens(result.usage) >= budget.used else budget.usage
     used = Budget.tokens(final)
     llm.record_usage("job", job.model, job.effort, final, result.duration_ms if result else 0,
                      ok=bool(result and not result.is_error))
