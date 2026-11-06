@@ -155,8 +155,26 @@ def test_advice_says_which_projects_stood_still_and_which_matter_but_got_nothing
     assert by["alpha"].kind == "stale" and by["alpha"].title == "alpha นิ่ง 9 วัน"
     assert "ขั้นถัดไป: ทำหน้าเว็บ › หน้าตั้งค่า" in by["alpha"].detail and "แต่ส่ง 20 พ.ย." in by["alpha"].detail
     assert by["delta"].kind == "short"
+    assert by["delta"].detail == "สัปดาห์นี้ได้เวลาในตาราง 0 ชม. ต่ำกว่าเป้า 10 ชม. · 2 สัปดาห์ไม่มี commit"
     assert [a.project for a in tips].index("delta") < [a.project for a in tips].index("alpha")  # S before C
     assert "gamma" not in by  # hidden: no advice
+
+
+def test_time_booked_in_the_schedule_this_week_counts_toward_the_target(root):
+    from app.core.tables import Block
+    from app.features.projects import advice
+    with session() as s:
+        t = Task(title="delta: งานหลัก", source="project", project="delta", est_minutes=600)
+        s.add(t)
+        s.flush()
+        monday = datetime(2026, 11, 9, 2, 0, tzinfo=timezone.utc)  # NOW is Monday 08:00 in Bangkok
+        s.add_all([Block(task_id=t.id, starts_at=monday + timedelta(days=d), ends_at=monday + timedelta(days=d, hours=2),
+                         status="planned") for d in range(4)])  # 8 hours this week
+        s.add(Block(task_id=t.id, starts_at=monday - timedelta(days=3), ends_at=monday - timedelta(days=3, hours=-4)))  # last week
+    assert {a.project: a for a in advice.advice(at=NOW)}["delta"].detail.startswith("สัปดาห์นี้ได้เวลาในตาราง 8 ชม.")
+    with session() as s:
+        s.add(Block(task_id=t.id, starts_at=monday + timedelta(days=5), ends_at=monday + timedelta(days=5, hours=2), status="pinned"))
+    assert "delta" not in {a.project for a in advice.advice(at=NOW)}  # 10 hours: the target is met
 
 
 def test_booking_time_makes_a_task_for_the_next_step(root):
