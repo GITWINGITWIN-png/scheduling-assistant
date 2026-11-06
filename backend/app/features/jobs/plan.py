@@ -150,7 +150,7 @@ async def make(job_id: int, *, change: str = "", via: Via = WEB) -> Verdict:
             raise PlanError("งานนี้เริ่มไปแล้วหรือจบแล้ว")
         p = s.get(Project, job.project_id)
         if why := blocked(p):  # saved first: raising inside the session would roll it back
-            job.status, job.result = "dropped", why
+            job.status, job.result = "paused", why  # it comes back with the project (queue.refresh)
             close_ask(s, job)
         elif job.decision_id and (d := s.get(Decision, job.decision_id)) is not None and d.status == "pending":
             d.status, d.answered_at = "revised", now()  # the plan that waited for you is being replaced

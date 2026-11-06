@@ -32,7 +32,8 @@ class Job(Base):
     status: queued (waiting for its plan) · asking (the plan waits for you in #อนุมัติ) · ready
       (may start: the rules allow it, or you approved it) · running · done · stopped (over budget,
       going round in circles, or you stopped it) · failed · rejected (you said ไม่เอา) · dropped
-      (it left the queue: the project was switched off, or you took it out)
+      (you took it out of the queue) · paused (the project was switched off or hidden; it comes
+      back with the project)
     """
 
     __tablename__ = "jobs"

@@ -259,7 +259,15 @@ def test_rejecting_takes_the_job_out(projects):
     job = job_of("jobs-beta")
     plan.answer(job.decision_id, approve=False)
     assert job_of("jobs-beta").status == "rejected"
-    assert queue.refresh() and job_of("jobs-beta").status == "queued"  # the step is still in PROGRESS.md: a new job
+    assert queue.refresh() == [] and job_of("jobs-beta").status == "rejected"  # the same step doesn't come back each night
+    job_id, _ = queue.add(job.project_id, "ลองใหม่ แบบไม่ลงแพ็กเกจ")  # ทำต่อ always can
+    assert job_of("jobs-beta").id == job_id and job_of("jobs-beta").status == "queued"
+    queue.drop(job_id)
+    assert queue.refresh() == []  # taken out: not back by itself either
+    with session() as s:
+        s.get(Project, job.project_id).progress = {"next": "บทที่ 2", "todo": 1, "done": 1}
+    assert len(queue.refresh()) == 1  # the project moved on: its new step is taken up
+    assert job_of("jobs-beta").stuck_at == "บทที่ 2" and job_of("jobs-beta").status == "queued"
 
 
 def test_switching_a_project_off_drops_its_job_and_withdraws_the_request(projects):
@@ -268,13 +276,16 @@ def test_switching_a_project_off_drops_its_job_and_withdraws_the_request(project
     with session() as s:
         s.get(Project, projects["jobs-alpha"]).allow_jobs = False
     queue.refresh()
-    assert job_of("jobs-alpha").status == "dropped"
+    assert job_of("jobs-alpha").status == "paused"
     with session() as s:
         assert s.get(Decision, job.decision_id).status == "cancelled"
         s.get(Project, projects["jobs-alpha"]).allow_jobs = True
+    assert queue.refresh() == [] and job_of("jobs-alpha").id == job.id  # back with the project, the same job
+    back = job_of("jobs-alpha")
+    assert back.status == "queued" and back.title == "" and back.decision_id is None  # to be planned again
 
 
-def test_a_job_whose_project_was_switched_off_is_dropped_when_its_turn_comes(projects, monkeypatch):
+def test_a_job_whose_project_was_switched_off_is_paused_when_its_turn_comes(projects, monkeypatch):
     fake_planner(monkeypatch, PLAN)
     queue.refresh()
     job = job_of("jobs-alpha")
@@ -283,7 +294,7 @@ def test_a_job_whose_project_was_switched_off_is_dropped_when_its_turn_comes(pro
         s.get(Project, projects["jobs-alpha"]).allow_jobs = False
     with pytest.raises(plan.PlanError):
         asyncio.run(plan.make(job.id))
-    assert job_of("jobs-alpha").status == "dropped"  # and it stays dropped
+    assert job_of("jobs-alpha").status == "paused"  # and it stays so
     with session() as s:
         s.get(Project, projects["jobs-alpha"]).allow_jobs = True
 

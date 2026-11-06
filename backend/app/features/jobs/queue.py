@@ -7,8 +7,12 @@ A job comes from one of two places (the user's answers at the B5 plan):
 - ทำต่อ, which you press for such a project, with a note on what to do if you like.
 
 One open job per project at a time. The queue is in the order the projects matter: potential
-S first, then urgency 5 first, then the oldest. A project that leaves the gate (switched off,
-hidden, gone, finished) takes its waiting jobs with it.
+S first, then urgency 5 first, then the oldest.
+
+A step is taken up by itself once: when its job ended (done but not merged yet, stopped,
+failed) or you said no (ไม่เอา, or took it out of the queue), the queue doesn't bring the same
+step back every night; ทำต่อ always can. A project that leaves the gate (switched off, hidden,
+gone, finished) pauses its waiting job, and the job comes back when the project does.
 """
 
 from __future__ import annotations
@@ -25,7 +29,8 @@ from app.features.projects.scan import is_self
 from app.features.projects.tables import Project
 
 OPEN = ("queued", "asking", "ready", "running")  # a project has at most one of these
-WAITING = ("queued", "asking", "ready")  # not started yet: these can still be dropped
+WAITING = ("queued", "asking", "ready")  # not started yet: these can still be dropped or paused
+ENDED = ("done", "stopped", "failed", "rejected", "dropped")  # its step isn't taken up by itself again
 ORDER = {"S": 0, "A": 1, "B": 2, "C": 3, "D": 4, "F": 5}
 
 Via = tuple[str, str]
@@ -54,21 +59,33 @@ def blocked(p: Project | None) -> str:
     return ""
 
 
+def _replan(job: Job) -> None:
+    """Back to the start of the queue: the plan has to be made (and checked) again."""
+    job.status, job.title, job.steps, job.planned_at, job.decision_id = "queued", "", [], None, None
+    job.rule_ok, job.rule_why, job.approved_until, job.result = None, "", None, ""
+
+
 def refresh(at: datetime | None = None) -> list[int]:
     """Bring the queue up to date with the projects. -> the ids of the new jobs."""
     at = at or now()
     new: list[int] = []
     with session() as s:
         open_by = {j.project_id: j for j in s.scalars(select(Job).where(Job.status.in_(OPEN)))}
+        paused_by = {j.project_id: j for j in s.scalars(select(Job).where(Job.status == "paused").order_by(Job.id))}
+        ended = set(s.execute(select(Job.project_id, Job.stuck_at).where(Job.status.in_(ENDED), Job.source == "progress")).all())
         for p in s.scalars(select(Project)):
             job = open_by.get(p.id)
-            if blocked(p):
+            if why := blocked(p):
                 if job is not None and job.status in WAITING:
-                    job.status, job.result = "dropped", blocked(p)
+                    job.status, job.result = "paused", why
                     close_ask(s, job)
                 continue
             nxt = (p.progress or {}).get("next", "")
-            if job is None and nxt:
+            if job is None and (paused := paused_by.get(p.id)) is not None:
+                _replan(paused)  # the project is back: so is its job (planned again, things may have moved)
+                if paused.source == "progress" and nxt:
+                    paused.stuck_at = nxt
+            elif job is None and nxt and (p.id, nxt) not in ended:
                 job = Job(project_id=p.id, project=p.name, source="progress", stuck_at=nxt, created_at=at)
                 s.add(job)
                 s.flush()
@@ -86,6 +103,8 @@ def add(project_id: int, note: str = "", *, via: Via = ("หน้างาน�
             raise ValueError(why)
         if s.scalar(select(Job.id).where(Job.project_id == project_id, Job.status.in_(OPEN))):
             raise ValueError(f"{p.name} มีงานอยู่ในคิวแล้ว")
+        for old in s.scalars(select(Job).where(Job.project_id == project_id, Job.status == "paused")):
+            old.status, old.result = "dropped", "แทนด้วยคำสั่งทำต่อ"
         nxt = (p.progress or {}).get("next", "")
         if not (nxt or note.strip()):
             raise ValueError("PROGRESS.md ของโปรเจคนี้ไม่มีขั้นที่ค้าง · บอกด้วยว่าให้ทำอะไร")
