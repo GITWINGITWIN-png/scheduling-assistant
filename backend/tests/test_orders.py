@@ -359,3 +359,65 @@ def test_when_claude_stops_halfway_what_it_did_is_still_listed(monkeypatch):
     assert a.kind == "done" and "Claude หยุดกลางทาง" in a.text and len(a.done) == 1
     with session() as s:
         s.execute(delete(Idea).where(Idea.text.like("od-%")))
+
+
+# ------------------------------------------------------------------ B9.5: an approved plan is carried out
+def _plan(title="od-เตรียมสอบ"):
+    with session() as s:
+        d = Decision(kind="plan", title=title, detail={"request": "วางแผนเตรียมสอบ", "plan": "1. คุณอ่านบทที่ 3 ภายในพฤหัส",
+                                                       "started": False})
+        s.add(d)
+        s.flush()
+        return d.id
+
+
+def test_approving_a_plan_carries_it_out_once_in_the_background(monkeypatch, calendar):
+    seen = {}
+
+    async def opus(use):
+        seen["tools"] = True
+        await use("add_task", title="od-อ่านบทที่ 3", due="2026-11-12T20:00", est_minutes=180)
+        return "1. เพิ่มงานอ่านบทที่ 3 แล้ว"
+    fake_claude(monkeypatch, "", opus)
+    posted = []
+
+    async def post(decision_id, a):
+        posted.append((decision_id, a.kind, len(a.done)))
+    monkeypatch.setattr(ask, "CARRIED_OUT", [post])
+    decision_id = _plan()
+
+    async def press():
+        d, action_id = ask.decide(decision_id, "approve", via=VIA)  # as the button does, inside the running loop
+        await asyncio.gather(*ask._running)
+        return action_id
+    approve_id = asyncio.run(press())
+    run = ask.run_of(decision_id)
+    assert run["status"] == "done" and run["text"] == "1. เพิ่มงานอ่านบทที่ 3 แล้ว"
+    assert [r["summary"] for r in run["done"]] == ["เพิ่มงาน: od-อ่านบทที่ 3"] and run["done"][0]["can_undo"]
+    assert posted == [(decision_id, "done", 1)]
+    assert _get(decision_id).detail["started"] is True
+    with pytest.raises(ask.DecisionError, match="ทำไปแล้ว"):
+        asyncio.run(ask.carry_out(decision_id))  # once only
+    with pytest.raises(actions.UndoError, match="ย้อนทีละอย่าง"):
+        undo(approve_id)  # the plan as a whole can't be taken back: each thing it did can
+    undo(run["done"][0]["id"])
+    with session() as s:
+        assert s.scalar(select(Task.status).where(Task.title == "od-อ่านบทที่ 3")) == "dropped"
+
+
+def test_a_plan_not_approved_isnt_carried_out_and_a_failed_run_says_so(monkeypatch):
+    with pytest.raises(ask.DecisionError, match="ยังไม่ได้อนุมัติ"):
+        asyncio.run(ask.carry_out(_plan()))
+
+    async def opus(use):
+        await use("add_idea", text="od-ไอเดียจากแผน")
+        raise llm.LLMError("quota")
+    fake_claude(monkeypatch, "", opus)
+    monkeypatch.setattr(ask, "CARRIED_OUT", [])
+    decision_id = _plan()
+    ask.decide(decision_id, "approve")  # no running loop: nothing starts by itself
+    assert ask.run_of(decision_id) is None
+    a = asyncio.run(ask.carry_out(decision_id))
+    assert "ทำตามแผนไม่จบ" in a.text and len(a.done) == 1 and ask.run_of(decision_id)["status"] == "failed"
+    with session() as s:
+        s.execute(delete(Idea).where(Idea.text.like("od-%")))
