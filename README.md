@@ -96,6 +96,17 @@ You reach the secretary in two places. Both are in Thai.
   - the schedule, tasks and projects;
   - ideas, time use, Classroom and the rules book.
 - **ให้ Opus คิดต่อ** hands a question on to Opus.
+- **Orders (B9):** an order goes to Opus. The action tools it gets cover:
+  - tasks and appointments, keeping hours free, replanning;
+  - people's tiers, follow-ups, ideas, rules from a sentence;
+  - continuing a project, answering what waits for you.
+
+  Each tool calls the function a page button calls, so the action is logged with its undo.
+  - The answer lists what was done, with ย้อนกลับ for each.
+  - What can't be undone waits for ทำเลย.
+  - A request that needs planning gets a plan instead. When you approve it, the secretary
+    carries it out, and your own steps become tasks.
+  - It never sends anything, deletes, or changes settings.
 
 ---
 

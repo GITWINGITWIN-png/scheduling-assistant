@@ -14,6 +14,7 @@ from app.core.db import now, session
 from app.core.rules import book as rules_book
 from app.core.rules.check import APPROVAL_DAYS
 from app.core.tables import Decision, LLMUsage
+from app.features import ask_orders
 from app.features.decisions import clashes, rule_notes
 from app.features.briefs import day as briefs_day
 from app.features.mail import watch
@@ -119,6 +120,7 @@ def status() -> dict:
     counts.people: today's เรื่องสำคัญ (mail from important people, or matching a keyword), the
     same count as the today page and the morning brief (briefs/day.py); the user's reading of
     the plan's "คนและอีเมล 2", 2026-11-06. counts.decisions: what waits for you (วันนี้ 3)."""
+    ask_orders.expire_old()  # yesterday's unanswered orders don't count (B9)
     with session() as s:
         pending = s.scalar(select(func.count()).select_from(Decision).where(Decision.status == "pending")) or 0
         week = s.scalar(select(func.sum(LLMUsage.tokens_in + LLMUsage.tokens_out))
@@ -148,7 +150,9 @@ def work_counts() -> dict:
 @router.get("/decisions")
 def decisions(status: str = "pending") -> dict:
     """What waits for you (the bell and the today page): plans (B1), appointments from email (B2),
-    Classroom courses (B3). An appointment says what else is at that time (clash: "" = nothing)."""
+    Classroom courses (B3), orders that wait for ทำเลย (B9). An appointment says what else is at
+    that time (clash: "" = nothing)."""
+    ask_orders.expire_old()
     with session() as s:
         rows = s.scalars(select(Decision).where(Decision.status == status).order_by(Decision.created_at.desc()).limit(50)).all()
     clash, against = clashes(rows), rule_notes(rows)

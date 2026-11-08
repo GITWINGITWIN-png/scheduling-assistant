@@ -1,10 +1,12 @@
 // ถามเลขา: the ask box in the top bar of every page (P10), and the panel the answer streams into.
-// Same flow as the Discord chat: Sonnet answers with its sources; a plan request goes to Opus;
+// Same flow as the Discord chat: Sonnet answers with its sources; an order or a plan request goes
+// to Opus, which does it (B9: listed with ย้อนกลับ, and ทำเลย for what can't be undone) or plans it;
 // "ให้ Opus คิดต่อ" asks Opus the same question.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { askStream, type Answer } from "../api";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
+import { OrderParts } from "./OrderParts";
 import { PlanActions } from "./PlanActions";
 import { useDismiss } from "./popover";
 import { Button, Markdown, Spinner } from "./ui";
@@ -78,14 +80,16 @@ export function AskBox() {
               {t.note && <p className="text-sm text-accent-strong flex items-center gap-1.5"><Icon name="sparkle" size={15} />{t.note}</p>}
               {t.answer?.kind === "plan" && <h3 className="font-semibold">{t.answer.title}</h3>}
               {(t.answer?.text || t.text) && <Markdown text={t.answer?.text || t.text} />}
-              {!t.answer && !t.error && <Spinner label={t.note ? "Opus กำลังวางแผน…" : t.deep ? "Opus กำลังคิด…" : "เลขากำลังตอบ…"} />}
+              {!t.answer && !t.error && <Spinner label={t.note ? "Opus กำลังทำตามคำสั่ง…" : t.deep ? "Opus กำลังคิด…" : "เลขากำลังตอบ…"} />}
               {t.error && <p className="text-sm text-bad">{t.error}</p>}
               {t.answer && (
                 <>
                   <p className="text-xs text-muted">{t.answer.footer}</p>
+                  <OrderParts done={t.answer.done} confirms={t.answer.confirms} />
                   {t.answer.kind === "plan" && t.answer.decision_id
                     ? <PlanActions decisionId={t.answer.decision_id} onRevised={(a) => addRevised(a, t.question)} />
-                    : !t.deep && <div><Button sm disabled={busy} onClick={() => ask(t.question, true)}>ให้ Opus คิดต่อ</Button></div>}
+                    : t.answer.kind === "answer" && t.answer.model !== "Opus" && !t.deep
+                      && <div><Button sm disabled={busy} onClick={() => ask(t.question, true)}>ให้ Opus คิดต่อ</Button></div>}
                 </>
               )}
             </article>

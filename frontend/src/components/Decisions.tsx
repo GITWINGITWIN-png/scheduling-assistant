@@ -6,6 +6,7 @@ import { Link } from "react-router";
 import { api, type Decision } from "../api";
 import { kTokens, when } from "../format";
 import { AppointmentActions, CourseActions } from "./Bell";
+import { ConfirmButtons } from "./OrderParts";
 import { PlanActions } from "./PlanActions";
 import { Avatar, Markdown } from "./ui";
 
@@ -62,6 +63,18 @@ export function DecisionRow({ d, onChange }: { d: Decision; onChange?: () => voi
           <span className="block text-xs text-ink-2">ตั้ง potential และความเร่งด่วน · ระหว่างรอใช้ C · 2</span>
         </span>
         <Link to="/projects" className="inline-flex items-center rounded-full border border-line-2 bg-panel hover:bg-panel-2 px-3 py-1 text-xs font-medium">ตั้งระดับ</Link>
+      </li>
+    );
+  }
+  if (d.kind === "order") { // an order from the chat that can't be undone (B9): it waits for ทำเลย
+    return (
+      <li className="py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <Avatar name="สั่ง" size="sm" />
+        <span className="grow min-w-0 basis-48">
+          <span className="block font-semibold text-[13.5px]">คำสั่งจากแชท: {d.title}</span>
+          <span className="block text-xs text-ink-2">{when(d.created_at)} · ย้อนกลับไม่ได้ จึงรอคุณกดยืนยัน · หมดเวลาใน 1 วัน</span>
+        </span>
+        <ConfirmButtons id={d.id} onDone={onChange} />
       </li>
     );
   }

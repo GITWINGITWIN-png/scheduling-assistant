@@ -42,9 +42,15 @@ export type Decision = {
 };
 
 export type Answer = {
-  kind: "answer" | "plan"; text: string; model: string; effort: string; seconds: number; tokens: number;
+  kind: "answer" | "plan" | "done"; text: string; model: string; effort: string; seconds: number; tokens: number;
   sources: string[]; decision_id: number | null; title: string; footer: string;
+  done: DoneItem[]; confirms: ConfirmItem[]; // B9: what an order did, and what waits for ทำเลย
 };
+// B9 สั่งงานผ่านแชท: one thing an order did (ย้อนกลับ when can_undo), one that waits for ทำเลย
+export type DoneItem = { id: number; summary: string; target: string; can_undo: boolean };
+export type ConfirmItem = { id: number; title: string };
+// how carrying out an approved plan is going
+export type PlanRun = { status: "none" | "running" | "done" | "failed"; text?: string; done?: DoneItem[]; confirms?: ConfirmItem[] };
 
 // W5 ตาราง (B3)
 export type CalItem = {
@@ -308,6 +314,8 @@ export const api = {
     call<{ id: number; status: string; action_id: number | null }>("POST", `/api/appointments/${id}`, { accept }),
   decide: (id: number, action: "approve" | "reject") => call<{ id: number; status: string; action_id: number }>("POST", `/api/decisions/${id}`, { action }),
   revise: (id: number, change: string) => call<Answer>("POST", `/api/decisions/${id}/revise`, { change }),
+  confirmOrder: (id: number, yes: boolean) => call<{ text: string }>("POST", `/api/orders/${id}`, { yes }),
+  planRun: (id: number) => call<PlanRun>("GET", `/api/plans/${id}/run`),
   // W8 สมุดกติกา (B5)
   ruleBook: () => call<RulesPage>("GET", "/api/rules"),
   parseRule: (text: string) => call<Proposal>("POST", "/api/rules/parse", { text }),

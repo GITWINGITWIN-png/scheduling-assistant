@@ -18,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.core import llm
-from app.features import ask, decisions
+from app.features import ask, ask_orders, decisions
 
 router = APIRouter(prefix="/api", tags=["ask"])
 
@@ -91,3 +91,23 @@ async def revise(decision_id: int, body: ReviseIn) -> dict:
     except llm.LLMError as exc:
         raise HTTPException(502, str(exc)) from exc
     return {**asdict(a), "footer": a.footer}
+
+
+# ------------------------------------------------------------------ B9: orders
+class ConfirmIn(BaseModel):
+    yes: bool
+
+
+@router.post("/orders/{decision_id}")
+async def confirm_order(decision_id: int, body: ConfirmIn) -> dict:
+    """ทำเลย · ไม่เอา for an order that can't be undone (under an answer, or in the bell)."""
+    try:
+        return {"text": await ask_orders.confirm(decision_id, body.yes, via=("หน้าเว็บ", ""))}
+    except ask_orders.ConfirmError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.get("/plans/{decision_id}/run")
+def plan_run(decision_id: int) -> dict:
+    """How carrying out an approved plan is going: {"status": none · running · done · failed, ...}."""
+    return ask.run_of(decision_id) or {"status": "none"}
