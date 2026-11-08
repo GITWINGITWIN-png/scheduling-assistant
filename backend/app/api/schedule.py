@@ -370,6 +370,22 @@ async def _undo_target(undo: dict) -> None:
 actions.register_undo("schedule.target", _undo_target)
 
 
+class AvoidIn(Strict):
+    weekday: int  # 0 = Monday
+    part: str  # เช้า · บ่าย · เย็น
+
+
+@router.post("/schedule/avoid")
+async def avoid(body: AvoidIn) -> dict:
+    """⑥ ไม่วางบล็อกช่วงนี้ (B7): a rule of yours, then the plan changes at once."""
+    try:
+        _, action_id = followed.avoid_rule(body.weekday, body.part)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    line = await sync.run(force=True)
+    return {"action_id": action_id, "line": line or ""}
+
+
 @router.post("/blocks/{block_id}/done")
 def block_done(block_id: int) -> dict:
     """นับว่าทำแล้ว: a block the rules called missed, that you did where they couldn't see."""

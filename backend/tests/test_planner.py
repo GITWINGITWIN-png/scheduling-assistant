@@ -172,3 +172,58 @@ def test_a_short_gap_is_skipped_for_big_work_but_fits_a_short_leftover():
 def test_nothing_is_placed_before_now(mode):
     p = plan([Work(1, 240, due=at(10, 20), mode=mode)], [], now=at(9, 15, 40))
     assert all(b.start >= at(9, 15, 45) for b in p.blocks)
+
+
+# ------------------------------------------------------------------ B7: your schedule rules
+from datetime import time  # noqa: E402
+
+TUE_AFTERNOON = (1, time(12, 0), time(17, 0))
+FOCUS = (time(9, 0), time(11, 30))
+
+
+def test_avoided_hours_are_never_booked_on_that_weekday():
+    rules = Rules(avoid=(TUE_AFTERNOON,), horizon_days=3)
+    free = free_time([], now=NOW, rules=rules, tz=BKK)
+    assert (at(10, 9), at(10, 12)) in free and (at(10, 17), at(10, 22)) in free  # Tuesday 10 Nov, around 12:00–17:00
+    assert (at(9, 9), at(9, 22)) in free and (at(11, 9), at(11, 22)) in free  # Monday and Wednesday untouched
+    out = plan([Work(1, 13 * 60 * 2, per_day=13 * 60, max_block=120)], [], now=NOW, rules=rules, tz=BKK)
+    tuesday = [b for b in out.blocks if b.start.date() == at(10, 0).date()]
+    assert tuesday and all(b.end <= at(10, 12) or b.start >= at(10, 17) for b in tuesday)
+
+
+def test_focus_hours_go_first_within_a_day_but_never_push_work_to_a_later_day():
+    busy = [(at(9, 9), at(9, 12))]  # Monday morning is taken, focus hours included
+    rules = Rules(focus=FOCUS, horizon_days=3)
+    out = plan([Work(1, 60)], busy, now=NOW, rules=rules, tz=BKK)
+    assert out.blocks[0].start == at(9, 12, 15)  # still Monday: not moved to Tuesday's focus hours
+    out = plan([Work(2, 60)], [], now=at(9, 7), rules=rules, tz=BKK)
+    assert out.blocks[0].start == at(9, 9)
+    afternoon = at(9, 13)
+    out = plan([Work(3, 90)], [], now=afternoon, rules=rules, tz=BKK)
+    assert out.blocks[0].start == at(9, 13)  # today's focus hours are gone: the rest of today, not tomorrow
+
+
+def test_with_two_tasks_the_first_takes_the_focus_hours_and_email_work_never_does():
+    rules = Rules(focus=FOCUS, horizon_days=2)
+    day = at(9, 7)
+    out = plan([Work(1, 60, due=at(9, 18)), Work(2, 60, due=at(9, 20))], [], now=day, rules=rules, tz=BKK)
+    starts = {b.task_id: b.start for b in out.blocks}
+    assert starts[1] == at(9, 9) and at(9, 9) < starts[2] < at(9, 11, 30)  # both fit the focus hours, in order
+    mail = plan([Work(1, 60, focus=False)], [(at(9, 9), at(9, 9, 30))], now=day, rules=rules, tz=BKK)
+    assert mail.blocks[0].start == at(9, 9, 45)  # earliest free time, as before the rule
+
+
+def test_a_task_never_gets_two_blocks_back_to_back_at_the_focus_hours_edge():
+    rules = Rules(focus=FOCUS, horizon_days=1, gap=15, max_block=150)
+    out = plan([Work(1, 5 * 60, max_block=150, per_day=5 * 60)], [], now=at(9, 7), rules=rules, tz=BKK)
+    spans = sorted((b.start, b.end) for b in out.blocks)
+    assert spans[0] == (at(9, 9), at(9, 11, 30)) and minutes(out.blocks) == 5 * 60  # the focus hours exactly, then a break
+    for (s1, e1), (s2, e2) in zip(spans, spans[1:]):
+        assert s2 - e1 >= timedelta(minutes=15), f"{e1:%H:%M} then {s2:%H:%M}"
+
+
+def test_late_tasks_use_focus_hours_first_on_their_last_days():
+    rules = Rules(focus=FOCUS, horizon_days=3)
+    out = plan([Work(1, 60, due=at(11, 20), mode="late")], [], now=at(9, 7), rules=rules, tz=BKK)
+    # the due day's focus hours, as late in them as fits ("late"), not the due day's evening
+    assert (out.blocks[0].start, out.blocks[0].end) == (at(11, 10, 30), at(11, 11, 30))

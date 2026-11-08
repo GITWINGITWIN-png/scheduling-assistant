@@ -38,6 +38,7 @@ export type Decision = {
   job_id?: number | null; budget?: number | null; risks?: string[]; why?: string; stuck_at?: string; // background plan (B5)
   project_id?: number | null; // new project (B5)
   group_id?: number | null; size?: number | null; about?: string; // a grown idea group (B6)
+  topic?: string; label?: string; what?: string; acts?: [string, string][]; // a weekly review topic (B7)
 };
 
 export type Answer = {
@@ -198,10 +199,18 @@ export type IdeaGroupRow = {
 export type IdeasPage = { recent: IdeaRow[]; total: number; ungrouped: number; groups: IdeaGroupRow[]; grown: number; round_on: boolean };
 export type SavedIdea = { id: number; tags: string[]; group: GroupPreview };
 
+// W2 ข้อเสนอปรับระดับรายสัปดาห์ (B7): from the weekly review while it waits, else as things stand now
+export type ProposalItem = {
+  person_id: number; name: string; level: Level; to: Level; choice: string; choices: [string, string][];
+  why: string; note: string; until: string | null;
+};
+export type Proposals = { decision_id: number | null; items: ProposalItem[] };
+
 // W5 ⑤ ⑥ ทำตามแผนได้ · ข้อสังเกต (B6)
 export type Followed = {
   label: string; percent: number | null; checked: number; target: number; recording: boolean;
-  days: { label: string; done: number; missed: number }[]; notes: { title: string; sub: string }[];
+  days: { label: string; done: number; missed: number }[];
+  notes: { title: string; sub: string; weekday: number; part: string; weeks: number; avoided: boolean }[];
 };
 
 // W7 การใช้เวลา (B6)
@@ -226,6 +235,13 @@ export type TimePage = {
 };
 
 export const api = {
+  // D4 ทบทวนรายสัปดาห์ (B7)
+  weeklyNow: () => call<{ title: string }>("POST", "/api/weekly/run"),
+  answerWeekly: (decisionId: number, act: string) => call<{ text: string }>("POST", `/api/weekly/decisions/${decisionId}`, { act }),
+  // W2 ข้อเสนอปรับระดับรายสัปดาห์ (B7)
+  proposals: () => call<Proposals>("GET", "/api/proposals/people"),
+  answerProposals: (items: { person_id: number; choice: string }[], decision_id: number | null) =>
+    call<{ action_ids: number[] }>("POST", "/api/proposals/people", { items, decision_id }),
   // W7 การใช้เวลา (B6)
   time: (range: TimeRange = "week") => call<TimePage>("GET", `/api/time?range=${range}`),
   sortTime: (field: "app" | "title", match: string, category: string, project = "") =>
@@ -253,6 +269,7 @@ export const api = {
   followed: () => call<Followed>("GET", "/api/schedule/followed"),
   setFollowTarget: (target: number) => call<{ target: number; action_id: number }>("PUT", "/api/schedule/followed/target", { target }),
   blockDone: (id: number) => call<{ action_id: number }>("POST", `/api/blocks/${id}/done`),
+  avoidHours: (weekday: number, part: string) => call<{ action_id: number; line: string }>("POST", "/api/schedule/avoid", { weekday, part }),
   week: (start: string, end: string) => call<Week>("GET", `/api/schedule?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`),
   replan: () => call<{ line: string }>("POST", "/api/schedule/replan"),
   tasks: () => call<{ items: TaskRow[] }>("GET", "/api/tasks"),

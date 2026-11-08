@@ -115,9 +115,11 @@ def test_the_planner_counts_only_what_was_worked_of_a_missed_block():
     with session() as s:
         row = s.get(Block, b)
         row.outcome, row.worked_minutes = "missed", 30
+    mail = task("ตอบอีเมล อ.วิภา", source="email")
     work, _, kept_blocks, _, fp_missed = sync._inputs(m(180), [])
     mine = next(w for w in work if w.task_id == t.id)
     assert mine.minutes == 240 - 30  # the other 90 minutes went back to the task
+    assert mine.focus and not next(w for w in work if w.task_id == mail.id).focus  # email replies never take focus hours
     with session() as s:
         s.get(Block, b).outcome = "done"
     work, _, _, _, fp_done = sync._inputs(m(180), [])
@@ -177,3 +179,35 @@ def test_the_evening_review_says_how_the_plan_went(monkeypatch):
     assert fields["เวลาจริงวันนี้"] == "โค้ด 1.8 ชม. · เว็บ 1"
     assert evening.to_move(m(540)) == [(t.id, "Finance: backtest")]  # offered: ย้ายไปพรุ่งนี้
     assert later and done
+
+
+def test_a_repeated_miss_becomes_a_rule_the_planner_follows():
+    from app.core import settings as core_settings
+    from app.core.rules import book
+    from app.core.tables import Rule
+
+    t = task("datacom", project="datacom")
+    for week in (0, 1):  # Tuesday 13:00 two weeks running
+        b = block(t, week * 7 * 24 * 60 + 24 * 60 + 240, week * 7 * 24 * 60 + 24 * 60 + 300)
+        with session() as s:
+            s.get(Block, b).outcome = "missed"
+    found = [n for n in followed.patterns(m(15 * 24 * 60)) if n["weekday"] == 1]
+    assert found and found[0]["part"] == "บ่าย" and found[0]["weeks"] == 2 and not found[0]["avoided"]
+    rule_id, action_id = followed.avoid_rule(1, "บ่าย")
+    focus_id, _ = followed.focus_rule("09:00", "11:30")
+    try:
+        r = sync.rules()
+        assert (1, r.avoid[0][1].isoformat("minutes"), r.avoid[0][2].isoformat("minutes")) == (1, "12:00", "17:00")
+        assert tuple(x.isoformat("minutes") for x in r.focus) == ("09:00", "11:30")
+        assert sync.rules_dict()["focus"] == ["09:00", "11:30"]  # it's in the plan's fingerprint too
+        assert [n for n in followed.patterns(m(15 * 24 * 60)) if n["weekday"] == 1][0]["avoided"]
+        with pytest.raises(ValueError):
+            followed.avoid_rule(1, "บ่าย")  # not twice
+        asyncio.run(actions.undo(action_id))
+        assert sync.rules().avoid == ()
+    finally:
+        with session() as s:
+            for rid in (rule_id, focus_id):
+                if (row := s.get(Rule, rid)) is not None:
+                    s.delete(row)
+    assert book.focus_window() is None and core_settings

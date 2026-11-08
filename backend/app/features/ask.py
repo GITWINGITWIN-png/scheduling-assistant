@@ -18,7 +18,8 @@ This module is the logic only. The Discord side is features/ask_discord.py
 and the web side is api/ask.py; both call the functions below.
 
 B1's tools read what B1 stores: the action log, waiting decisions, model usage
-and the clock. B7 extends them to every part of the store.
+and the clock. B7 adds the rest of the store (features/ask_tools.py): people and
+mail, the schedule, tasks, projects, ideas, time use, Classroom and the rule book.
 """
 
 import json
@@ -36,6 +37,7 @@ from app.core.db import now, session
 from app.core.rules import book
 from app.core.tables import Action, Decision, LLMUsage
 from app.core.timefmt import thai_datetime
+from app.features import ask_tools
 
 # The name each tool goes by when it's listed as a source under an answer
 SOURCE_NAMES = {
@@ -53,8 +55,10 @@ ASK_SYSTEM = """คุณคือ "เลขา" เลขาส่วนตั
 ให้ตอบเพียงบรรทัดเดียว: HANDOFF: <สรุปสิ่งที่ผู้ใช้ขอ 1 ประโยค>
 แล้วระบบจะส่งต่อให้ Opus วางแผน
 
-ใช้งานได้แล้ว: B1–B6 (พื้นฐาน · อีเมลและคน · ตาราง · สรุปเช้า-เย็น · โปรเจคและงานเบื้องหลัง · ไอเดียและการใช้เวลา)
-- เครื่องมือของแชท: บันทึกสิ่งที่เลขาทำ เรื่องที่รอตัดสิน การใช้โมเดล นาฬิกาเลขา · ข้อมูลส่วนอื่นแชทยังค้นเองไม่ได้ (มาใน B7)
+ใช้งานได้แล้ว: B1–B7 (พื้นฐาน · อีเมลและคน · ตาราง · สรุปเช้า-เย็น · โปรเจคและงานเบื้องหลัง · ไอเดียและการใช้เวลา · ทบทวนรายสัปดาห์)
+- ค้นข้อมูลได้ทุกส่วนด้วยเครื่องมือ: คนและอีเมล เรื่องค้าง ตาราง งาน โปรเจค ไอเดีย การใช้เวลา Classroom สมุดกติกา
+  บันทึกสิ่งที่เลขาทำ เรื่องที่รอตัดสิน การใช้โมเดล นาฬิกาเลขา · ค้นก่อนตอบเสมอ · ใส่ลิงก์ที่เครื่องมือให้มาเมื่อพูดถึงอีเมลหรืองานชิ้นนั้น
+- "สัปดาห์นี้" นับจากวันจันทร์ · ดูวันนี้จากบรรทัด [ตอนนี้: ...]
 - ถ้าถามเรื่องอื่น ให้บอกว่าดูได้ที่ไหน: หน้าเว็บ วันนี้ · คนและอีเมล · โปรเจค · งานเบื้องหลัง · ตาราง · ไอเดีย · การใช้เวลา · สมุดกติกา
   และใน Discord: #ด่วน (เรื่องรีบ) #อนุมัติ (เรื่องที่รอตัดสิน) #สรุป (สรุปเช้า-เย็น) #ไอเดีย (พิมพ์ไอเดียได้เลย ข้อความละไอเดีย)
 - งานโค้ดในโปรเจค: เลขาทำต่อให้เฉพาะโปรเจคที่เปิด "ให้เลขาทำต่อได้" ที่หน้าโปรเจค ทำตอนกลางคืนบน branch แยก ไม่ push
@@ -67,7 +71,7 @@ PLAN_SYSTEM = """คุณคือ "เลขา" เลขาส่วนต�
 ถ้ามีงานที่เลขาทำเอง บอกโมเดล effort และงบโทเคนโดยประมาณ
 ถ้ามีเวลาที่ผู้ใช้ต้องใช้ ปิดด้วยบรรทัด "เวลาคุณ: ..."
 แผนนี้เลขาเก็บไว้ให้ผู้ใช้ตัดสิน ยังไม่เริ่มเอง · งานโค้ดในโปรเจค ให้บอกผู้ใช้กด "ทำต่อ" ที่หน้าโปรเจค
-(เลขาวางแผนงบและความเสี่ยงอีกรอบ ทำตอนกลางคืนบน branch แยก) · ยังไม่เห็นตารางและค้นอีเมลเองไม่ได้ (B7)
+(เลขาวางแผนงบและความเสี่ยงอีกรอบ ทำตอนกลางคืนบน branch แยก) · ค้นตาราง อีเมล โปรเจค และส่วนอื่นได้ด้วยเครื่องมือก่อนวางแผน
 ให้วางแผนจากสิ่งที่ผู้ใช้บอก และบอกตรงๆ ว่าส่วนไหนเลขายังทำให้ไม่ได้"""
 
 
@@ -108,7 +112,8 @@ async def secretary_status(args: dict) -> dict:
     return _text(clock.status())
 
 
-TOOLS = [recent_actions, pending_decisions, model_usage, secretary_status]
+TOOLS = [recent_actions, pending_decisions, model_usage, secretary_status, *ask_tools.TOOLS]
+SOURCE_NAMES.update(ask_tools.SOURCE_NAMES)
 
 
 # ------------------------------------------------------------------ answers

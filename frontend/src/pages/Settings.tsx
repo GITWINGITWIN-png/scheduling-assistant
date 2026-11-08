@@ -89,8 +89,16 @@ export function Settings() {
               <Row key={r.id} icon="clock" title={r.when}
                 sub={r.title + (r.active && r.enabled ? ` · ครั้งถัดไป ${when(r.next_run)}` : r.active ? " · ปิดอยู่" : "")} dim={!r.active || !r.enabled}
                 side={r.active
-                  ? <Seg options={[{ key: "on", label: "เปิด" }, { key: "off", label: "ปิด" }]} value={r.enabled ? "on" : "off"}
-                      onChange={(v) => api.setRound(r.id, v === "on").then(load, (e) => setNote((e as Error).message))} />
+                  ? <span className="flex items-center gap-2">
+                      {r.id === "weekly" && ( // B7: try the review now, without waiting for Sunday 19:00
+                        <button type="button" className="text-xs font-semibold text-accent-strong hover:underline cursor-pointer"
+                          title="ทำทบทวนรายสัปดาห์ของสัปดาห์นี้ตอนนี้ แล้วส่งเข้า #สรุป (แทนอันเดิมของสัปดาห์นี้ถ้ามี)"
+                          onClick={() => api.weeklyNow().then((x) => setNote(`ส่งทบทวนรายสัปดาห์แล้ว: ${x.title}`), (e) => setNote((e as Error).message))}>
+                          ส่งตอนนี้</button>
+                      )}
+                      <Seg options={[{ key: "on", label: "เปิด" }, { key: "off", label: "ปิด" }]} value={r.enabled ? "on" : "off"}
+                        onChange={(v) => api.setRound(r.id, v === "on").then(load, (e) => setNote((e as Error).message))} />
+                    </span>
                   : <Phase phase={r.phase} />} />
             ))}
             <p className="text-xs text-muted pt-2">เครื่องดับแล้วเปิดใหม่ เลขาทำรอบที่พลาดทันที (ครั้งเดียว ไม่ว่าพลาดกี่รอบ) · รอบใหม่ของแต่ละช่วงเริ่มแบบปิด คุณเปิดเองตอนทดสอบช่วงนั้น · ทุกการเปิดปิดอยู่ในหน้าบันทึกและย้อนกลับได้</p>

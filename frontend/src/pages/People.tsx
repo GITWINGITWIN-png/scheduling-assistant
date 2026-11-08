@@ -3,11 +3,13 @@
 // settings (keywords, interests, reminder days) are on the settings page.
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { api, type Followup, type Level, type Person, type PersonDetail } from "../api";
+import { api, type Followup, type Level, type Person, type PersonDetail, type Proposals } from "../api";
 import { when } from "../format";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
-import { Avatar, Banner, Button, Card, Chip, Phase, Spinner, Tabs } from "../components/ui";
+import { Avatar, Banner, Button, Card, Chip, Spinner, Tabs } from "../components/ui";
+
+const LEVEL_NAMES: Record<Level, string> = { important: "สำคัญ", interested: "สนใจ", ignored: "ไม่สนใจ" };
 
 type Tab = Level | "followups";
 const TABS: { key: Tab; label: string }[] = [
@@ -64,10 +66,7 @@ export function People() {
   return (
     <div className="flex flex-col gap-4 max-w-6xl">
       <Tabs options={TABS.map((t) => ({ ...t, count: counts?.[t.key] }))} value={tab} onChange={(k) => go({ tab: k, p: null })} />
-      <Banner icon="people">
-        <span className="grow">ข้อเสนอประจำสัปดาห์ (ต่ออายุ ลด ยกขั้นคน) มาพร้อมทบทวนรายสัปดาห์ · ตอนนี้ตัดสินเองได้ที่นี่</span>
-        <Phase phase="B7" />
-      </Banner>
+      <ProposalsCard onChange={changed} />
       {error && <p className="text-sm text-bad">{error}</p>}
 
       {tab === "followups" ? <Followups items={fus} onChange={changed} /> : (
@@ -103,6 +102,58 @@ export function People() {
         <AddPerson onDone={(id) => { go({ tab: "important", p: id }); changed(); }} />
       </div>
     </div>
+  );
+}
+
+/** ข้อเสนอปรับระดับรายสัปดาห์ (1.4, B7): renew or let end an important person, raise an ignored
+ *  sender whose subjects match your interests. Interested → ignored is never proposed (you do it here). */
+function ProposalsCard({ onChange }: { onChange: () => void }) {
+  const [data, setData] = useState<Proposals | null>(null);
+  const [picked, setPicked] = useState<Record<number, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const load = useCallback(() => { api.proposals().then((d) => { setData(d); setPicked({}); }, (e) => setError((e as Error).message)); }, []);
+  useEffect(load, [load]);
+  if (!data) return null;
+  if (data.items.length === 0) {
+    return (
+      <Banner icon="people">
+        <span className="grow">ไม่มีข้อเสนอปรับระดับสัปดาห์นี้ · เลขาเสนอเมื่อคนสำคัญใกล้หมดอายุ หรือคนไม่สนใจส่งเรื่องที่ตรงเรื่องที่สนใจ
+          · ลดคนสนใจเป็นไม่สนใจ ทำเองที่หน้านี้</span>
+      </Banner>
+    );
+  }
+  const apply = async () => {
+    setBusy(true); setError("");
+    try {
+      await api.answerProposals(data.items.map((i) => ({ person_id: i.person_id, choice: picked[i.person_id] ?? i.choice })), data.decision_id);
+      load(); onChange();
+    } catch (e) { setError((e as Error).message); }
+    setBusy(false);
+  };
+  return (
+    <Card title={`ข้อเสนอปรับระดับรายสัปดาห์ · ${data.items.length} คน`}
+      right={<span className="text-xs text-muted">{data.decision_id ? "จากทบทวนรายสัปดาห์ · ตอบที่นี่หรือใน #สรุป ก็ได้" : "ตามข้อมูลตอนนี้"}</span>}>
+      <ul className="divide-y divide-line">
+        {data.items.map((i) => (
+          <li key={i.person_id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
+            <Avatar name={i.name} />
+            <span className="grow min-w-0 basis-56">
+              <span className="block font-semibold text-[14px]">{i.name} <span className="font-normal text-muted">({LEVEL_NAMES[i.level]})</span></span>
+              <span className="block text-xs text-ink-2">{i.why}</span>
+              {i.note && <span className="block text-xs text-muted border-l-2 border-line-2 pl-2 mt-1">โน้ตที่คุณจดไว้: “{i.note}” · ตัดสินแล้วโน้ตนี้จะถูกลบ</span>}
+            </span>
+            <select value={picked[i.person_id] ?? i.choice} aria-label={`ตัดสิน ${i.name}`}
+              onChange={(e) => setPicked({ ...picked, [i.person_id]: e.target.value })}
+              className="rounded-full border border-line-2 bg-panel px-2.5 py-1 text-sm">
+              {i.choices.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="text-sm text-bad pt-2">{error}</p>}
+      <div className="flex justify-end pt-2"><Button kind="p" sm icon="check" disabled={busy} onClick={apply}>ทำตามนี้</Button></div>
+    </Card>
   );
 }
 
