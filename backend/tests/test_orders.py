@@ -285,3 +285,77 @@ def test_one_order_stops_after_its_limit():
     with session() as s:
         assert s.scalar(select(Idea).where(Idea.text == "od-ไอเดีย 3")) is None
         s.execute(delete(Idea).where(Idea.text.like("od-%")))
+
+
+# ------------------------------------------------------------------ B9.4: orders go to Opus
+from app.features import ask  # noqa: E402
+
+
+def fake_claude(monkeypatch, sonnet: str, opus=None):
+    """Sonnet answers `sonnet`; Opus runs `opus(tools)` (calling tools like the model would) and
+    answers what it returns. Records which tasks were asked."""
+    asked = []
+
+    async def run(task, prompt, *, tools=(), **kw):
+        asked.append(task)
+        if task == "ask":
+            return llm.Reply(text=sonnet, model="claude-sonnet-5-5", effort="low", tokens_in=1000, tokens_out=20)
+        by_name = {t.name: t for t in tools}
+
+        async def use(name, **args):
+            return (await by_name[name].handler(args))["content"][0]["text"]
+        text = await opus(use)
+        return llm.Reply(text=text, model="claude-opus-5-5", effort="high", tokens_in=8000, tokens_out=300)
+    monkeypatch.setattr(llm, "run", run)
+    return asked
+
+
+def test_an_order_is_handed_to_opus_which_does_it_and_lists_it_with_undo(monkeypatch):
+    async def opus(use):
+        await use("add_idea", text="od-ให้เลขาพูดสรุปเช้า")
+        return "จดไอเดียให้แล้ว"
+    asked = fake_claude(monkeypatch, "HANDOFF: จดไอเดียเรื่องสรุปเช้าเป็นเสียง", opus)
+    a = asyncio.run(ask.ask("จดไอเดีย ให้เลขาพูดสรุปเช้า", via=VIA))
+    assert asked == ["ask", "plan"]  # Sonnet sorts, Opus acts
+    assert (a.kind, a.text, a.model, a.tokens) == ("done", "จดไอเดียให้แล้ว", "Opus", 9320)
+    assert [(d["summary"], d["target"], d["can_undo"]) for d in a.done] == [("จดไอเดีย", "od-ให้เลขาพูดสรุปเช้า", True)]
+    assert a.footer.startswith("ทำโดย Opus · effort high")
+    with session() as s:
+        logged = s.scalar(select(Action).where(Action.kind == "order").order_by(Action.id.desc()))
+        assert (logged.summary, logged.tokens, logged.source_url) == ("ทำตามคำสั่งในแชท", 9320, VIA[1])
+        s.execute(delete(Idea).where(Idea.text.like("od-%")))
+
+
+def test_a_request_for_a_plan_is_kept_for_you_and_nothing_is_done(monkeypatch):
+    async def opus(use):
+        await use("propose_plan", title="od-เตรียมสอบ datacom", plan="1. เลขาจองเวลาอ่าน 3 วัน\\n2. คุณทำข้อสอบเก่า\\nเวลาคุณ: 6 ชม.")
+        return "วางแผนให้แล้ว"
+    fake_claude(monkeypatch, "HANDOFF: วางแผนเตรียมสอบ", opus)
+    a = asyncio.run(ask.ask("วางแผนเตรียมสอบ datacom สัปดาห์นี้", via=VIA))
+    assert (a.kind, a.title, a.done) == ("plan", "od-เตรียมสอบ datacom", [])
+    d = _get(a.decision_id)
+    assert (d.kind, d.status, d.detail["request"], d.detail["started"]) == ("plan", "pending", "วางแผนเตรียมสอบ datacom สัปดาห์นี้", False)
+    assert d.detail["tokens"] == a.tokens and "เวลาคุณ" in a.text
+
+
+def test_a_question_is_answered_by_sonnet_and_opus_asking_back_does_nothing(monkeypatch):
+    asked = fake_claude(monkeypatch, "สัปดาห์นี้มีนัด 2 นัดครับ")
+    a = asyncio.run(ask.ask("สัปดาห์นี้มีนัดอะไรบ้าง"))
+    assert (a.kind, asked) == ("answer", ["ask"])
+
+    async def opus(use):
+        return "อ.วิภามีสองคนในทะเบียน หมายถึงคนไหนครับ"
+    fake_claude(monkeypatch, "HANDOFF: ตั้ง อ.วิภาเป็นคนสำคัญ", opus)
+    a = asyncio.run(ask.ask("ตั้ง อ.วิภา เป็นคนสำคัญ"))
+    assert (a.kind, a.done, a.confirms) == ("answer", [], [])
+
+
+def test_when_claude_stops_halfway_what_it_did_is_still_listed(monkeypatch):
+    async def opus(use):
+        await use("add_idea", text="od-ไอเดียก่อนล้ม")
+        raise llm.LLMError("quota")
+    fake_claude(monkeypatch, "HANDOFF: จดไอเดีย", opus)
+    a = asyncio.run(ask.ask("จดไอเดีย ไอเดียก่อนล้ม"))
+    assert a.kind == "done" and "Claude หยุดกลางทาง" in a.text and len(a.done) == 1
+    with session() as s:
+        s.execute(delete(Idea).where(Idea.text.like("od-%")))
