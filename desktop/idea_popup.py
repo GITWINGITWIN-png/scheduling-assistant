@@ -118,23 +118,34 @@ def save(text: str, tags: list[str] | None) -> tuple[str, bool]:
 
 
 # ------------------------------------------------------------------ the window
+# Every colour is spelled out (the K1 mockup's white card), not taken from the desktop's theme:
+# Ubuntu's Yaru themes for GTK 4 don't define libadwaita's names (window_bg_color, view_bg_color),
+# and a name a theme lacks paints as transparent, so the first version had no background at all
+# on the user's desktop (found at B6's check, 2026-11-08).
 CSS = """
-window.idea { background: @window_bg_color; }
+window.idea { background-color: #FFFFFF; color: #17120E; }
 .idea .head { padding: 14px 18px 4px 18px; }
-.idea .title { font-weight: 700; font-size: 15pt; }
-.idea .kbd { font-family: monospace; font-size: 9pt; padding: 1px 6px; border: 1px solid alpha(currentColor, .25); border-radius: 5px; opacity: .7; }
-.idea .box { border: 1.5px solid #F25F0C; border-radius: 12px; padding: 10px 12px; background: @view_bg_color; }
-.idea textview, .idea textview text { background: transparent; font-size: 12pt; }
-.idea .muted { opacity: .6; font-size: 9.5pt; }
+.idea .title { font-weight: 700; font-size: 15pt; color: #17120E; }
+.idea .head image { color: #17120E; }
+.idea .kbd { font-family: monospace; font-size: 9pt; padding: 1px 6px; color: #4A433D; border: 1px solid #D4CFC9; border-radius: 5px; }
+.idea .box { border: 1.5px solid #F25F0C; border-radius: 12px; padding: 10px 12px; background-color: #FFFFFF; }
+.idea textview, .idea textview text { background-color: #FFFFFF; color: #17120E; caret-color: #17120E; font-size: 12pt; }
+.idea textview text selection { background-color: #FFE9DB; color: #17120E; }
+.idea .muted { color: #7A736C; font-size: 9.5pt; }
 .idea button.chip { border-radius: 999px; padding: 1px 10px; min-height: 0; font-weight: 700; font-size: 9.5pt;
-  background: alpha(#F25F0C, .14); color: #C2410C; border: none; box-shadow: none; }
-.idea button.chip.off { background: transparent; color: alpha(currentColor, .5); border: 1px solid alpha(currentColor, .25); text-decoration: line-through; }
-.idea button.add { border-radius: 999px; padding: 1px 10px; min-height: 0; font-size: 9.5pt; background: transparent;
-  border: 1px solid alpha(currentColor, .3); box-shadow: none; }
-.idea button.save { border-radius: 999px; padding: 4px 16px; font-weight: 700; background: #F25F0C; color: white; border: none; }
+  background-color: #FFE9DB; background-image: none; color: #C2410C; border: none; box-shadow: none; }
+.idea button.chip:hover { background-color: #FFD9BF; }
+.idea button.chip.off { background-color: #FFFFFF; color: #7A736C; border: 1px solid #D4CFC9; text-decoration: line-through; }
+.idea button.add { border-radius: 999px; padding: 1px 10px; min-height: 0; font-size: 9.5pt; background-color: #FFFFFF;
+  background-image: none; color: #4A433D; border: 1px solid #D4CFC9; box-shadow: none; }
+.idea button.add:hover { background-color: #F0EFEC; }
+.idea button.save { border-radius: 999px; padding: 4px 16px; font-weight: 700; background-color: #F25F0C;
+  background-image: none; color: #FFFFFF; border: none; box-shadow: none; }
+.idea button.save:hover { background-color: #C2410C; }
 .idea .done { color: #16A34A; font-weight: 700; }
 .idea .bad { color: #DC2626; font-weight: 700; }
-.idea entry.tag { border-radius: 999px; min-height: 0; padding: 0 10px; font-size: 9.5pt; }
+.idea entry.tag { border-radius: 999px; min-height: 0; padding: 0 10px; font-size: 9.5pt; background-color: #FFFFFF;
+  color: #17120E; border: 1px solid #D4CFC9; }
 """
 
 
