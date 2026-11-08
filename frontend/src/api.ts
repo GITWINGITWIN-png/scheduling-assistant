@@ -198,6 +198,13 @@ export type IdeaGroupRow = {
 export type IdeasPage = { recent: IdeaRow[]; total: number; ungrouped: number; groups: IdeaGroupRow[]; grown: number; round_on: boolean };
 export type SavedIdea = { id: number; tags: string[]; group: GroupPreview };
 
+// W2 ข้อเสนอปรับระดับรายสัปดาห์ (B7): from the weekly review while it waits, else as things stand now
+export type ProposalItem = {
+  person_id: number; name: string; level: Level; to: Level; choice: string; choices: [string, string][];
+  why: string; note: string; until: string | null;
+};
+export type Proposals = { decision_id: number | null; items: ProposalItem[] };
+
 // W5 ⑤ ⑥ ทำตามแผนได้ · ข้อสังเกต (B6)
 export type Followed = {
   label: string; percent: number | null; checked: number; target: number; recording: boolean;
@@ -226,6 +233,10 @@ export type TimePage = {
 };
 
 export const api = {
+  // W2 ข้อเสนอปรับระดับรายสัปดาห์ (B7)
+  proposals: () => call<Proposals>("GET", "/api/proposals/people"),
+  answerProposals: (items: { person_id: number; choice: string }[], decision_id: number | null) =>
+    call<{ action_ids: number[] }>("POST", "/api/proposals/people", { items, decision_id }),
   // W7 การใช้เวลา (B6)
   time: (range: TimeRange = "week") => call<TimePage>("GET", `/api/time?range=${range}`),
   sortTime: (field: "app" | "title", match: string, category: string, project = "") =>

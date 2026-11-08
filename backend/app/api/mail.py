@@ -11,6 +11,7 @@ from app.core.db import now, session
 from app.core.tables import Action
 from app.features import decisions
 from app.features.mail import extract, followups, people, rounds, watch
+from app.features.mail import review as review_people
 from app.features.mail.tables import LEVELS, SOURCES, Email, Followup, Person
 
 router = APIRouter(prefix="/api")
@@ -181,3 +182,30 @@ def put_mail_settings(body: MailSettingsIn) -> dict:
     if body.followup_days is not None:
         watch._put(followups.DAYS_KEY, max(1, min(body.followup_days, 30)))
     return mail_settings()
+
+
+# ------------------------------------------------------------------ ข้อเสนอปรับระดับรายสัปดาห์ (1.4, B7)
+# (not under /people/...: that would be read as /people/{person_id})
+@router.get("/proposals/people")
+def people_proposals() -> dict:
+    """This week's proposals: the weekly review's, while it waits for you, or else as they stand now."""
+    return review_people.current()
+
+
+class ProposalChoice(BaseModel):
+    person_id: int
+    choice: str
+
+
+class ProposalsIn(BaseModel):
+    items: list[ProposalChoice]
+    decision_id: int | None = None  # the weekly review's, when answering it
+
+
+@router.post("/proposals/people")
+async def answer_proposals(body: ProposalsIn) -> dict:
+    try:
+        ids = await review_people.answer([i.model_dump() for i in body.items], body.decision_id, via=("หน้าคนและอีเมล", ""))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"action_ids": ids}
