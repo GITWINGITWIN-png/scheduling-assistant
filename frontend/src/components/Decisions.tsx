@@ -3,7 +3,7 @@
 // either place (or in #อนุมัติ) has the same result (B4: เรื่องที่รอคุณตัดสินรวมที่เดียว).
 import { useState } from "react";
 import { Link } from "react-router";
-import type { Decision } from "../api";
+import { api, type Decision } from "../api";
 import { kTokens, when } from "../format";
 import { AppointmentActions, CourseActions } from "./Bell";
 import { PlanActions } from "./PlanActions";
@@ -40,6 +40,7 @@ export function DecisionRow({ d, onChange }: { d: Decision; onChange?: () => voi
       </li>
     );
   }
+  if (d.kind === "weekly") return <WeeklyRow d={d} onChange={onChange} />; // a weekly review topic (B7)
   if (d.kind === "idea") { // a grown idea group (B6): answered on the ideas page, where the folder's name is set
     return (
       <li className="py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
@@ -90,6 +91,33 @@ export function DecisionRow({ d, onChange }: { d: Decision; onChange?: () => voi
       </span>
       {open && <Markdown text={d.plan} />}
       <PlanActions decisionId={d.id} />
+    </li>
+  );
+}
+
+/** One topic of the weekly review (D4, B7): the same buttons as its #สรุป message. The people topic
+ *  is chosen person by person on the people page. */
+function WeeklyRow({ d, onChange }: { d: Decision; onChange?: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState("");
+  const act = async (a: string) => {
+    setBusy(true);
+    try { setSaid((await api.answerWeekly(d.id, a)).text); onChange?.(); } catch (e) { setSaid((e as Error).message); }
+    setBusy(false);
+  };
+  return (
+    <li className="py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+      <Avatar name={d.label || "ท"} size="sm" />
+      <span className="grow min-w-0 basis-48">
+        <span className="block font-semibold text-[13.5px]">ทบทวนรายสัปดาห์ · {d.label}: {d.title}</span>
+        <span className="block text-xs text-ink-2">{said || d.what}</span>
+      </span>
+      {d.topic === "people" && <Link to="/people" className="inline-flex items-center rounded-full border border-line-2 bg-panel hover:bg-panel-2 px-3 py-1 text-xs font-medium">เลือกรายคน</Link>}
+      {(d.acts ?? []).map(([a, label]) => (
+        <button key={a} type="button" disabled={busy} onClick={() => act(a)}
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium cursor-pointer disabled:opacity-50 ${a === "reject" ? "border border-line-2 bg-panel hover:bg-panel-2" : "bg-accent text-accent-ink hover:bg-accent-strong"}`}>
+          {label}</button>
+      ))}
     </li>
   );
 }

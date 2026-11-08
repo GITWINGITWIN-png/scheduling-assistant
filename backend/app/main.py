@@ -36,6 +36,7 @@ from app.api import schedule as schedule_api
 from app.api import settings as settings_api
 from app.api import time as time_api
 from app.api import today as today_api
+from app.api import weekly as weekly_api
 from app.connectors import discord_bot
 from app.core import backup, db, worker
 from app.core.clock import clock
@@ -51,6 +52,8 @@ from app.features.ideas import store as ideas_store
 from app.features.time import privacy as time_privacy
 from app.features.time import pull as time_pull
 from app.features.time import recorder as time_recorder
+from app.features.weekly import cards as weekly_cards
+from app.features.weekly import review as weekly_review
 from app.features.jobs import cards as jobs_cards
 from app.features.jobs import quota as jobs_quota
 from app.features.jobs import runner as jobs_runner
@@ -97,6 +100,8 @@ async def start_background() -> None:
     ideas_cards.setup()  # B6: every message in #ไอเดีย is an idea (✅ once kept), and the rounds' cards
     ideas_groups.setup()  # B6: group the ideas at 00:05 and 12:05 (off until B6's check)
     time_pull.setup()  # B6: read ActivityWatch every 15 minutes (off until you switch recording on)
+    weekly_review.setup()  # B7: ทบทวนรายสัปดาห์ Sunday 19:00 in #สรุป (off until B7's check)
+    weekly_cards.setup()  # its cards and buttons
     if time_recorder.installed():  # awatcher's config always follows the blocklist (its first line of filtering)
         time_privacy.write_awatcher_config()
     if n := ideas_store.import_outbox():  # ideas the Super+I popup kept while the secretary was down
@@ -153,6 +158,7 @@ app.include_router(schedule_api.router)
 app.include_router(settings_api.router)
 app.include_router(time_api.router)
 app.include_router(today_api.router)
+app.include_router(weekly_api.router)
 
 
 @app.exception_handler(RequestValidationError)

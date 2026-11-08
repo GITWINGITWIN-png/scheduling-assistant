@@ -38,6 +38,7 @@ export type Decision = {
   job_id?: number | null; budget?: number | null; risks?: string[]; why?: string; stuck_at?: string; // background plan (B5)
   project_id?: number | null; // new project (B5)
   group_id?: number | null; size?: number | null; about?: string; // a grown idea group (B6)
+  topic?: string; label?: string; what?: string; acts?: [string, string][]; // a weekly review topic (B7)
 };
 
 export type Answer = {
@@ -234,6 +235,9 @@ export type TimePage = {
 };
 
 export const api = {
+  // D4 ทบทวนรายสัปดาห์ (B7)
+  weeklyNow: () => call<{ title: string }>("POST", "/api/weekly/run"),
+  answerWeekly: (decisionId: number, act: string) => call<{ text: string }>("POST", `/api/weekly/decisions/${decisionId}`, { act }),
   // W2 ข้อเสนอปรับระดับรายสัปดาห์ (B7)
   proposals: () => call<Proposals>("GET", "/api/proposals/people"),
   answerProposals: (items: { person_id: number; choice: string }[], decision_id: number | null) =>
