@@ -333,7 +333,11 @@ async def plan(text: str, history: list[tuple[str, str]] = (), on_text: TextSink
 
 # ------------------------------------------------------------------ deciding a plan
 class DecisionError(ValueError):
-    """The decision doesn't exist or was already decided. The message says which."""
+    """The decision doesn't exist or was already decided. The message says which (the page and
+    Discord show it in place of the buttons: it was answered somewhere else, or on another copy)."""
+
+
+ANSWERED = {"approved": "✅ ใช้แผนนี้แล้ว", "rejected": "ไม่เอาแผนนี้แล้ว", "revised": "✏️ แก้แผนนี้แล้ว · แผนใหม่เป็นอีกข้อความ"}
 
 
 def decide(decision_id: int, action: str, note: str = "", via: Via = WEB) -> tuple[Decision, int]:
@@ -350,7 +354,7 @@ def decide(decision_id: int, action: str, note: str = "", via: Via = WEB) -> tup
         if d.kind != "plan":  # appointments, courses, projects and background plans have their own answers
             raise DecisionError("เรื่องนี้ตอบที่ปุ่มของมันเอง")
         if d.status != "pending":
-            raise DecisionError(f"เรื่องนี้ตัดสินไปแล้ว ({d.status})")
+            raise DecisionError(f"แผนนี้ตอบไปแล้ว · {ANSWERED.get(d.status, d.status)}")
         d.status = "approved" if action == "approve" else "rejected"
         d.answer = note
         d.answered_at = now()
@@ -456,7 +460,9 @@ async def revise(decision_id: int, change: str, via: Via = WEB) -> Answer:
     """แก้: Opus rewrites the plan with your change; the old one is marked revised."""
     with session() as s:
         old = s.get(Decision, decision_id)
-        if old is None or old.status != "pending" or old.kind != "plan":
-            raise DecisionError("แผนนี้แก้ไม่ได้แล้ว (ไม่พบ หรือตัดสินไปแล้ว)")
+        if old is None or old.kind != "plan":
+            raise DecisionError("ไม่พบแผนนี้")
+        if old.status != "pending":
+            raise DecisionError(f"แผนนี้ตอบไปแล้ว · {ANSWERED.get(old.status, old.status)}")
         old.status, old.answer, old.answered_at = "revised", change, now()
     return await plan(old.detail.get("request", old.title), previous=old, change=change, via=via)

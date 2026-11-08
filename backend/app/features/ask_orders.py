@@ -72,7 +72,21 @@ class Taken:
 
 
 class ConfirmError(ValueError):
-    """ทำเลย / ไม่เอา can't be answered (gone, answered, expired, or it failed). The message says why."""
+    """ทำเลย / ไม่เอา can't be answered any more (gone, answered, expired): nothing is left to press,
+    and the message says what happened, for the page and Discord to show in place of the buttons."""
+
+
+class ConfirmFailed(ConfirmError):
+    """ทำเลย was pressed but doing it failed: nothing was done, and it waits for another press."""
+
+
+def answered(d: Decision) -> str:
+    """What became of an order that no longer waits, in words."""
+    if d.status == "expired":
+        return "คำสั่งนี้หมดเวลาแล้ว สั่งใหม่ได้"
+    if d.status == "approved":
+        return f"ทำแล้ว: {d.answer}" if d.answer else f"กำลังทำอยู่: {d.title}"  # answer is set when it's done
+    return f"ไม่ทำแล้ว: {d.title}"
 
 
 def _text(value) -> dict:
@@ -215,7 +229,7 @@ async def confirm(decision_id: int, yes: bool, *, via: Via) -> str:
         if d.status == "pending" and d.created_at < now() - ORDER_LIFE:
             d.status, d.answered_at = "expired", now()
         if d.status != "pending":
-            raise ConfirmError("คำสั่งนี้หมดเวลาแล้ว สั่งใหม่ได้" if d.status == "expired" else "คำสั่งนี้ตอบไปแล้ว")
+            raise ConfirmError(answered(d))
         # settled before it runs, so a second press can't run it twice
         d.status, d.answered_at = ("approved" if yes else "rejected"), now()
         do, args, words = d.detail["do"], d.detail["args"], d.title
@@ -229,7 +243,7 @@ async def confirm(decision_id: int, yes: bool, *, via: Via) -> str:
             d.status, d.answered_at = "pending", None
         if not isinstance(exc, ValueError):
             log.exception("confirmed order %s (%s) failed", decision_id, do)
-        raise ConfirmError(f"ทำไม่สำเร็จ: {exc}") from exc
+        raise ConfirmFailed(f"ทำไม่สำเร็จ: {exc} · กดทำเลยอีกครั้งได้") from exc
     with session() as s:
         s.get(Decision, decision_id).answer = said[:500]
     return said

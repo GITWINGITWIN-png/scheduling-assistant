@@ -1,7 +1,9 @@
 // ใช้แผนนี้ · แก้ · ไม่เอา under a plan from Opus (D7 on the web). Since B9 an approved plan is
 // carried out at once: this watches it and shows what was done, with ย้อนกลับ for each thing.
+// The same plan can have buttons in several places (under the answer, the bell, the today page,
+// Discord). Pressing a copy that was answered elsewhere shows what happened instead of an error.
 import { useEffect, useState } from "react";
-import { api, type Answer, type PlanRun } from "../api";
+import { answeredAlready, api, type Answer, type PlanRun } from "../api";
 import { useStatus } from "../status";
 import { OrderParts } from "./OrderParts";
 import { Button, Markdown, Spinner } from "./ui";
@@ -13,22 +15,32 @@ export function PlanActions({ decisionId, onRevised }: { decisionId: number; onR
   const [state, setState] = useState<"open" | "approved" | "rejected" | "revised">("open");
   const [actionId, setActionId] = useState<number | null>(null);
   const [run, setRun] = useState<PlanRun | null>(null);
+  const [tries, setTries] = useState(0); // a failed look at the run (the service restarting): look again
+  const [answered, setAnswered] = useState(""); // answered somewhere else: what happened, in place of the buttons
   const [editing, setEditing] = useState(false);
   const [change, setChange] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  // Answered already: if it was approved, follow its run here as if it had been approved here
+  const showAnswered = async (said: string) => {
+    const r = await api.planRun(decisionId).catch(() => null);
+    if (r && r.status !== "none") { setRun(r); setState("approved"); } else setAnswered(said);
+  };
+
   const act = async (fn: () => Promise<void>) => {
     setBusy(true); setError("");
-    try { await fn(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); refresh(); }
+    try { await fn(); } catch (e) {
+      if (answeredAlready(e)) await showAnswered(e.message); else setError((e as Error).message);
+    } finally { setBusy(false); refresh(); }
   };
 
   // after ใช้แผนนี้: ask every few seconds until the secretary has finished carrying it out
   useEffect(() => {
     if (state !== "approved" || (run && run.status !== "running" && run.status !== "none")) return;
-    const t = setTimeout(() => { api.planRun(decisionId).then(setRun, () => {}); }, WATCH_MS);
+    const t = setTimeout(() => { api.planRun(decisionId).then(setRun, () => setTries((n) => n + 1)); }, WATCH_MS);
     return () => clearTimeout(t);
-  }, [state, run, decisionId]);
+  }, [state, run, decisionId, tries]);
   useEffect(() => { if (run && (run.status === "done" || run.status === "failed")) refresh(); }, [run, refresh]);
 
   const decide = (action: "approve" | "reject") => act(async () => {
@@ -36,12 +48,16 @@ export function PlanActions({ decisionId, onRevised }: { decisionId: number; onR
     setActionId(r.action_id);
     setState(action === "approve" ? "approved" : "rejected");
   });
-  const undo = () => act(async () => { if (actionId) await api.undo(actionId); setState("open"); setActionId(null); });
+  const undo = () => act(async () => {
+    try { if (actionId) await api.undo(actionId); } catch (e) { if (!answeredAlready(e)) throw e; } // undone elsewhere: the same
+    setState("open"); setActionId(null);
+  });
   const revise = () => act(async () => {
     const a = await api.revise(decisionId, change);
     setState("revised"); setEditing(false); onRevised?.(a);
   });
 
+  if (answered) return <p className="text-sm text-muted">{answered}</p>;
   if (state === "revised") return <p className="text-sm text-muted">✏️ แก้แล้ว · ดูแผนใหม่ด้านล่าง</p>;
   if (state === "approved") {
     const finished = run && (run.status === "done" || run.status === "failed");

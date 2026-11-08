@@ -159,7 +159,14 @@ export type ProjectRow = {
 export type Advice = { project_id: number; project: string; kind: "stale" | "short"; title: string; detail: string; next: string };
 export type ProjectsPage = { items: ProjectRow[]; advice: Advice[]; root: string; scanned: boolean };
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  constructor(message: string, readonly status = 0) { super(message); }
+}
+
+/** For the buttons under a chat answer (ใช้แผนนี้, ทำเลย, ย้อนกลับ): 409 means it was answered or
+ *  undone already, somewhere else or on another copy of the same buttons. The message says what
+ *  happened, and the page shows it in place of the buttons, since nothing is left to press. */
+export const answeredAlready = (e: unknown): e is ApiError => e instanceof ApiError && e.status === 409;
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -170,7 +177,7 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
   if (!res.ok) {
     // The backend explains refusals in plain words ({"detail": "..."}); show that, not the status code
     const detail = await res.json().then((j) => j.detail, () => null);
-    throw new ApiError(typeof detail === "string" ? detail : `เกิดข้อผิดพลาด (${res.status})`);
+    throw new ApiError(typeof detail === "string" ? detail : `เกิดข้อผิดพลาด (${res.status})`, res.status);
   }
   return res.json();
 }

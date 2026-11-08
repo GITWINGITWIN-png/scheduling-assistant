@@ -54,7 +54,7 @@ export function AskBox() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [turns]);
+  useEffect(() => { if (open) bottom.current?.scrollIntoView({ block: "end" }); }, [turns, open]);
 
   const update = (id: number, patch: (t: Turn) => Partial<Turn>) =>
     setTurns((all) => all.map((t) => (t.id === id ? { ...t, ...patch(t) } : t)));
@@ -87,9 +87,11 @@ export function AskBox() {
         <kbd className="text-[11px] text-muted border border-line-2 rounded px-1.5">/</kbd>
       </form>
 
-      {open && turns.length > 0 && (
-        <div className="absolute right-0 top-[calc(100%+10px)] z-20 w-[min(620px,92vw)] max-h-[72vh] overflow-auto
-          bg-panel border border-line rounded-card shadow-[0_18px_50px_rgba(0,0,0,0.22)] p-4 flex flex-col gap-4">
+      {/* Closed = hidden, not removed: the buttons under each answer keep what you pressed. (Removed
+          and built again, they came back as if nothing had been pressed, and a press said 409.) */}
+      {turns.length > 0 && (
+        <div className={`${open ? "flex" : "hidden"} absolute right-0 top-[calc(100%+10px)] z-20 w-[min(620px,92vw)] max-h-[72vh]
+          overflow-auto bg-panel border border-line rounded-card shadow-[0_18px_50px_rgba(0,0,0,0.22)] p-4 flex-col gap-4`}>
           <div className="flex items-center">
             <span className="text-sm font-semibold grow">ถามเลขา</span>
             <Button sm kind="ghost" onClick={() => setTurns([])}>ล้าง</Button>

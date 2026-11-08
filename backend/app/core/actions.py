@@ -42,6 +42,10 @@ class UndoError(ValueError):
     """The action can't be undone (already undone, not undoable, gone). The message says why."""
 
 
+class AlreadyUndone(UndoError):
+    """Undone already (from another copy of its button, the log page or Discord): nothing to do."""
+
+
 def register_undo(kind: str, fn: UndoFn) -> None:
     _undo_fns[kind] = fn
 
@@ -67,7 +71,7 @@ async def undo(action_id: int) -> Action:
     if a is None:
         raise UndoError("ไม่พบรายการนี้")
     if a.undone_at is not None:
-        raise UndoError("รายการนี้ย้อนกลับไปแล้ว")
+        raise AlreadyUndone("รายการนี้ย้อนกลับไปแล้ว")
     if not undoable(a):
         raise UndoError("รายการนี้ย้อนกลับไม่ได้")
     await _undo_fns[a.kind](a.undo or {})  # the feature reverses it; raises UndoError if it can't any more

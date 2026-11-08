@@ -18,8 +18,11 @@ def list_log(range: str = Query("today", pattern="^(today|7d|all)$"),
 
 @router.post("/{action_id}/undo")
 async def undo(action_id: int) -> dict:
+    """409 = undone already (the page then shows it as undone); 422 = it can't be undone, and why."""
     try:
         a = await actions.undo(action_id)
-    except actions.UndoError as exc:
+    except actions.AlreadyUndone as exc:
         raise HTTPException(409, str(exc)) from exc
+    except actions.UndoError as exc:
+        raise HTTPException(422, str(exc)) from exc
     return actions.as_dict(a)

@@ -1,8 +1,9 @@
 // What an order in the chat did, and what waits for ทำเลย (B9): the same list and buttons as under
 // the answer in #คุยกับเลขา. ย้อนกลับ undoes one thing, and the others stay; ทำเลย carries out what
-// can't be undone, once.
+// can't be undone, once. A button answered elsewhere (Discord, the bell) says what happened when
+// pressed, instead of an error next to buttons that look as if they still work.
 import { useState } from "react";
-import { api, type ConfirmItem, type DoneItem } from "../api";
+import { answeredAlready, api, type ConfirmItem, type DoneItem } from "../api";
 import { useStatus } from "../status";
 import { Button } from "./ui";
 
@@ -32,7 +33,10 @@ function DoneLine({ n, item }: { n: number; item: DoneItem }) {
   const [error, setError] = useState("");
   const undo = async () => {
     setState("busy"); setError("");
-    try { await api.undo(item.id); setState("undone"); refresh(); } catch (e) { setError((e as Error).message); setState(""); }
+    try { await api.undo(item.id); setState("undone"); refresh(); } catch (e) {
+      if (answeredAlready(e)) setState("undone"); // undone already, elsewhere: the same thing
+      else { setError((e as Error).message); setState(""); }
+    }
   };
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -61,12 +65,16 @@ export function ConfirmButtons({ id, onDone }: { id: number; onDone?: () => void
   const [said, setSaid] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const settle = (text: string) => {
+    setSaid(text); refresh();
+    if (onDone) setTimeout(onDone, 1500); // the bell drops the row: let the result show first
+  };
   const answer = async (yes: boolean) => {
     setBusy(true); setError("");
-    try {
-      setSaid((await api.confirmOrder(id, yes)).text); refresh();
-      if (onDone) setTimeout(onDone, 1500); // the bell drops the row: let the result show first
-    } catch (e) { setError((e as Error).message); }
+    try { settle((await api.confirmOrder(id, yes)).text); } catch (e) {
+      if (answeredAlready(e)) settle(e.message); // answered elsewhere, or expired: say what happened
+      else setError((e as Error).message); // doing it failed: nothing was done, the buttons stay
+    }
     setBusy(false);
   };
   if (said) return <span className="text-xs text-ink-2">{said}</span>;

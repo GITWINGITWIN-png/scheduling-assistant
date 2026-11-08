@@ -165,8 +165,8 @@ def test_what_cant_be_undone_waits_for_yes_and_runs_once(monkeypatch):
         assert (s.get(Decision, decision_id).kind, s.get(Decision, decision_id).status) == ("order", "pending")
     assert asyncio.run(orders.confirm(decision_id, True, via=("ปุ่มยืนยัน", ""))) == "วางตารางใหม่แล้ว · ย้าย 2 บล็อก"
     assert ran == [("ปุ่มยืนยัน", "")]
-    with pytest.raises(orders.ConfirmError, match="ตอบไปแล้ว"):
-        asyncio.run(orders.confirm(decision_id, True, via=VIA))  # a second press doesn't run it again
+    with pytest.raises(orders.ConfirmError, match="ทำแล้ว: วางตารางใหม่แล้ว · ย้าย 2 บล็อก"):
+        asyncio.run(orders.confirm(decision_id, True, via=VIA))  # a second press doesn't run it again, and says so
     call(ts, "replan")
     assert asyncio.run(orders.confirm(taken.confirm[1], False, via=VIA)).startswith("ไม่ทำแล้ว") and len(ran) == 1
     call(ts, "replan")
@@ -183,7 +183,7 @@ def test_a_failed_yes_waits_again(monkeypatch):
     monkeypatch.setattr(sync, "replan_now", broken)
     ts, taken = tools()
     call(ts, "replan")
-    with pytest.raises(orders.ConfirmError, match="ทำไม่สำเร็จ: Google ไม่ตอบ"):
+    with pytest.raises(orders.ConfirmFailed, match="ทำไม่สำเร็จ: Google ไม่ตอบ"):  # not "answered": the buttons stay
         asyncio.run(orders.confirm(taken.confirm[0], True, via=VIA))
     with session() as s:
         assert s.get(Decision, taken.confirm[0]).status == "pending"  # press again once Google is back
@@ -546,3 +546,46 @@ def test_discord_history_has_the_cards_lists_and_only_you_and_the_secretary(monk
     said = asyncio.run(ask_discord._history(SimpleNamespace(channel=SimpleNamespace(history=history))))
     assert said == [("คุณ", "เปลี่ยน ULMs เป็น C3"),
                     ("เลขา", "ทำไป 12 · ยังเหลือ 8\nเลขาทำแล้ว\n1. แก้โปรเจค ulms-fix-10 · สถานะ จบแล้ว")]
+
+
+# ------------------------------------------------------------------ B9 check: buttons of something already answered
+from fastapi import HTTPException  # noqa: E402
+
+from app.api import log as api_log  # noqa: E402
+
+
+def _status(fn, *args) -> tuple[int, str]:
+    try:
+        result = fn(*args)
+        if asyncio.iscoroutine(result):
+            asyncio.run(result)
+    except HTTPException as exc:
+        return exc.status_code, exc.detail
+    return 200, ""
+
+
+def test_a_second_press_says_what_happened_with_409_and_a_failure_keeps_its_buttons(monkeypatch):
+    monkeypatch.setattr(ask, "start_carry_out", lambda decision_id, via=ask.WEB: True)  # not carried out here
+    plan = _plan()
+    approve = api_ask.DecideIn(action="approve")
+    assert _status(api_ask.decide, plan, approve)[0] == 200
+    assert _status(api_ask.decide, plan, approve) == (409, "แผนนี้ตอบไปแล้ว · ✅ ใช้แผนนี้แล้ว")
+    assert _status(api_ask.revise, plan, api_ask.ReviseIn(change="ย้ายเป็นพุธ")) == (409, "แผนนี้ตอบไปแล้ว · ✅ ใช้แผนนี้แล้ว")
+
+    async def broken(via):
+        raise RuntimeError("Google ไม่ตอบ")
+    monkeypatch.setattr(sync, "replan_now", broken)
+    ts, taken = tools()
+    call(ts, "replan")
+    order = taken.confirm[0]
+    assert _status(api_ask.confirm_order, order, api_ask.ConfirmIn(yes=True))[0] == 422  # failed: press again
+    assert _status(api_ask.confirm_order, order, api_ask.ConfirmIn(yes=False)) == (200, "")
+    assert _status(api_ask.confirm_order, order, api_ask.ConfirmIn(yes=True)) == (409, "ไม่ทำแล้ว: วางตารางใหม่ทั้งหมด (ย้ายบล็อกงานที่ยังไม่ถึงเวลา)")
+
+
+def test_undoing_twice_is_409_and_what_cant_be_undone_is_422():
+    done = store.jot("od-จดจากแชท", via=VIA)["action_id"]
+    assert _status(api_log.undo, done) == (200, "")
+    assert _status(api_log.undo, done) == (409, "รายการนี้ย้อนกลับไปแล้ว")  # the page shows it as undone
+    plain = actions.record("note", "บันทึกเฉยๆ")
+    assert _status(api_log.undo, plain) == (422, "รายการนี้ย้อนกลับไม่ได้")

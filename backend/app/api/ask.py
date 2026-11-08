@@ -113,9 +113,15 @@ class ConfirmIn(BaseModel):
 
 @router.post("/orders/{decision_id}")
 async def confirm_order(decision_id: int, body: ConfirmIn) -> dict:
-    """ทำเลย · ไม่เอา for an order that can't be undone (under an answer, or in the bell)."""
+    """ทำเลย · ไม่เอา for an order that can't be undone (under an answer, or in the bell).
+
+    409 = answered already (or expired): the page shows what happened instead of the buttons.
+    422 = doing it failed: nothing was done, and the buttons stay for another press.
+    """
     try:
         return {"text": await ask_orders.confirm(decision_id, body.yes, via=("หน้าเว็บ", ""))}
+    except ask_orders.ConfirmFailed as exc:
+        raise HTTPException(422, str(exc)) from exc
     except ask_orders.ConfirmError as exc:
         raise HTTPException(409, str(exc)) from exc
 

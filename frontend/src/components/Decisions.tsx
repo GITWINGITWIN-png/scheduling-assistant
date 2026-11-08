@@ -113,9 +113,10 @@ export function DecisionRow({ d, onChange }: { d: Decision; onChange?: () => voi
 function WeeklyRow({ d, onChange }: { d: Decision; onChange?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState("");
+  const [answered, setAnswered] = useState(false); // then only what was done shows (the bell keeps the row)
   const act = async (a: string) => {
     setBusy(true);
-    try { setSaid((await api.answerWeekly(d.id, a)).text); onChange?.(); } catch (e) { setSaid((e as Error).message); }
+    try { setSaid((await api.answerWeekly(d.id, a)).text); setAnswered(true); onChange?.(); } catch (e) { setSaid((e as Error).message); }
     setBusy(false);
   };
   return (
@@ -125,8 +126,8 @@ function WeeklyRow({ d, onChange }: { d: Decision; onChange?: () => void }) {
         <span className="block font-semibold text-[13.5px]">ทบทวนรายสัปดาห์ · {d.label}: {d.title}</span>
         <span className="block text-xs text-ink-2">{said || d.what}</span>
       </span>
-      {d.topic === "people" && <Link to="/people" className="inline-flex items-center rounded-full border border-line-2 bg-panel hover:bg-panel-2 px-3 py-1 text-xs font-medium">เลือกรายคน</Link>}
-      {(d.acts ?? []).map(([a, label]) => (
+      {!answered && d.topic === "people" && <Link to="/people" className="inline-flex items-center rounded-full border border-line-2 bg-panel hover:bg-panel-2 px-3 py-1 text-xs font-medium">เลือกรายคน</Link>}
+      {!answered && (d.acts ?? []).map(([a, label]) => (
         <button key={a} type="button" disabled={busy} onClick={() => act(a)}
           className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium cursor-pointer disabled:opacity-50 ${a === "reject" ? "border border-line-2 bg-panel hover:bg-panel-2" : "bg-accent text-accent-ink hover:bg-accent-strong"}`}>
           {label}</button>
