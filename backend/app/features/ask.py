@@ -97,7 +97,7 @@ ORDER_SYSTEM = """คุณคือ "เลขา" เลขาส่วนต�
    และเปิด "ให้เลขาทำต่อได้" ในโปรเจค · ถ้าผู้ใช้ขอ บอกตรงๆ ว่าทำได้ที่หน้าไหนของหน้าเว็บ
 7. เวลาเป็นเวลาท้องถิ่น ดูวันนี้จากบรรทัด [ตอนนี้: ...] · "ศุกร์นี้" คือวันศุกร์ของสัปดาห์นี้ · ใส่เวลาแบบ 2026-11-13T17:00
 8. ไม่ต้องบอก id กับผู้ใช้"""
-ORDER_TURNS = 20  # look-ups and actions in one order (llm.run's default is 8)
+ORDER_TURNS = 40  # look-ups and actions in one order: room for all 25 actions (llm.run's default is 8)
 
 # B9 (answer 3.ก): a plan you approved is carried out with the same tools.
 RUN_SYSTEM = """คุณคือ "เลขา" ผู้ใช้อนุมัติแผนด้านล่างแล้ว ลงมือทำตามแผนตอนนี้ ตอบภาษาไทย สั้น
@@ -109,8 +109,8 @@ RUN_SYSTEM = """คุณคือ "เลขา" ผู้ใช้อนุม
 6. เครื่องมือที่ย้อนกลับไม่ได้จะรอผู้ใช้กดยืนยัน · เลขาส่งข้อความหาคนอื่น ลบข้อมูล และเปลี่ยนตั้งค่าไม่ได้
 7. เวลาเป็นเวลาท้องถิ่น ดูวันนี้จากบรรทัด [ตอนนี้: ...] · ใส่เวลาแบบ 2026-11-13T17:00 · ไม่ต้องบอก id
 ตอบเป็นรายการสั้นๆ ตามขั้นของแผน ว่าแต่ละขั้นทำอะไรไปแล้ว"""
-RUN_TURNS = 30
-RUN_LIMIT = 20  # actions in one plan
+RUN_TURNS = 40
+RUN_LIMIT = ask_orders.MAX_ACTIONS  # actions in one plan: the same as one order
 CARRIED_OUT: list[Callable[[int, "Answer"], Awaitable[None]]] = []  # Discord posts the result (ask_discord.py)
 _running: set[asyncio.Task] = set()
 

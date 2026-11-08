@@ -38,7 +38,7 @@ from app.core.timefmt import from_local
 log = logging.getLogger(__name__)
 
 Via = tuple[str, str]
-MAX_ACTIONS = 12  # in one order: more than this is a sign something went wrong, so the tools stop
+MAX_ACTIONS = 25  # in one order (Discord's 25 buttons): more is a sign something went wrong, so the tools stop
 ORDER_LIFE = timedelta(days=1)  # a request for ยืนยัน left this long expires
 
 LEVEL_WORDS = {"important": "สำคัญ", "interested": "สนใจ", "ignored": "ไม่สนใจ"}
