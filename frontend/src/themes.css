@@ -1,0 +1,68 @@
+/* The six themes agreed in stage 2 (W11): the same shape (C's corners and font), different colours.
+   Values copied from the mockups (docs/plan-v2/stage2/web.py THEME_CSS and the skill's look.css).
+   The <html data-theme="..."> attribute picks one; the backend stores your choice (ui.theme). */
+
+:root {
+  --radius: 18px; --radius-s: 12px;
+  --font: "Anuphan", "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, sans-serif;
+  --shadow: 0 1px 2px rgba(20, 20, 30, 0.06), 0 4px 14px rgba(20, 20, 30, 0.06);
+  --ok: #16A34A; --ok-soft: #DCFCE7; --warn: #D97706; --warn-soft: #FEF3C7; --bad: #DC2626; --bad-soft: #FEE2E2;
+}
+
+/* อิฐนุ่ม (C เดิม) */
+[data-theme="c"] {
+  --bg: #FAF5EE; --panel: #FFFDFA; --panel-2: #F5EDE3; --side-bg: #F6EEE4; --top-bg: #FFFDFA;
+  --ink: #2C221A; --ink-2: #5D5045; --muted: #8B7D70; --line: #EBE0D3; --line-2: #DCCDBC;
+  --accent: #DD5F3A; --accent-ink: #FFFFFF; --accent-soft: #FBE6DD; --accent-strong: #B9461F;
+  --ok: #2F8C73; --ok-soft: #DEF1EA; --warn: #B7791F; --warn-soft: #FBEFD9; --bad: #C8463D; --bad-soft: #FBE4E1;
+  --shadow: 0 1px 2px rgba(60, 40, 20, 0.05), 0 4px 16px rgba(60, 40, 20, 0.06);
+}
+/* ส้มสด (ค่าเริ่ม) */
+:root, [data-theme="cs"] {
+  --bg: #F5F5F3; --panel: #FFFFFF; --panel-2: #F0EFEC; --side-bg: #FFFFFF; --top-bg: #FFFFFF;
+  --ink: #17120E; --ink-2: #4A433D; --muted: #7A736C; --line: #E7E4E0; --line-2: #D4CFC9;
+  --accent: #F25F0C; --accent-ink: #FFFFFF; --accent-soft: #FFE9DB; --accent-strong: #C2410C;
+}
+/* ฟ้า */
+[data-theme="cb"] {
+  --bg: #F3F6FA; --panel: #FFFFFF; --panel-2: #EDF1F7; --side-bg: #FFFFFF; --top-bg: #FFFFFF;
+  --ink: #0F172A; --ink-2: #475569; --muted: #64748B; --line: #E2E8F0; --line-2: #CBD5E1;
+  --accent: #2563EB; --accent-ink: #FFFFFF; --accent-soft: #DBEAFE; --accent-strong: #1D4ED8;
+}
+/* เขียว */
+[data-theme="cg"] {
+  --bg: #F2F7F4; --panel: #FFFFFF; --panel-2: #EAF2EE; --side-bg: #FFFFFF; --top-bg: #FFFFFF;
+  --ink: #0C1F17; --ink-2: #3F5249; --muted: #66796F; --line: #DFE8E3; --line-2: #C7D5CD;
+  --accent: #059669; --accent-ink: #FFFFFF; --accent-soft: #D1FAE5; --accent-strong: #047857;
+}
+/* ม่วง */
+[data-theme="cp"] {
+  --bg: #F6F4FB; --panel: #FFFFFF; --panel-2: #F0EDF8; --side-bg: #FFFFFF; --top-bg: #FFFFFF;
+  --ink: #1B1530; --ink-2: #4C4467; --muted: #766F8F; --line: #E6E1F0; --line-2: #D2CBE3;
+  --accent: #7C3AED; --accent-ink: #FFFFFF; --accent-soft: #EDE9FE; --accent-strong: #6D28D9;
+}
+/* มืด */
+[data-theme="cd"] {
+  color-scheme: dark;
+  --bg: #111113; --panel: #1B1B1F; --panel-2: #25252B; --side-bg: #151518; --top-bg: #18181B;
+  --ink: #F4F4F5; --ink-2: #C7C7CF; --muted: #90909B; --line: #2B2B32; --line-2: #3B3B44;
+  --accent: #FF7A3D; --accent-ink: #1A0C04; --accent-soft: #3B2216; --accent-strong: #FF9B6B;
+  --ok: #34D399; --ok-soft: #10302A; --warn: #FBBF24; --warn-soft: #352A0E; --bad: #F87171; --bad-soft: #3A1D1D;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* the swatches in the theme picker */
+.tsw-c  { background: linear-gradient(135deg, #FAF5EE 0 52%, #DD5F3A 52%); }
+.tsw-cs { background: linear-gradient(135deg, #FFFFFF 0 52%, #F25F0C 52%); }
+.tsw-cb { background: linear-gradient(135deg, #FFFFFF 0 52%, #2563EB 52%); }
+.tsw-cg { background: linear-gradient(135deg, #FFFFFF 0 52%, #059669 52%); }
+.tsw-cp { background: linear-gradient(135deg, #FFFFFF 0 52%, #7C3AED 52%); }
+.tsw-cd { background: linear-gradient(135deg, #1B1B1F 0 52%, #FF7A3D 52%); }
+
+/* B6: chart colours (the mockups' --c1 … --c6, per theme): time per category and per project (W7). */
+:root, [data-theme="cs"] { --c1: #F25F0C; --c2: #0D9488; --c3: #EAB308; --c4: #7C3AED; --c5: #A8A29E; --c6: #DB2777; }
+[data-theme="c"] { --c1: #DD5F3A; --c2: #2F8C73; --c3: #E2A63B; --c4: #8C6BC4; --c5: #B5A898; --c6: #D3708E; }
+[data-theme="cb"] { --c1: #2563EB; --c2: #0D9488; --c3: #F59E0B; --c4: #8B5CF6; --c5: #94A3B8; --c6: #EC4899; }
+[data-theme="cg"] { --c1: #059669; --c2: #2563EB; --c3: #F59E0B; --c4: #8B5CF6; --c5: #9CA9A2; --c6: #E11D48; }
+[data-theme="cp"] { --c1: #7C3AED; --c2: #0D9488; --c3: #F59E0B; --c4: #DB2777; --c5: #A39DB5; --c6: #2563EB; }
+[data-theme="cd"] { --c1: #FF7A3D; --c2: #34D399; --c3: #FBBF24; --c4: #A78BFA; --c5: #71717A; --c6: #F472B6; }

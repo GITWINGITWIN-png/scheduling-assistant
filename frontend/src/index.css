@@ -1,9 +1,134 @@
 @import "tailwindcss";
+@import "./themes.css";
 
-/* Make the app fill the viewport so h-screen layouts work. */
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
+/* Tailwind utilities that read the theme's colours: bg-panel, text-ink, border-line, bg-accent, ...
+   "inline" keeps them as var(--...) so changing data-theme recolours everything at once. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-side: var(--side-bg);
+  --color-top: var(--top-bg);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-strong: var(--accent-strong);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --radius-card: var(--radius);
+  --radius-s: var(--radius-s);
+  --shadow-card: var(--shadow);
+  --font-sans: var(--font);
 }
+
+body { background: var(--bg); color: var(--ink); }
+
+/* Markdown answers from the secretary (lists, tables, bold) */
+.prose-answer { line-height: 1.65; }
+.prose-answer > * + * { margin-top: 0.6em; }
+.prose-answer ul { list-style: disc; padding-left: 1.3em; }
+.prose-answer ol { list-style: decimal; padding-left: 1.3em; }
+.prose-answer li + li { margin-top: 0.2em; }
+.prose-answer strong { font-weight: 600; }
+.prose-answer code { background: var(--panel-2); border-radius: 6px; padding: 0 0.3em; font-size: 0.92em; }
+.prose-answer table { border-collapse: collapse; width: 100%; font-size: 0.92em; }
+.prose-answer th, .prose-answer td { border-bottom: 1px solid var(--line); padding: 0.35em 0.5em; text-align: left; }
+.prose-answer th { color: var(--muted); font-weight: 500; }
+.prose-answer a { color: var(--accent-strong); text-decoration: underline; }
+
+/* ------------------------------------------------------------------ W5: the week, as the plan draws it
+   The plan's mockup (look.css .wk / .ev, docs/plan-v2/stage2/web.py w5): no grid lines, hour labels
+   every two hours, the day's short name over its date with today in an accent pill, a light tint on
+   today's column, and soft cards with a coloured left edge, a bold title and one line under it.
+   FullCalendar v6 reads its colours from --fc-* variables; everything else is overridden here, so
+   all six themes (and dark) apply. The kinds (.ev.meet, .dead, .done, .miss, .past, .ghost) are set
+   in pages/schedule/Week.tsx. */
+.schedule-cal .fc {
+  --fc-border-color: transparent;
+  --fc-page-bg-color: var(--panel);
+  --fc-neutral-bg-color: transparent;
+  --fc-today-bg-color: color-mix(in srgb, var(--accent-soft) 40%, transparent);
+  --fc-now-indicator-color: var(--accent);
+  --fc-highlight-color: color-mix(in srgb, var(--accent) 14%, transparent);
+  --fc-event-bg-color: var(--accent-soft);
+  --fc-event-border-color: var(--accent);
+  --fc-event-text-color: var(--accent-strong);
+  --fc-small-font-size: 11px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.schedule-cal .fc .fc-scrollgrid, .schedule-cal .fc th, .schedule-cal .fc td { border: 0; }
+
+/* the day headers: "พ." over "4", each with its own underline, today in a pill */
+.schedule-cal .fc .fc-col-header-cell { padding: 0 2px; font-weight: 400; background: var(--panel); }
+.schedule-cal .fc .fc-col-header-cell-cushion { display: block; padding: 0; }
+.schedule-cal .wk-d { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 0 6px;
+  font-size: 11.5px; color: var(--muted); border-bottom: 1px solid var(--line); }
+.schedule-cal .wk-d b { font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--ink); padding: 0 7px; border-radius: 999px; }
+.schedule-cal .wk-d b.today { background: var(--accent); color: var(--accent-ink); }
+.schedule-cal .wk-n { display: block; padding: 2px 0 6px; font-size: 11.5px; color: var(--muted); border-bottom: 1px solid var(--line); }
+
+/* the hours: no lines, a label every two hours at the top of its row */
+.schedule-cal .fc .fc-timegrid-slot { height: 20px; }
+.schedule-cal .fc .fc-timegrid-slot-label { vertical-align: top; }
+.schedule-cal .fc .fc-timegrid-slot-label-cushion { padding: 3px 8px 0 0; font: 10.5px/1 ui-monospace, "JetBrains Mono", monospace; color: var(--muted); }
+.schedule-cal .fc .fc-timegrid-axis-cushion { font-size: 11px; color: var(--muted); }
+.schedule-cal .fc .fc-timegrid-col-events { margin: 0 3px; }
+.schedule-cal .fc .fc-timegrid-col.fc-day-today { border-radius: 6px; }
+.schedule-cal .fc .fc-daygrid-day-number { font-size: 12px; color: var(--ink-2); }
+.schedule-cal .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: var(--accent-strong); font-weight: 700; }
+.schedule-cal .fc-timegrid-slot-lane, .schedule-cal .fc-daygrid-day-frame { cursor: cell; }
+.schedule-cal .fc .fc-timegrid-now-indicator-line { border-width: 1.5px 0 0; }
+.schedule-cal .fc .fc-timegrid-now-indicator-arrow { display: none; } /* it covered the hour labels */
+
+/* the cards */
+.schedule-cal .fc .fc-event.ev { cursor: pointer; background: var(--accent-soft); color: var(--accent-strong);
+  border: 0; border-left: 3px solid var(--accent); border-radius: 6px; box-shadow: none; }
+.schedule-cal .fc-timegrid-event-harness-inset .fc-timegrid-event.ev { box-shadow: 0 0 0 1px var(--panel); }
+.schedule-cal .fc .fc-event.ev .fc-event-main { color: inherit; padding: 3px 6px; }
+.schedule-cal .ev-in { font-size: 11px; line-height: 1.3; overflow: hidden; min-width: 0; }
+.schedule-cal .ev-in b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.schedule-cal .ev-in span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.schedule-cal .fc-daygrid-event .ev-in span { display: none; } /* month view: the title only */
+.schedule-cal .fc .fc-event.ev.meet { background: var(--bad-soft); color: var(--bad); border-left-color: var(--bad); }
+.schedule-cal .fc .fc-event.ev.dead { background: var(--warn-soft); color: var(--warn); border-left-color: var(--warn); }
+.schedule-cal .fc .fc-event.ev.done { background: var(--ok-soft); color: var(--ok); border-left-color: var(--ok); }
+.schedule-cal .fc .fc-event.ev.miss { background: var(--panel); color: var(--muted); border: 1.5px dashed var(--line-2); }
+.schedule-cal .fc .fc-event.ev.past { opacity: 0.55; }
+.schedule-cal .fc .fc-event.ev.ghost { box-shadow: 0 0 0 2px var(--accent), 0 6px 16px rgba(0, 0, 0, 0.18); z-index: 5; }
+.schedule-cal .fc .fc-event-mirror.fc-event { background: var(--accent-soft); border: 0; border-left: 3px solid var(--accent); border-radius: 6px; }
+
+/* the small colour square in front of a title on the item's card (schedule/DetailCard.tsx) */
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 4px; background: var(--accent); }
+.swatch.meet { background: var(--bad); } .swatch.dead { background: var(--warn); } .swatch.done { background: var(--ok); }
+.swatch.miss { background: transparent; border: 1.5px dashed var(--line-2); }
+
+/* ------------------------------------------------------------------ W1: the day as rows, as the plan draws it
+   (look.css .tl / .blk): a lane label, then half-hour columns from 07:00 to 23:00, a label every two hours,
+   soft blocks with a coloured left edge, a red line for now (pages/Today.tsx). */
+.day-rows { display: grid; grid-auto-rows: 34px; grid-template-rows: 18px; row-gap: 6px; align-items: stretch; position: relative; }
+.dr-h { font: 11px/16px ui-monospace, "JetBrains Mono", monospace; color: var(--muted); align-self: end; white-space: nowrap; }
+.dr-lane { grid-column: 1; font-size: 11.5px; font-weight: 600; color: var(--muted); align-self: center; }
+.dr-later { align-self: center; display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted);
+  border: 1.5px dashed var(--line); border-radius: 7px; padding: 0 8px; height: 100%; }
+.dr-now { width: 2px; background: var(--bad); border-radius: 1px; justify-self: start; position: relative; z-index: 2; }
+.dr-now::before { content: ""; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--bad); }
+.blk { border-radius: 7px; padding: 3px 6px; font-size: 11px; line-height: 1.3; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  min-width: 0; align-self: stretch; display: flex; align-items: center; margin-right: 2px; cursor: default;
+  background: var(--accent-soft); color: var(--accent-strong); border-left: 3px solid var(--accent); }
+.blk.meet { background: var(--bad-soft); color: var(--bad); border-left-color: var(--bad); }
+.blk.dead { background: var(--warn-soft); color: var(--warn); border-left-color: var(--warn); }
+.blk.bg { background: var(--panel-2); color: var(--ink-2); border-left-color: var(--muted); }
+.blk.miss { background: transparent; color: var(--muted); border: 1.5px dashed var(--line-2); }
+.blk.job { background: var(--panel-2); color: var(--ink-2); border-left-color: #A855C9; } /* background work (the mockup's purple) */
+.blk.done { background: var(--ok-soft); color: var(--ok); border-left-color: var(--ok); } /* B6 ทำจริง: work */
+.blk.other { background: var(--panel-2); color: var(--muted); border-left-color: var(--c5, var(--muted)); } /* B6 ทำจริง: the rest */

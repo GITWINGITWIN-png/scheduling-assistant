@@ -1,407 +1,309 @@
 # my_secretary
 
-A personal scheduling secretary that sits on top of your Google Calendar. It
-helps manage your daily and academic schedule, and — the headline feature —
-plans work time backward from your project deadlines based on your actual
-progress (read automatically from your git repos / TODO, not just manual entry).
+A personal secretary that runs on your own computer. It reads your Gmail according to who
+sent it, plans your week into Google Calendar, and keeps your projects moving when your
+Claude quota runs out. It reports to you on Discord and on a local web page. Everything it
+does is logged, and an action that can be undone carries its undo.
 
-> This README is the project's canonical record: roadmap, web design,
-> architecture decisions, important constraints, and a progress log all live here.
+> This README is the project's canonical record: what the secretary does, how it is built,
+> how to run it, and how it got here. `PROGRESS.md` tracks only what is still in flight.
 
-> **v2 is planned (2026-11-05).** The redesign was agreed on the plan board in three stages
-> (features → look → development plan). **The plan to follow is
-> [`docs/plan-v2/PLAN.md`](docs/plan-v2/PLAN.md)**, and the build checklist (B1–B8) is in
-> `PROGRESS.md`. v2 is a clean rewrite on branch `v2`. Everything below describes v1, which
-> stays in `main` and tag `v1-final` for reference.
-
----
-
-## Status
-
-**M6 — Email intake (read-only)** is done: a new **Mail** page browses/searches the
-inbox (free Google API) and **scans** mail with a **local LLM via Ollama**
-(`scb10x/llama3.1-typhoon2-8b-instruct`, Thai/English) to extract deadlines/meetings/events
-as *suggestions only* — no Claude tokens, and mail bodies never leave the machine. Scan
-scope is **Unread** or **Today (all read+unread)**; a scheduler job pre-warms today's scan
-each morning. Scans **auto-pin** schedule-worthy items (dated, or deadline/meeting/event) to
-the Projects page ("📧 From email" section), and **dated ones are added to your calendar** —
-you review and **unpin** anything you don't want (unpin also removes the event). Pinning an
-old, never-scanned email triggers a **deeper re-read** to recover its date + a summary. The
-secretary can also read mail in chat (`search_email`, `recent_unread_email`). All read-only
-(`gmail.readonly`); sending is M7.
-
-**M5 — Proactive engine** is done: the Home page shows a **daily brief** (Claude
-writes a short morning summary from your calendar + deadlines, generated once a day
-and cached) and **deadline nudges** (overdue / due-soon / replan suggestions,
-tokenless). An APScheduler job pre-warms the brief each morning; it also generates
-lazily on first open. Nightly replan is **suggest-only** (never edits your calendar).
-M0–M4 are complete: calendar plumbing + chat agent, the dashboard, the Google
-Classroom academic layer, and the project planner (headline feature; smart planning
-is chat-driven).
-
-### Roadmap
-- **M0** Foundation: Google OAuth + read/write a calendar event ✓
-- **M1** Chat assistant: Claude agent with calendar tools (full CRUD) ✓
-- **M2** React dashboard: 3 pages, live calendar + global chat ✓
-- **M3** Academic input: **Google Classroom** (courses, assignments + due dates,
-  submission status — **not** course materials; on a *separate school account*) ✓
-- **M4** Project planner: backward-plan work blocks from deadlines + auto-read
-  progress; supplies last-commit + status to the Projects page (deterministic core
-  + opt-in Claude reprioritization) ✓
-- **M5** Proactive engine: daily brief (Claude, cached daily), deadline nudges, and
-  suggest-only nightly replan (APScheduler) ✓
-- **M6** Email intake (read-only): Mail page (browse/search), local-LLM schedule
-  extraction, email Q&A in chat. Extraction is **offloaded to a local LLM via Ollama**
-  (free, private, off the Pro budget); Claude stays for chat + tool use. ✓
-- **M7** Email replies (write): draft + send, **always with explicit approval before sending**.
-  ← *we are here next*
+**Status: v2 (2026-11-08).**
+- v2 is a clean rewrite. It was planned on a plan board in three stages (features → look →
+  development plan) and built phase by phase from [`docs/plan-v2/PLAN.md`](docs/plan-v2/PLAN.md).
+- Phases B1–B7 are done and merged.
+- B8 (the web page on the iPad through Tailscale) is set aside for now; the iPad uses Discord.
+- A few checks still wait for their real time; they're listed in `PROGRESS.md`.
+- v1 is kept at tag `v1-final`, and its README is archived in [`docs/v1/README.md`](docs/v1/README.md).
 
 ---
 
-## Web design (the 3-page app)
+## What it does
 
-React Router with a top nav: **Home / Academic / Projects**. The chat is a single
-**global floating widget** mounted once at the app shell (bottom-right on every
-page) — it is the **same conversation everywhere** and **persists across navigation**
-(hidden with CSS when closed, never unmounted, so history survives).
+You reach the secretary in two places. Both are in Thai.
 
-- **Page 1 — Home** (`pages/Home.tsx`): FullCalendar **week** view on top, LIVE
-  against the backend (fetches the *visible* range via `fetchEventsRange` →
-  `GET /calendar/range`, refetches on navigation). Bottom row is LIVE (M5):
-  **☀️ Daily brief** (`GET /brief/today`, with a Refresh button) + **⏰ Deadlines**
-  (`GET /nudges`: overdue / due-soon / replan suggestions).
-- **Page 2 — Academic** (`pages/Academic.tsx`): LIVE (M3). Top = outstanding
-  to-dos split into Overdue / Upcoming / No-deadline (the "keep but separate"
-  choice); below = every subject with its assignments, due dates, submission-state
-  badges, and live (per-minute) countdowns, sorted by deadline. One fetch of
-  `/academic/assignments` feeds both sections.
-- **Page 3 — Projects** (`pages/Projects.tsx`): LIVE (M4). **Discover repos** (scan a
-  folder), per-project cards (name, last commit, status, deadline, effort), inline
-  edit, and **Plan now → preview → "Add to calendar"** (free deterministic, per
-  project). Cross-project / constrained planning is done in **chat**, not here.
+- **A private Discord server.** It works the same from the computer, the iPad or the phone.
+  The bot makes five channels:
+  - **#คุยกับเลขา:** your questions and commands.
+  - **#ด่วน:** mail from important people, appointments it added to your calendar, and
+    reminders before appointments and deadlines.
+  - **#สรุป:** the morning brief, the evening review and the weekly review.
+  - **#อนุมัติ:** plans that need your yes, with buttons.
+  - **#ไอเดีย:** ideas you type from any device.
+- **A web page** at http://localhost:8000 on this computer. Pages:
+  - วันนี้, คนและอีเมล, โปรเจค, งานเบื้องหลัง, ตาราง, ไอเดีย, การใช้เวลา, สมุดกติกา,
+    สิ่งที่เลขาทำ, ตั้งค่า;
+  - a top bar with the ask box, the bell (everything waiting for you), a theme picker (6
+    themes) and จดไอเดีย.
 
-**LIVE in M2** = Home calendar + global chat. Everything else is a styled
-placeholder/empty state shaped for drop-in data later.
+### Mail and people
+- **Rounds:** every email is checked, read or not, in a big round at 00:00 and a small one at
+  12:00. Important people and keywords are watched every 5 minutes.
+- **Three tiers:**
+  - **สำคัญ** (important): you're told at once. Each person has an end date and your note
+    about why.
+  - **สนใจ** (interested): one summary per person per day. First-time senders start here.
+  - **ไม่สนใจ** (ignored): subjects only.
+- **Appointments:** from important people they go straight into Google Calendar, with a link
+  to the email and an undo. From interested people they wait for your yes.
+- **Follow-ups:** tasks found in mail, and replies you're waiting for, are tracked until they
+  close.
+- **Gmail is read-only.**
 
-**Frontend layout:**
+### Schedule
+- **One week:** Google Calendar, Classroom coursework, tasks from mail, projects and your own
+  tasks.
+- **Work blocks** are planned backwards from deadlines and synced to Google Calendar. They
+  respect your rules: hours to avoid, and focus hours filled first.
+- **Reminders** go out before appointments and deadlines.
+- **Planned vs actual:** each block is compared with what you actually did (from ActivityWatch).
+
+### Briefs and reviews
+- **Morning brief at 07:00:** important mail, who sent what, today's appointments, project
+  news and what waits for you.
+- **Evening review at 21:00:** how the day went against the plan.
+- **Weekly review on Sunday at 19:00:**
+  - one message per topic: people to renew or move, the schedule, time use, stale projects,
+    and idea groups that have grown;
+  - each topic says why, what it will do, how, and how far;
+  - one button accepts every default.
+
+### Projects and background work
+- **Projects:** `~/Projects` is scanned and each project's `PROGRESS.md` is read. Other
+  projects can report through JSON files ([`docs/CONNECT.md`](docs/CONNECT.md)).
+- **Continuing stopped work:** when work stops (the quota ran out, or you were interrupted),
+  the secretary plans how to continue. Each plan has a risk score, a model and effort, and a
+  token budget.
+  - Low-risk plans run on their own while more than 70% of the week's quota is left.
+  - Everything else asks in #อนุมัติ.
+  - The work happens in a git worktree on its own branch, and stops when it runs over budget
+    or starts repeating itself.
+
+### Ideas and time use
+- **Ideas:** jot one with **Super+I** on the computer, or in #ไอเดีย from any device. Ideas
+  are tagged by rules and grouped twice a day. A group that grows can become a project or a
+  task.
+- **Time use:** ActivityWatch records which window is in front. A privacy blocklist is applied
+  twice: before anything is stored, and again when the secretary reads it.
+  - Time is sorted into categories and projects by rules.
+  - Recording is **off** until you switch it on.
+
+### Ask anything
+- **Where:** in #คุยกับเลขา or in the web page's ask box.
+- **How it answers:** Sonnet answers quickly from read-only tools over every part of the
+  store, with links to the sources. The tools cover:
+  - people and mail, and replies you're waiting for;
+  - the schedule, tasks and projects;
+  - ideas, time use, Classroom and the rules book.
+- **ให้ Opus คิดต่อ** hands a question on to Opus.
+
+---
+
+## How it is built
+
+- **One process, local only.** It runs on this computer as a systemd user service listening on
+  `127.0.0.1:8000`. One FastAPI process serves the API, the built web page, the Discord bot and
+  the clock. The bot connects *out* to Discord, so nothing is opened to the network.
+- **Layers, imports pointing down only** (`backend/app/__init__.py`):
+  `api/` → `features/` → `connectors/` → `core/`.
+- **Claude through the Claude Agent SDK on the Claude Pro subscription**, not the paid API.
+  - Each task has a model and an effort, changeable in ตั้งค่า. The defaults:
+    - questions in chat: Sonnet, low;
+    - ให้ Opus คิดต่อ: Opus, high;
+    - planning and commands: Opus, high;
+    - reading mail: Opus, medium;
+    - background-job plans: Opus, high.
+  - Every call is recorded with its tokens.
+  - Small jobs (idea tags, window categories, project news) are meant for OmniRoute. It has
+    no model yet, so rules and templates do them.
+- **A quota watcher** reads what is left of the week's Claude quota. If it can't, every
+  background plan asks you first.
+- **One table of decisions** holds everything waiting for you. It shows in the bell, on the
+  today page and in Discord, and an answer in any one place settles all three.
+- **The rules book** holds three kinds of rule:
+  - your own rules;
+  - the 7 kinds of high-risk work;
+  - rules the secretary learned, which wait for your OK.
+- **Undo:** every action goes through one log, which keeps what is needed to undo it.
+- **The store** is SQLite at `~/.secretary/secretary.db`, outside the repo. Alembic runs the
+  migrations, and a daily backup is kept for 14 days.
+- **The clock:** a round that has never been switched on starts **off**, and you switch rounds
+  on in ตั้งค่า. Rounds missed while the computer was off run when it comes back.
+
+| Round | When | Claude tokens |
+|---|---|---|
+| เฝ้าคนสำคัญและคีย์เวิร์ด | every 5 minutes | yes (Opus reads the mail) |
+| รอบอ่านอีเมล ใหญ่ / เล็ก | 00:00 · 12:00 | yes |
+| วางและซิงก์ตาราง | every 15 minutes | no |
+| เตือนก่อนถึงกำหนด | every 5 minutes | no |
+| ดึงงานและสื่อจาก Classroom | every 2 hours | no |
+| สแกนโปรเจคใน ~/Projects | 06:30 | no |
+| อ่านข่าวจากโปรเจค | every 5 minutes | no |
+| งานเบื้องหลังในโปรเจค | every 15 minutes, 01:00–06:00 | yes, within the quota rules |
+| สรุปเช้า · ทบทวนเย็น | 07:00 · 21:00 | no (templates) |
+| จัดกลุ่มไอเดีย | 00:05 · 12:05 | no |
+| อ่านการใช้เวลาจาก ActivityWatch | every 15 minutes | no |
+| ทบทวนรายสัปดาห์ | Sunday 19:00 | no (templates) |
+| สำรองฐานข้อมูล | 03:30 (the only round on by default) | no |
+
+**Privacy:**
+- Gmail is read-only.
+- ActivityWatch's data stays on this computer, and is filtered twice.
+- The web page listens on 127.0.0.1 only.
+- Secrets live in `backend/.env`, and the Google tokens in `~/.secretary/google/` (mode 0600).
+  None of them can be committed.
+
+---
+
+## Running it
+
+**Always on** (details in [`docs/setup/always-on.md`](docs/setup/always-on.md)):
+```bash
+./deploy/install.sh                        # uv sync, build the web page, install and start the service
+systemctl --user restart my-secretary      # after new backend code or a change to backend/.env
+journalctl --user -u my-secretary -f       # its log
 ```
-frontend/src/
-  main.tsx            # BrowserRouter wrapper
-  App.tsx             # shell: top nav + Routes + one global <FloatingChat/>
-  api.ts              # backend client: sendChat, fetchEventsRange, fetchProjects
-  components/
-    Chat.tsx          # ChatPanel (scrollable, auto-scrolls) + FloatingChat (global)
-    Placeholder.tsx   # reusable empty-state card
-  pages/
-    Home.tsx  Academic.tsx  Projects.tsx
+The service serves `frontend/dist` from this folder, so `npm run build` changes the live page
+at once. Backend code changes need a restart; the web page shows a banner while the running
+code is older than the code on disk.
+
+**Development:**
+```bash
+cd backend && uv run uvicorn app.main:app --reload --port 8001   # a second instance next to the service
+cd frontend && npm run dev                                       # http://localhost:5173, its /api goes to the service on :8000
+cd backend && uv run pytest                                      # 398 tests
 ```
+A second process gets the web page and the API only. The clock and the Discord bot stay with
+whichever process started first (`~/.secretary/worker.lock`), so a question is never answered
+twice.
+
+For experiments that write data, use a scratch store *and* an empty bot token:
+`SECRETARY_DATA_DIR=/tmp/scratch SECRETARY_DISCORD_TOKEN= uv run uvicorn app.main:app --port 8001`.
+The lock lives inside the store. A scratch store therefore doesn't see the real one's lock, and
+would otherwise start a second bot with the real token.
 
 ---
 
-## Architecture & key decisions
+## Setup (one time)
 
-- **Claude via the Claude Agent SDK on the Pro subscription — NOT the paid API.**
-  The user has Claude Pro and wants to avoid metered Anthropic API billing (Pro and
-  API credits are billed separately). The whole reasoning layer (chat, calendar
-  tool-calling, M4 planning, repo-progress reading) runs on the Agent SDK
-  authenticated with the same login as Claude Code. **Leave `ANTHROPIC_API_KEY`
-  blank** so it uses the Pro login. Keep proactive jobs modest (one daily brief, one
-  nightly replan) to stay under Pro's rolling caps. The LLM layer is kept
-  integration-agnostic (CalendarService/DB don't depend on it) so it could fall back
-  to the paid API later if Pro limits/reliability ever demand it.
-- **Calendar is always the Google Calendar API; SQLite is always the brain.**
-  Events live in Google Calendar; the "smart layer" (projects, progress, plans)
-  lives in SQLite via SQLAlchemy.
-- **Two Google accounts (dual-account auth, needed for M3).** Calendar + Gmail are on
-  the **personal** account (you@example.com); **Google Classroom is on a separate
-  school account**. M0 used a single `token.json`; M3 must generalize this into an
-  **account-scoped credential loader** (e.g. `token_personal.json` +
-  `token_school.json`, each with its own scopes), one Cloud project / OAuth client,
-  two authorizing accounts.
-  - **Go/no-go risk:** the school likely uses Google Workspace for Education; the admin
-    may block third-party/unverified apps from Classroom — *unfixable in code*. The
-    OAuth attempt on the school account IS the test. If blocked, fall back to Classroom
-    calendar-sync (due dates → a Google Calendar we read) or manual/syllabus entry.
-    A go/no-go probe lives at `backend/scripts/test_school_classroom.py` (not yet run).
-- **Least privilege on scopes.** Classroom is read-only and **course materials are
-  intentionally EXCLUDED** (do NOT request `classroom.courseworkmaterials.*`).
-  Rationale: a *separate future study/learning-manager project* will own materials and
-  get its own access — scheduling and studying are separate concerns.
-- **Email is split by trust level.** M6 = read-only (`gmail.readonly`) for extraction /
-  triage / Q&A. M7 = write (`gmail.compose` / `gmail.send`) for replies, which
-  **always draft for explicit approval before sending** — never autonomous (outward-facing
-  and hard to undo).
-- **Secrets are git-ignored and must never be committed:** `.env`, `credentials.json`,
-  `token*.json`, `*.db`.
+1. **Packages:** `cd backend && uv sync`, then `cd frontend && npm install && npm run build`.
+2. **Claude:** log in to the `claude` CLI with your Claude Pro account (`claude auth status`).
+   No API key: the secretary runs on the subscription.
+3. **Google:**
+   1. In Google Cloud, enable the Gmail, Calendar, Classroom and Drive APIs.
+   2. Create an OAuth client of type *Desktop app*, and save it as `backend/credentials.json`.
+   3. Connect each account once (it opens your browser):
+      `cd backend && uv run python -m app.connectors.google connect gmail`. Use `ku` for the
+      university account, which also reads Classroom.
+4. **Discord:** a private server and a bot, in [`docs/setup/discord.md`](docs/setup/discord.md).
+5. **Always on:** [`docs/setup/always-on.md`](docs/setup/always-on.md).
+6. **Ideas and time use:** the Super+I key and ActivityWatch, in
+   [`docs/setup/ideas-and-time.md`](docs/setup/ideas-and-time.md).
+7. **Rounds:** switch on the ones you want in ตั้งค่า.
 
-**Backend layout:**
+**Configuration (`backend/.env`):** every key starts with `SECRETARY_`, so v1's keys in the
+same file are ignored.
+
+| Key | Default | What it is |
+|---|---|---|
+| `SECRETARY_DATA_DIR` | `~/.secretary` | everything the secretary writes: the store, backups, Google tokens, the project inbox, worktrees |
+| `SECRETARY_TIMEZONE` | `Asia/Bangkok` | |
+| `SECRETARY_PROJECTS_DIR` | `~/Projects` | the projects it scans |
+| `SECRETARY_DISCORD_TOKEN` · `_GUILD_ID` · `_OWNER_ID` | empty | the bot, your server, and you (the only person it listens to); empty keeps the bot off |
+| `SECRETARY_WEB_URL` | `http://localhost:8000` | where the links the bot posts point |
+| `SECRETARY_GOOGLE_CLIENT_FILE` | `backend/credentials.json` | the OAuth client |
+
+Your preferences (models and effort, the theme, reminder times, which rounds run) live in the
+store, and change from ตั้งค่า while the secretary runs.
+
+> 🔒 `.env`, `credentials.json`, `token*.json` and `*.db` are git-ignored. Never commit them.
+
+---
+
+## Code layout
+
 ```
 backend/app/
-  main.py             # FastAPI app: CORS (allow :5173) + routers
-  routers/            # calendar.py, chat.py, projects.py
-  services/
-    calendar.py       # Google Calendar: list/create/update(patch)/delete + _rfc3339 helper
-  agent/
-    tools.py          # CalendarService wrapped as in-process SDK MCP tools (CRUD)
-    secretary.py      # ask(prompt): Agent SDK options, system prompt, allowed tools
-backend/scripts/      # chat.py (REPL), smoke_agent.py, test_school_classroom.py
+  main.py        the FastAPI app: API, the built web page, the Discord bot, the clock
+  api/           one router per page
+  features/      mail · schedule · classroom · briefs · projects · jobs · ideas · time · weekly · ask
+  connectors/    google (sign-in) · gmail · gcal · classroom · discord_bot · activitywatch
+  core/          db · tables · clock · llm · actions · rules · settings · backup · config
+backend/migrations/   Alembic
+backend/tests/        pytest
+frontend/src/         React: pages/, components/ (the shell, the bell, the ask box), themes.css
+desktop/              the Super+I popup and its key, the ActivityWatch installer
+deploy/               install.sh · uninstall.sh · the systemd user unit
+docs/                 plan-v2/ (the plan and the build log) · setup/ (guides) · CONNECT.md · v1/
 ```
 
 ---
 
 ## Progress log
 
-- **M0 + M1 (2026-06-19):** scaffold + chat agent built and verified end-to-end.
-  - Confirmed the Agent SDK reaches Claude on the **Pro login** programmatically
-    (`claude auth status` → claude.ai / firstParty / you@example.com; no API key set).
-  - Gotcha: the Calendar API wasn't enabled in the Cloud project (403
-    `accessNotConfigured`) — enabling it fixed the "500 after OAuth" error.
-  - Switched off deprecated `datetime.utcnow()` → tz-aware UTC + `_rfc3339()` helper.
-  - Standalone scripts need `sys.path.insert(0, .../backend)` (Python puts `scripts/`
-    on the path, not the project root) — added to `scripts/chat.py`.
-  - Calendar CRUD verified (create → update(patch) → delete a throwaway event).
-    `list_events` includes event ids so the agent can target updates/deletes; the
-    system prompt tells it to look up the id first and confirm before deleting.
-  - Mutations currently run with `permission_mode="bypassPermissions"` (our own tools);
-    a real confirmation gate is deferred to the UI / planned for email send (M7).
-  - On GitHub: `git@github.com:GITWINGITWIN-png/my_secretary.git` (repo root; secrets
-    git-ignored).
-- **M2 (2026-06-19):** `frontend/` = Vite + React 19 + TS + Tailwind v4 (via
-  `@tailwindcss/vite`, `@import "tailwindcss"` — no `tailwind.config`) + React Router v7
-  + FullCalendar v6. Backend added `CORSMiddleware` (allow :5173) + `GET /projects` (→ `[]`).
-  `npm run build` passes (tsc clean).
-  - **Three reported bugs fixed:** (1) empty calendar — was fetching the wrong window;
-    added `GET /calendar/range` + FullCalendar's visible-range events-function.
-    (2) chat couldn't scroll / overflowed — fixed the flex height chain with `min-h-0`
-    and added auto-scroll to the newest message. (3) chat reset on navigation — made it
-    a single global `FloatingChat` mounted in `App` (hidden, not unmounted).
-  - Verified `/calendar/range` returns the user's real events (±30-day window → 4 events).
-- **M3 (2026-06-19):** Google Classroom academic integration, end-to-end.
-  - **Go/no-go: GREEN** — the school Workspace allows third-party Classroom access
-    (read 21 courses / 13 active, 166 assignments).
-  - **Dual-account auth** (`services/google_auth.py`): `get_credentials(account, scopes)`
-    manages a token file per account (personal→`token.json`, school→`token_school.json`)
-    and re-consents when requested scopes grow. `calendar.py` now uses it (account
-    "personal"); Classroom uses it (account "school").
-  - **Google scope migration gotcha:** Google now hands back
-    `classroom.student-submissions.me.readonly` when you request
-    `classroom.coursework.me.readonly`, and `oauthlib` crashes on the scope change.
-    Fixed with `OAUTHLIB_RELAX_TOKEN_SCOPE=1` + a substitution-aware re-consent check
-    (so it doesn't loop). The substituted scope still lists coursework fine.
-  - **`services/classroom.py`** (read-only, school account, scopes: courses.readonly,
-    coursework.me.readonly, announcements.readonly — **no materials**): `list_courses`,
-    `list_assignments` (normalized + `submitted`/`overdue` flags, 5-min TTL cache),
-    `list_todo` / `list_todo_grouped` (overdue / upcoming / no_deadline).
-  - **`routers/academic.py`**: `GET /academic/{courses,assignments,todo}` (verified 200).
-  - **Agent tools** (`agent/classroom_tools.py`): `list_todo`, `list_courses` on a second
-    in-process MCP server "classroom"; agent verified answering "what's overdue?".
-  - **Academic page** (frontend): to-dos (overdue/upcoming/no-deadline) + per-subject
-    assignments with live countdowns. `npm run build` passes.
-- **M4 (2026-06-21) — deterministic core done; Claude-on-top still pending.**
-  - **Project model** gained `status` (active/waiting/done/dropped), `estimated_hours`,
-    `last_commit_at` (`repo_path` already existed). DB recreated (it was empty).
-  - **`services/repos.py`** (tokenless git reads): `discover_repos(root)` (one level
-    deep), `read_progress(repo_path)` (last commit, counts, recent subjects).
-  - **Projects API** (`routers/projects.py`): full CRUD, `POST /projects/discover`
-    (upsert repos by path, refresh last-commit, leaves your goal/deadline/effort),
-    `GET /projects/{id}/progress`.
-  - **`services/planner.py`** — deterministic gap-filler: reads calendar busy
-    intervals, places `block_hours` work blocks in free gaps within a daily working
-    window, capped per day, before the deadline. Defaults: 09:00–21:00, 1.5h blocks,
-    3h/day. Pure (no tokens). `POST /projects/{id}/plan` previews (no writes);
-    `POST /projects/{id}/plan/commit` books approved blocks as calendar events.
-  - **Projects page** (frontend): Discover button, per-project cards (status, last
-    commit, deadline, effort), inline edit, and Plan-now → preview → "Add to calendar".
-    `npm run build` passes. Verified backend: 12h → 8×1.5h blocks, 0 unscheduled.
-  - **Claude planning is chat-driven** (pivoted from a button, so you can state
-    constraints in plain language: "plan project A for next week, mornings only, leave
-    project B alone"). `agent/planner_tools.py` gives the secretary two tools —
-    `list_projects` (deadlines/remaining hours) and `get_free_slots` (REAL block-sized
-    free slots from the deterministic core) — and it books via the existing
-    `create_event`/`delete_event`. System prompt: read projects → get real slots →
-    honor constraints → on RE-plan, delete that project's existing `Work: <project>`
-    blocks first (replace, not stack), never touch projects told to leave alone.
-    Because `/chat` is **stateless**, a clear command is carried out in one turn and the
-    agent reports what it added/removed. Verified: "plan my_secretary, mornings only,
-    leave research_labs alone, don't book yet" → proposed only the real morning slots,
-    flagged that 3 of 12h fit, offered to widen the window. (The old button-based
-    `/plan/smart` + `smart_planner.py` were removed in favor of this.)
-- **M5 (2026-06-21) — proactive engine.**
-  - **Daily brief** (`agent/brief.py`): gathers today's calendar + nudges, Claude writes
-    a short plain-text brief. Cached one-per-day in the `DailyBrief` table via
-    `services/brief_store.get_or_create_today` (lazy on first open; `force` to refresh).
-    The one regularly-scheduled token use.
-  - **Nudges** (`services/nudges.py`, tokenless): overdue + due-soon (Classroom
-    assignments + project deadlines) + suggest-only replan flags for active projects
-    due soon with hours left.
-  - **Scheduler** (`scheduler.py`, APScheduler `AsyncIOScheduler`): a 07:00 cron job
-    pre-warms the brief; started/stopped in the FastAPI lifespan. Nightly replan is
-    suggest-only (computed live in nudges), so no calendar-editing job.
-  - **API** (`routers/proactive.py`): `GET /brief/today`, `POST /brief/regenerate`,
-    `GET /nudges`. **Home page** wired: live BriefCard (+ Refresh) and DeadlinesCard.
-    Verified: brief generated once then served from cache; scheduler clean in lifespan.
-  - **Ignore (M5+):** old un-submittable homework / dead projects shouldn't nag.
-    Assignments: `IgnoredAssignment` table + `services/dismissed.py`; filtered out of
-    to-dos, nudges, brief, and the agent's `list_todo` (via a new `exclude_ids` arg on
-    `classroom.list_todo[_grouped]`). API: `POST /academic/ignore`,
-    `DELETE /academic/ignore/{id}`, `GET /academic/ignored`; `/academic/assignments`
-    now carries an `ignored` flag. UI: ✕ "ignore" on each to-do (greyed + "un-ignore"
-    in the subject list). Projects: a one-click **Ignore** = status `dropped` (already
-    excluded from nudges/planning). Verified: ignore → drops from nudges → un-ignore restores.
-- **M6 (2026-06-21) — email intake (read-only) + first local-LLM offload.**
-  - **Gmail service** (`services/gmail.py`, `gmail.readonly`, **personal** account):
-    `list_unread`, `list_messages(query)` (Gmail search syntax), normalized to
-    `{id, from, subject, date, snippet, body, unread, link}` with a light multipart/HTML
-    body extractor; 2-min cache. **Shares the personal `token.json`** — so it requests
-    the *union* of calendar + gmail scopes (one consent; the calendar, needing only its
-    subset, then never re-consents — avoids a token ping-pong). *Re-consent happens once*
-    on first Mail use to add the gmail scope.
-  - **Local LLM** (`services/local_llm.py`): talks to **Ollama** over HTTP (httpx, no new
-    dep). `chat_json()` = JSON-mode, temp 0, serialized behind a lock (one generation at a
-    time so the GPU isn't thrashed), defensive JSON parse, clear `OllamaError` on failure.
-    Model is config-driven (`OLLAMA_MODEL`, default `scb10x/llama3.1-typhoon2-8b-instruct`).
-  - **Extraction** (`services/mail_extract.py`): scans unread mail, one email per local-LLM
-    call, returns schedule **suggestions only** (`{type, title, datetime, note, +source}`) —
-    nothing is written to the calendar. *Why local:* high-volume, simple, privacy-sensitive →
-    free + on-device, keeping the Pro budget for chat.
-  - **Chat tools** (`agent/gmail_tools.py`): `search_email`, `recent_unread_email`
-    (read-only) registered as a 4th MCP server in the secretary; reading mail in chat is a
-    free Google call (only the on-demand scan spends compute, and that's local).
-  - **API** (`routers/mail.py`): `GET /mail/unread`, `GET /mail/search`, `POST /mail/scan`,
-    `GET /mail/local-status`. **Mail page** (frontend): scan panel (with offline hint),
-    Gmail search box, unread list. Verified: backend imports + all 4 routes mounted; frontend
-    builds.
-  - **M6+ scan-by-date + pins (2026-06-21).** Extended the same milestone:
-    - **Scan scope** — `gmail.list_today()` (Gmail `after:today`, read+unread) + `mail_extract.scan(scope)`
-      (`unread` | `today`). **Daily auto-scan**: `services/mail_store.py` caches one scan/day in the
-      new `DailyMailScan` table (like `DailyBrief`); a 07:10 APScheduler job pre-warms it. The scan
-      writes nothing to the calendar — review only (avoids false-positive calendar spam).
-    - **Pins** — `PinnedEmail` table + `services/pins.py` (`pin`/`unpin`/`list_pins`/`pinned_ids`).
-      Pinning shows the email on the **Projects page** ("📧 From email" section, own card). A **dated**
-      pin also creates a calendar event (`calendar.create_all_day_event` for date-only, timed for
-      datetimes), id stored so **unpin deletes it**. Calendar writes happen ONLY on an explicit pin,
-      never from the daily scan. Idempotent (no duplicate event on re-pin); calendar errors don't
-      block the pin.
-    - **API** added: `GET /mail/today`, `GET /mail/scan/today`, `POST /mail/scan?scope=`,
-      `GET/POST /mail/pins`, `DELETE /mail/pins/{id}`. **UI**: scan + browse scope toggles, 📌 pin
-      buttons on suggestions (carry the date → calendar) and on emails (no date), Projects "From
-      email" section with unpin + "✓ on calendar". Verified: pin flow (all-day/timed/no-date,
-      idempotency, unpin-deletes-event) via mocked calendar; both new tables created; frontend builds.
-  - **M6+ DB snapshot cache (2026-06-21) — skim instantly, don't refetch every time.**
-    - **`Snapshot` table + `services/cache.py`**: a generic key→JSON store with `fetched_at`.
-      `serve(key, fetcher, ttl, refresh, add_task)` does **stale-while-revalidate** — returns the
-      cached snapshot immediately, and if older than the TTL schedules a background refresh (FastAPI
-      `BackgroundTasks`) so the next visit is fresh. `refresh=true` forces a live fetch;
-      `clear_prefix()` invalidates a family of keys. Survives restarts (unlike the in-memory caches).
-    - **Applied to** the slow Google reads: `GET /academic/assignments` (TTL 30 min, ignored-flags
-      applied on top of the snapshot each call), `GET /mail/unread` + `GET /mail/today` (TTL 10 min),
-      and `GET /calendar/range` (TTL 2 min, **per-range** key). Search stays live (ad-hoc).
-      All three now return a `{data, fetched_at, stale}` envelope.
-    - **Calendar coherence**: every calendar write (`create_event`, `create_all_day_event`,
-      `update_event`, `delete_event` — incl. chat-driven ones) calls `cache.clear_prefix("calendar:")`,
-      so edits show on the next read instead of waiting out the TTL.
-    - **UI**: Academic + Mail show an "updated Nm ago · Refresh" label (`timeAgo`); the calendar
-      unwraps the envelope transparently. Verified: cold/fresh/forced/stale-revalidate + prefix
-      invalidation unit-tested; backend imports; frontend builds.
-  - **M6+ auto-pin + deep-read + page memory (2026-06-21).**
-    - **Auto-pin on scan** — `pins.auto_pin_items(items)` pins every schedule-worthy item
-      (`_qualifies` = has a date, OR type deadline/meeting/event); dated ones also get a calendar
-      event. One pin per email (dated items sort first so the calendar gets the real date). Runs on
-      **both** the manual `POST /mail/scan` (offloaded via `anyio.to_thread` so calendar I/O doesn't
-      block the loop) **and** the daily `mail_store` scan. The user reviews the "From email" list and
-      unpins junk (which deletes the event). `pins.*` now manage their own DB sessions (no `db` param).
-    - **Deep re-read on manual pin** — `mail_extract.deep_extract(msg)`: a higher-effort single-email
-      read (8k-char body, summary+date prompt). `POST /mail/pins` calls it (via `gmail.get_message`)
-      when a pin arrives without a date — so pinning an old, never-scanned email still recovers its
-      date + a readable note (and calendars it). Verified live on a Thai email: parsed B.E. 2569 →
-      2026-07-15T16:30 with an English summary.
-    - **Mail page memory** — a module-level `saved` snapshot restores the page's browse/search/scan
-      results after navigating away and back (survives unmount, not a full reload); the initial
-      auto-fetch is skipped when state was restored.
-    - Verified: `auto_pin_items` (dated→calendar, undated meeting→pinned no-cal, promo `other`→skipped,
-      dedupe) via mocked calendar; `deep_extract` live; frontend builds.
+**v2** (each phase was planned in chat, built one commit per step on its own branch, checked by
+the user, then merged into `v2` with `--no-ff`). The full record of every phase is in
+[`docs/plan-v2/BUILD-LOG.md`](docs/plan-v2/BUILD-LOG.md): the answers, the decisions, and what
+each commit holds.
+
+- **Planning (2026-11-04 → 05).** The user's handwritten feature list became `feature.md`.
+  The plan board then covered:
+  - features (13 features and 12 proposals);
+  - the look (a mockup of every screen, 6 themes);
+  - the development plan (phases B1–B8, code layout, data model, decisions).
+
+  It was exported to `docs/plan-v2/PLAN.md`.
+- **B1 foundation** (2026-11-05, `69d9e84`):
+  - the store, the clock, and the action log with undo;
+  - the Claude caller (model and effort per task, tokens recorded);
+  - the Discord bot, and the web page's shell with themes;
+  - the systemd service and the daily backup.
+- **B2 mail and people** (2026-11-05, `fba8e61`):
+  - three tiers with end dates and notes;
+  - the 5-minute watch, and the 00:00 and 12:00 rounds;
+  - appointments into Calendar, tasks from mail, follow-ups;
+  - the people page.
+- **B3 schedule** (2026-11-06, `e824116`):
+  - planning backwards from deadlines, synced with Google Calendar;
+  - Classroom coursework and materials;
+  - reminders, and the schedule page.
+- **B4 briefs and today** (2026-11-06, `4b08ca8`): the morning and evening briefs, the
+  decisions gathered in one place, and the today page.
+- **B5 projects and background work** (2026-11-06, `e5e4698`):
+  - the project registry, project news and the project inbox;
+  - the quota watcher, risk rules, budgets and the stopper;
+  - worktrees, #อนุมัติ, and the rules book.
+- **B6 ideas and time** (2026-11-08, `14b6ff9`):
+  - the Super+I popup and #ไอเดีย, with rule tags and groups;
+  - ActivityWatch behind the blocklist, categories, and planned vs actual.
+- **B7 weekly review and ask anything** (2026-11-08, `1c28ea4`):
+  - the weekly review with one message per topic and accept-all;
+  - weekly people proposals;
+  - hours to avoid and focus hours in the planner;
+  - nine read-only tools for asking.
+- **B8 iPad:** set aside on 2026-11-08; the iPad uses Discord.
+- **v2 merged into `main`** on 2026-11-08 and tagged `v2.0`.
+
+**v1** (2026-06 → 11, tag `v1-final`). M0–M6 were done:
+- the calendar and the chat agent;
+- the dashboard;
+- Google Classroom;
+- the deadline planner;
+- the daily brief;
+- read-only mail with a local LLM.
+
+M7 (mail replies) was not built. M8 (a 3D character companion) is parked on branch
+`m8-character`. Details are in [`docs/v1/README.md`](docs/v1/README.md). There are also two
+interactive maps:
+- `docs/map/`: v1 as of M8;
+- `docs/reference-map/`: how 15 similar open-source projects are designed.
 
 ---
 
 ## Tech stack
 
-- **Backend:** Python (3.14, `uv`) + FastAPI + uvicorn
-- **LLM:** Claude via the **Claude Agent SDK** on the Claude **Pro** subscription
-  (no paid API; leave `ANTHROPIC_API_KEY` blank). Kept integration-agnostic.
-- **Local LLM:** **Ollama** for the email→schedule extraction (M6) — free, private,
-  on-GPU. Model in `OLLAMA_MODEL` (default `scb10x/llama3.1-typhoon2-8b-instruct`,
-  a Thai/English 8B that fits an 8 GB GPU). `ollama serve` must be running to scan.
-- **Calendar:** Google Calendar API
-- **Email:** Gmail API (read-only at M6; compose/send at M7) — same OAuth as calendar
-- **Academic:** Google Classroom API (read-only) on a **separate school account**
-- **DB:** SQLite + SQLAlchemy 2.0 (the "smart layer")
-- **Scheduler:** APScheduler (proactive jobs)
-- **Frontend:** React 19 + Vite + TypeScript + Tailwind v4 + FullCalendar v6 + React Router v7
-
----
-
-## Running the app
-
-Two servers, side by side.
-
-**Backend** (from `backend/`):
-```bash
-uv run uvicorn app.main:app --reload      # http://localhost:8000
-```
-
-**Frontend** (from `frontend/`):
-```bash
-npm install        # first time only
-npm run dev        # http://localhost:5173
-```
-
-Open **http://localhost:5173**. Home shows your live Google Calendar (week view) and
-a chat button (bottom-right, on every page). Academic shows your live Google Classroom
-assignments (M3); Projects stays a placeholder until M4. CORS is configured for the
-Vite dev origin.
-
-**Classroom (school account) one-time auth:** the Academic page reads from a *separate
-school account*. Authorize it once with `uv run python scripts/smoke_classroom.py`
-(from `backend/`) and sign in with your **school** account — it caches
-`token_school.json`. The personal-account `token.json` is unaffected.
-
----
-
-## Setup (one-time)
-
-### 1. Install dependencies
-This project uses [uv](https://docs.astral.sh/uv/). From `backend/`:
-```bash
-cd backend
-uv sync
-```
-
-### 2. Google credentials
-The app needs its own identity with Google so it can run independently.
-1. In the [Google Cloud Console](https://console.cloud.google.com/), create a project.
-2. **APIs & Services → Library →** enable the APIs you use, each individually:
-   **Google Calendar API** (M0), **Google Classroom API** (M3), **Gmail API** (M6).
-   *Enabling an API and granting OAuth scopes are separate gates* — if a feature 403s
-   with `accessNotConfigured`, the API just isn't enabled in the project yet (click
-   the link in the error → **Enable** → wait ~1–2 min).
-3. **APIs & Services → OAuth consent screen:** *External*, fill in the basics, add your
-   Google account under *Test users*.
-4. **Credentials → Create Credentials → OAuth client ID →** application type **Desktop app**.
-5. Download the JSON and save it as `backend/credentials.json`.
-
-### 3. Configure
-```bash
-cp .env.example .env       # from inside backend/
-```
-**Leave `ANTHROPIC_API_KEY` blank** — the Agent SDK uses your Claude Pro login instead
-of the paid API. The Google paths already point at `credentials.json` / `token.json`.
-
-### 4. Run & authorize
-```bash
-uv run uvicorn app.main:app --reload
-```
-The first time you hit a calendar endpoint, a browser window opens asking you to
-authorize access — approve it, and a `token.json` is cached so future runs are silent.
-You can also explore the API at **http://127.0.0.1:8000/docs**.
-
-> 🔒 `.env`, `credentials.json`, `token*.json`, and `*.db` are git-ignored. Never commit them.
+- **Backend:** Python ≥ 3.12 with `uv` · FastAPI + uvicorn · SQLAlchemy 2 + Alembic + SQLite ·
+  APScheduler 3 · discord.py · the Claude Agent SDK · the Google API client.
+- **Frontend:** React 19 · Vite · TypeScript · Tailwind 4 · React Router · FullCalendar.
+- **Desktop:** a GTK 4 popup for Super+I · ActivityWatch (awatcher) with a GNOME Shell
+  extension for the focused window.

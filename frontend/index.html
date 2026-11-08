@@ -1,10 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="th">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>เลขา</title>
+    <script>
+      // Put the last theme on before anything draws, so the page doesn't flash the default colours.
+      // The secretary's settings are the real source; the page re-reads them right after loading.
+      try { document.documentElement.dataset.theme = localStorage.getItem("theme") || "cs"; } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

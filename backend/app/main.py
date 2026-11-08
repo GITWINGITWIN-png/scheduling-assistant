@@ -1,61 +1,197 @@
-"""FastAPI entry point.
+"""my_secretary v2: the server entry point.
 
-M0 wires up: the database, a health check, and the calendar smoke-test routes.
-Run it with:  uv run uvicorn app.main:app --reload
-Then open http://127.0.0.1:8000/docs to try the endpoints.
+Run from backend/:
+
+    uv run uvicorn app.main:app --reload --port 8000
+
+then open http://localhost:8000. Always-on, it runs as a systemd user service
+(deploy/, step 10).
+
+`lifespan` is where the secretary's parts start and stop with the server, in
+this order: bring the store up to date, start the clock (catching up on missed
+rounds), hook the features into Discord, connect the bot. One process holds
+all of it: the API, the web page, the clock and the bot.
+
+Only one process at a time runs the clock and the bot (core/worker.py). A second
+copy, e.g. on :8001 next to the service, serves the web page and API only, and
+takes over if the first one stops.
 """
 
-from contextlib import asynccontextmanager
-from pathlib import Path
+import asyncio
+import logging
+from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
-from app.db import init_db
-from app.routers import academic, calendar, chat, mail, proactive, projects
-from app.scheduler import start_scheduler, stop_scheduler
+from app.api import ask as ask_api
+from app.api import ideas as ideas_api
+from app.api import jobs as jobs_api
+from app.api import log as log_api
+from app.api import mail as mail_api
+from app.api import projects as projects_api
+from app.api import rules as rules_api
+from app.api import schedule as schedule_api
+from app.api import settings as settings_api
+from app.api import time as time_api
+from app.api import today as today_api
+from app.api import weekly as weekly_api
+from app.connectors import discord_bot
+from app.core import backup, db, worker
+from app.core.clock import clock
+from app.core.config import REPO_DIR
+from app.core.rules import book as rules_book
+from app.features import actions_discord, ask_discord
+from app.features.briefs import evening as briefs_evening
+from app.features.briefs import morning as briefs_morning
+from app.features.classroom import cards as classroom_cards
+from app.features.ideas import cards as ideas_cards
+from app.features.ideas import groups as ideas_groups
+from app.features.ideas import store as ideas_store
+from app.features.time import privacy as time_privacy
+from app.features.time import pull as time_pull
+from app.features.time import recorder as time_recorder
+from app.features.weekly import cards as weekly_cards
+from app.features.weekly import review as weekly_review
+from app.features.jobs import cards as jobs_cards
+from app.features.jobs import quota as jobs_quota
+from app.features.jobs import runner as jobs_runner
+from app.features.classroom import materials as classroom_materials
+from app.features.classroom import sync as classroom_sync
+from app.features.mail import cards as mail_cards
+from app.features.projects import cards as projects_cards
+from app.features.projects import inbox as projects_inbox
+from app.features.projects import scan as projects_scan
+from app.features.mail import extract as mail_extract
+from app.features.mail import followups as mail_followups
+from app.features.mail import rounds as mail_rounds
+from app.features.mail import watch as mail_watch
+from app.features.schedule import remind as schedule_remind
+from app.features.schedule import sync as schedule_sync
+
+VERSION = "2.0.0.dev0"
+WEB_DIST = REPO_DIR / "frontend" / "dist"  # `npm run build` in frontend/ writes the web page here
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger(__name__)
+
+
+async def start_background() -> None:
+    """The worker's parts: only the process holding the worker lock runs these."""
+    backup.setup()  # the nightly backup is the clock's first round with work (B1)
+    mail_watch.setup()  # B2: the 5-minute watch (starts switched off until B2's check)
+    mail_rounds.setup()  # B2: the 00:00 and 12:00 reading rounds (also off until then)
+    mail_extract.setup()  # appointments and tasks from what the rounds read
+    mail_followups.setup()  # who owes a reply, and the reminders
+    mail_cards.setup()  # #ด่วน · #อนุมัติ · #สรุป cards (after extract, so they can say what was done)
+    schedule_sync.setup()  # B3: plan blocks and sync with Google Calendar every 15 min (off until B3's check)
+    schedule_remind.setup()  # B3: "tomorrow" / "in an hour" in #ด่วน every 5 min (off until the check)
+    classroom_sync.setup()  # B3: Classroom deadlines and materials every 2 h (off until the check)
+    classroom_cards.setup()  # "ติดตามวิชานี้ไหม" in #อนุมัติ
+    classroom_materials.setup()  # new materials into the course folder, inside the Classroom round
+    briefs_morning.setup()  # B4: สรุปเช้า 07:00 in #สรุป (off until B4's check)
+    briefs_evening.setup()  # B4: ทบทวนเย็น 21:00 in #สรุป (off until B4's check)
+    projects_scan.setup()  # B5: the project registry, rescanned 06:30 (off until B5's check)
+    projects_cards.setup()  # "ตั้งระดับโปรเจคใหม่" in #อนุมัติ, urgent project news in #ด่วน
+    projects_inbox.setup()  # B5: news from ~/.secretary/inbox every 5 min (off until the check)
+    jobs_runner.setup()  # B5: background work 01:00–06:00 (off until the check); a job cut off by a stop is kept
+    jobs_cards.setup()  # B5: "แผนงานเบื้องหลัง · ต้องถามคุณ" in #อนุมัติ (D5)
+    ideas_cards.setup()  # B6: every message in #ไอเดีย is an idea (✅ once kept), and the rounds' cards
+    ideas_groups.setup()  # B6: group the ideas at 00:05 and 12:05 (off until B6's check)
+    time_pull.setup()  # B6: read ActivityWatch every 15 minutes (off until you switch recording on)
+    weekly_review.setup()  # B7: ทบทวนรายสัปดาห์ Sunday 19:00 in #สรุป (off until B7's check)
+    weekly_cards.setup()  # its cards and buttons
+    if time_recorder.installed():  # awatcher's config always follows the blocklist (its first line of filtering)
+        time_privacy.write_awatcher_config()
+    if n := ideas_store.import_outbox():  # ideas the Super+I popup kept while the secretary was down
+        log.info("took in %s ideas from the popup's outbox", n)
+    await clock.start()  # schedules the rounds and runs any missed while the machine was off
+    ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
+    actions_discord.setup()  # the ย้อนกลับ button
+    await discord_bot.start()  # connects in the background; the web page works without it
+
+
+async def wait_to_take_over() -> None:
+    """For a second copy: check now and then whether the worker stopped, and take over if so."""
+    while not worker.claim():
+        await asyncio.sleep(worker.LOCK_RETRY)
+    log.info("the other secretary stopped; this one now runs the clock and the Discord bot")
+    discord_bot.bot.problem = ""
+    await start_background()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create database tables, then start the proactive scheduler.
-    init_db()
-    start_scheduler()
+    db.migrate()  # new tables/columns from a fresh `git pull` are created here
+    jobs_quota.setup()  # B5: every Claude call's rate-limit report keeps the quota reading fresh (any copy)
+    rules_book.seed()  # B5: the 7 agreed high-risk kinds are always in the rule book
+    time_privacy.seed()  # B6: the blocklist agreed at the plan, the first time only
+    waiting: asyncio.Task | None = None
+    if worker.claim():
+        await start_background()
+    else:
+        discord_bot.bot.problem = (f"เลขาอีกตัว (pid {worker.holder()}) ดูแลนาฬิกาและ Discord อยู่ · "
+                                   "ตัวนี้เปิดแค่หน้าเว็บ เพื่อไม่ให้ตอบซ้ำ")
+        log.warning("another secretary (pid %s) runs the clock and the Discord bot; "
+                    "this one serves the web page and API only", worker.holder())
+        waiting = asyncio.create_task(wait_to_take_over(), name="wait-to-take-over")
     yield
-    stop_scheduler()
+    if waiting:
+        waiting.cancel()
+        with suppress(asyncio.CancelledError):
+            await waiting
+    if worker.is_worker():
+        await discord_bot.stop()
+        clock.stop()
 
 
-app = FastAPI(title="my_secretary", version="0.1.0", lifespan=lifespan)
-
-# Allow the Vite dev server (React app) to call this API from the browser.
-# Browsers block cross-origin requests unless the API opts in via CORS.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(calendar.router)
-app.include_router(chat.router)
-app.include_router(projects.router)
-app.include_router(academic.router)
-app.include_router(proactive.router)
-app.include_router(mail.router)
+app = FastAPI(title="my_secretary", version=VERSION, lifespan=lifespan)
+app.include_router(ask_api.router)
+app.include_router(ideas_api.router)
+app.include_router(jobs_api.router)
+app.include_router(log_api.router)
+app.include_router(mail_api.router)
+app.include_router(projects_api.router)
+app.include_router(rules_api.router)
+app.include_router(schedule_api.router)
+app.include_router(settings_api.router)
+app.include_router(time_api.router)
+app.include_router(today_api.router)
+app.include_router(weekly_api.router)
 
 
-@app.get("/healthz")
-def health():
-    return {"status": "ok", "service": "my_secretary", "milestone": "M6"}
+@app.exception_handler(RequestValidationError)
+async def _refused(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """A request the API can't take, said in words the page shows as they are. A field the
+    backend doesn't know means the page is newer than the running backend: say so, rather
+    than drop the field without a word (what happened to task details on 2026-11-06)."""
+    errors = exc.errors()
+    unknown = sorted({str(e["loc"][-1]) for e in errors if e.get("type") == "extra_forbidden"})
+    if unknown:
+        text = f"เลขายังไม่รู้จักช่อง {', '.join(unknown)} · หน้าเว็บอาจใหม่กว่าเลขาที่รันอยู่: รีสตาร์ทเลขาแล้วลองอีกครั้ง"
+    else:
+        text = "ข้อมูลไม่ครบหรือไม่ถูกต้อง: " + ", ".join(sorted({".".join(str(x) for x in e["loc"][1:]) or "body" for e in errors}))
+    return JSONResponse(status_code=422, content={"detail": text})
 
 
-# Serve the built React app (frontend/dist) from this same server, so the whole
-# thing is reachable on a single port (e.g. over Tailscale from a phone/iPad).
-# Mounted LAST and at "/" so the API routes above always match first; anything
-# else falls through to the static files. With HashRouter on the frontend, the
-# only HTML path ever requested is "/", which `html=True` serves as index.html.
-# Run `npm run build` in frontend/ to (re)generate dist.
-_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
-if _DIST.is_dir():
-    app.mount("/", StaticFiles(directory=str(_DIST), html=True), name="frontend")
+@app.get("/api/health")
+def health() -> dict[str, str]:
+    """A cheap "is the server up?" check (curl it; the always-on setup uses it too)."""
+    return {"status": "ok", "version": VERSION}
+
+
+@app.get("/{path:path}", include_in_schema=False)
+def web(path: str):
+    """The web page. Real files (scripts, styles, fonts) are served as they are. Every other
+    path (/log, /settings, ...) gets index.html, and the page's router shows the right screen."""
+    if path.startswith("api/"):
+        raise HTTPException(404, "no such API")
+    root = WEB_DIST.resolve()
+    file = (WEB_DIST / path).resolve()
+    if path and file.is_file() and file.is_relative_to(root):  # never serve anything outside dist/
+        return FileResponse(file)
+    index = WEB_DIST / "index.html"
+    if not index.exists():
+        return HTMLResponse("<p>ยังไม่ได้ build หน้าเว็บ: <code>cd frontend && npm install && npm run build</code></p>", 503)
+    return FileResponse(index)

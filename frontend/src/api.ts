@@ -1,359 +1,385 @@
-// Tiny client for the FastAPI backend. One place to change the base URL.
-// In dev (`npm run dev`) the Vite server and the API are on different ports, so
-// we point at the backend explicitly. In the production build the backend
-// SERVES this app, so API calls are same-origin (relative) — which is what lets
-// it work over Tailscale from a phone (no hardcoded "localhost", no CORS).
-const BASE = import.meta.env.DEV ? 'http://localhost:8000' : ''
+// Every call the web page makes to the secretary (backend/app/api/*). One place, typed.
 
-// Some reads are served from a DB snapshot for instant skimming. The backend
-// wraps them in this envelope: `data` plus when it was fetched and whether that
-// snapshot is stale (a background refresh was kicked off, so reload soon for fresh).
-export interface Cached<T> {
-  data: T
-  fetched_at: string
-  stale: boolean
-}
+export type Status = {
+  pending: number; tokens_week: number; discord: boolean; theme: string;
+  stale?: boolean; // the backend code on disk is newer than the running one: restart (older backends don't send it)
+  counts?: { people?: number; decisions?: number; jobs?: number; projects?: number }; // the side menu's numbers (people: today's เรื่องสำคัญ; decisions: what waits for you; jobs: plans waiting for you; projects: on the go)
+  quota?: { week_left: number; at: string; line: number; auto?: boolean } | null; // B5: what's left of your Claude week (null: not read yet); line and auto: the rule book's rule
+};
 
-// "updated just now / 4m ago / 2h ago" for a snapshot's fetched_at timestamp.
-export function timeAgo(iso: string): string {
-  const secs = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
-  if (secs < 45) return 'just now'
-  if (secs < 3600) return `${Math.round(secs / 60)}m ago`
-  if (secs < 86_400) return `${Math.round(secs / 3600)}h ago`
-  return `${Math.round(secs / 86_400)}d ago`
-}
+export type Task = { task: string; label: string; model: string; effort: string; default_model: string; default_effort: string };
+export type Round = { id: string; title: string; when: string; phase: string; active: boolean; enabled: boolean; last_run: string | null; next_run: string | null };
+export type Settings = {
+  tasks: Task[];
+  models: string[];
+  efforts: string[];
+  planned_tasks: { label: string; model: string; effort: string; phase: string }[];
+  theme: string;
+  themes: { id: string; name: string; sub: string }[];
+  clock: Round[];
+  discord: { configured: boolean; connected: boolean; user: string; channels: string[]; problem: string };
+  google: { id: string; label: string; does: string; connected: boolean; problem: string; address: string }[];
+  services: { icon: string; name: string; detail: string; phase: string; state?: string; tone?: "ok" | "warn" | "muted" }[]; // B6: state is live
+  jobs_rule: { auto: boolean; line: number; approval_days: number }; // B5: อนุมัติเอง (set in the rule book)
+};
 
-// --- Chat ---
-export async function sendChat(message: string): Promise<string> {
-  const res = await fetch(`${BASE}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
-  })
-  if (!res.ok) throw new Error(`chat failed: ${res.status}`)
-  const data = await res.json()
-  return data.reply as string
-}
+export type LogItem = {
+  id: number; at: string; time: string; date: string; kind: string; summary: string; target: string;
+  source_label: string; source_url: string; tokens: number | null; can_undo: boolean; undone_at: string | null;
+};
 
-// --- Calendar ---
-export interface CalEvent {
-  id: string
-  title: string
-  start: string
-  end?: string
-}
+export type Decision = {
+  id: number; kind: string; title: string; plan: string; request: string;
+  model: string; effort: string; tokens: number | null; created_at: string;
+  when: string; from: string; subject: string; // appointment (B2)
+  folder: string; exists: boolean; link: string; // course (B3)
+  clash?: string | null; // appointment: what else is at that time ("" = nothing), null for other kinds
+  rule?: string; // appointment: a rule in your rule book it goes against ("" = none) (B5)
+  job_id?: number | null; budget?: number | null; risks?: string[]; why?: string; stuck_at?: string; // background plan (B5)
+  project_id?: number | null; // new project (B5)
+  group_id?: number | null; size?: number | null; about?: string; // a grown idea group (B6)
+  topic?: string; label?: string; what?: string; acts?: [string, string][]; // a weekly review topic (B7)
+};
 
-interface GoogleEvent {
-  id: string
-  summary?: string
-  start: { dateTime?: string; date?: string }
-  end?: { dateTime?: string; date?: string }
-}
+export type Answer = {
+  kind: "answer" | "plan"; text: string; model: string; effort: string; seconds: number; tokens: number;
+  sources: string[]; decision_id: number | null; title: string; footer: string;
+};
 
-function mapEvent(e: GoogleEvent): CalEvent {
-  return {
-    id: e.id,
-    title: e.summary ?? '(no title)',
-    start: e.start.dateTime ?? e.start.date ?? '',
-    end: e.end?.dateTime ?? e.end?.date,
-  }
-}
+// W5 ตาราง (B3)
+export type CalItem = {
+  id: number; title: string; start: string; end: string; all_day: boolean; location: string;
+  description: string; // รายละเอียด: what you typed, or its description in Google Calendar
+  source: string; source_name: string; recurring: boolean; link: string; mail: string; // link: Google Calendar · mail: the email it came from
+  status: "placed" | "proposed"; decision_id: number | null; from: string; // proposed: waiting for you to รับ (who asked)
+};
+export type BlockItem = {
+  id: number; task_id: number; title: string; start: string; end: string; pinned: boolean; past: boolean;
+  running: boolean; task_status: "open" | "done" | "dropped";
+  outcome?: "" | "done" | "missed" | "away" | "unknown"; worked?: number | null; instead?: string; // B6: what really happened
+};
+export type DeadlineItem = { task_id: number; title: string; due: string; source: string; link: string };
+export type Week = { events: CalItem[]; blocks: BlockItem[]; deadlines: DeadlineItem[]; plan: { planned_at: string | null; short: { task_id: number; title: string; minutes: number }[] } };
+export type PlanMode = "early" | "late";
+export type TaskRow = {
+  id: number; title: string; due: string | null; status: "open" | "done" | "dropped"; source: string;
+  est_minutes: number | null; est_default: number; plan_mode: PlanMode; done_minutes: number; booked_minutes: number; link: string;
+  block_minutes: number | null; daily_minutes: number | null; // null: the rules' (กติกาตาราง)
+  details: string; // รายละเอียดงาน: what, where, where to hand it in (links allowed)
+};
+export type NewTask = {
+  title: string; due: string | null; est_minutes: number | null; plan_mode: PlanMode;
+  block_minutes: number | null; daily_minutes: number | null; details: string;
+};
+export type NewEvent = { title: string; start: string; end: string; all_day: boolean; location: string; description: string };
+export type Saved = { action_id: number; plan: string | null };
+export type ScheduleRules = {
+  rules: { day_start: string; day_end: string; min_block: number; max_block: number; gap: number; per_task_per_day: number; horizon_days: number };
+  estimates: Record<string, number>;
+  reminders: string[];
+};
+export type CourseRow = {
+  id: string; name: string; state: "asking" | "followed" | "ended" | "ignored"; state_name: string; folder: string; link: string;
+  decision_id: number | null; files: { name: string; path: string }[]; file_count: number;
+};
 
-// Fetch events for an explicit time range (ISO 8601). FullCalendar calls this
-// for whatever range is currently visible, and again whenever you navigate.
-// Served from a per-range DB snapshot (instant); pass refresh=true to force-fetch.
-export async function fetchEventsRange(start: string, end: string, refresh = false): Promise<CalEvent[]> {
-  const url = `${BASE}/calendar/range?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}${refresh ? '&refresh=true' : ''}`
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`calendar failed: ${res.status}`)
-  const env: Cached<GoogleEvent[]> = await res.json()
-  return env.data.map(mapEvent)
-}
+// W1 วันนี้ (B4)
+export type DayItem = { start: string; end: string; title: string; kind: "meet" | "block" | "dead" | "allday"; sub: string };
+export type RoundMark = { at: string; title: string; done: boolean; line: string };
+export type BriefView = { made_at: string; title: string; headline: string; fields: [string, string][]; footer: string; sent: boolean; link: string };
+export type TodayPage = {
+  greeting: string; brief: BriefView | null; headline: string; morning_on: boolean;
+  plan: DayItem[]; secretary: RoundMark[]; hours: [number, number];
+  actual?: { start: string; end: string; what: string; category: string; project: string }[]; recording?: boolean; // B6: ทำจริง
+  important: { id: string; who: string; summary: string; at: string; done: string[]; link: string }[];
+  news: { id: number; project: string; title: string; body: string; at: string; potential: string; urgent: boolean; failed: boolean; needs_you: boolean; link: string }[];
+  jobs: {
+    running: { id: number; project: string; title: string; used: number; budget: number; started_at: string; model: string; effort: string } | null;
+    queue: { id: number; project: string; title: string; status: string; approved_until: string | null }[];
+    runs: { id: number; project: string; title: string; status: string; start: string; end: string; line: string }[];
+    round_on: boolean;
+  };
+};
 
-// --- Projects (M4) ---
-export type ProjectStatus = 'active' | 'waiting' | 'done' | 'dropped'
+// W8 สมุดกติกา (B5)
+export type Part = "planner" | "mail" | "jobs" | "ask" | "clock" | "all";
+/** A rule that lives in your settings, shown in the rule book (its value is set where `edit` points). */
+export type SystemRule = {
+  key: "schedule" | "mail" | "jobs" | "never"; text: string; used_by: Part[];
+  edit?: string; enabled?: boolean; line?: number; fixed?: boolean; note?: string;
+};
+export type RuleRow = {
+  id: number; kind: "yours" | "learned" | "high_risk"; text: string; used_by: Part[]; enabled: boolean;
+  status: "active" | "pending" | "dismissed"; effect: { type: string } | null; evidence: string; fixed: boolean; updated_at: string | null;
+};
+export type RiskRow = { id: number; key: string; text: string; fixed: boolean; hint: string };
+export type RulesPage = {
+  system: SystemRule[]; yours: RuleRow[]; learned: RuleRow[]; risks: RiskRow[]; parts: Record<Part, string>;
+  counts: { yours: number; learned: number; risks: number };
+};
+/** What a sentence would become (nothing saved yet). kind "unsupported": `why` says why not. */
+export type Proposal = {
+  kind: string; text: string; used_by: Part[]; why: string; ok: boolean; tokens: number;
+  effect: Record<string, unknown> | null; change: Record<string, unknown> | null;
+};
 
-export interface Project {
-  id: number
-  name: string
-  goal: string
-  deadline: string | null
-  status: ProjectStatus
-  estimated_hours: number
-  repo_path: string | null
-  last_commit_at: string | null
-}
+// W4 งานเบื้องหลัง · W3 โปรเจค (B5)
+export type JobStatus = "queued" | "asking" | "ready" | "running" | "done" | "stopped" | "failed" | "rejected" | "dropped" | "paused";
+export type JobRow = {
+  id: number; project_id: number; project: string; potential: string; source: "progress" | "you"; stuck_at: string; note: string; status: JobStatus;
+  title: string; steps: string[]; model: string; effort: string; estimate: number; budget: number; used: number;
+  risks: string[]; high_risk: boolean; rule_ok: boolean | null; rule_why: string; decision_id: number | null; why: string;
+  approved_until: string | null; branch: string; result: string; plan_tokens: number;
+  planned_at: string | null; started_at: string | null; finished_at: string | null;
+  efforts: Record<string, number>; // the budget at each effort (the − + stepper)
+  start_from?: string; // waiting jobs: where the job will start (the secretary's unmerged branch, or your HEAD)
+};
+export type JobsPage = {
+  quota: { week_left?: number; week_resets_at?: string | null; five_left?: number | null; at?: string; line: number; auto: boolean };
+  kpi: { auto: number; asking: number; over_budget: number };
+  usage: { today: number; jobs_today: number; week: number }; // tokens the secretary itself used (they move with every job)
+  running: JobRow | null; queue: JobRow[]; recent: JobRow[]; projects: { id: number; name: string }[];
+  round_on: boolean; window: string; approval_days: number;
+};
+export type ProjectRow = {
+  id: number; name: string; path: string; status: string; status_name: string; potential: string; urgency: number;
+  level_set: boolean; hidden: boolean; allow_jobs: boolean; can_work: boolean; is_self: boolean; is_git: boolean;
+  last_activity: string | null; commits_14d: number; missing: boolean; decision_id: number | null;
+  progress: { next?: string; done?: number; todo?: number };
+  news: { title: string; at: string; urgent: boolean; kind: string } | null;
+  job: { id: number; status: JobStatus; title: string } | null;
+  secretary?: { branch: string; ahead: number } | null; // the secretary's work waiting for you to merge
+};
+export type Advice = { project_id: number; project: string; kind: "stale" | "short"; title: string; detail: string; next: string };
+export type ProjectsPage = { items: ProjectRow[]; advice: Advice[]; root: string; scanned: boolean };
 
-export interface PlanBlock {
-  title: string
-  start: string
-  end: string
-}
+export class ApiError extends Error {}
 
-export interface PlanPreview {
-  blocks: PlanBlock[]
-  hours_scheduled: number
-  hours_unscheduled: number
-  deadline: string
-  error?: string
-}
-
-export async function fetchProjects(): Promise<Project[]> {
-  const res = await fetch(`${BASE}/projects`)
-  if (!res.ok) throw new Error(`projects failed: ${res.status}`)
-  return res.json()
-}
-
-export async function discoverRepos(root: string): Promise<Project[]> {
-  const res = await fetch(`${BASE}/projects/discover`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ root }),
-  })
-  if (!res.ok) throw new Error(`discover failed: ${res.status}`)
-  return res.json()
-}
-
-// Send only the fields you want to change.
-export async function updateProject(id: number, patch: Partial<Project>): Promise<Project> {
-  const res = await fetch(`${BASE}/projects/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  })
-  if (!res.ok) throw new Error(`update failed: ${res.status}`)
-  return res.json()
-}
-
-export async function deleteProject(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/projects/${id}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`delete failed: ${res.status}`)
-}
-
-// Preview a plan (no calendar writes).
-export async function planProject(id: number): Promise<PlanPreview> {
-  const res = await fetch(`${BASE}/projects/${id}/plan`, { method: 'POST' })
-  if (!res.ok) throw new Error(`plan failed: ${res.status}`)
-  return res.json()
-}
-
-// Book the approved blocks into the calendar.
-export async function commitPlan(id: number, blocks: PlanBlock[]): Promise<{ created: number }> {
-  const res = await fetch(`${BASE}/projects/${id}/plan/commit`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ blocks }),
-  })
-  if (!res.ok) throw new Error(`commit failed: ${res.status}`)
-  return res.json()
-}
-
-// --- Academic (Google Classroom) ---
-export interface Assignment {
-  course: string
-  course_id: string
-  id: string
-  title: string
-  due: string | null // ISO 8601, or null when the assignment has no due date
-  state: string // NEW | CREATED | TURNED_IN | RETURNED | RECLAIMED_BY_STUDENT
-  late: boolean
-  submitted: boolean // already turned in or returned/graded
-  overdue: boolean // not submitted and past its due date
-  ignored: boolean // user chose to ignore it (e.g. old un-submittable homework)
-  link: string | null
-}
-
-// One fetch gives every assignment (with submitted/overdue/ignored flags), so the
-// Academic page derives both the to-do groups and the per-subject list from it.
-// Served from a DB snapshot (instant); pass refresh=true to force a Google fetch.
-export async function fetchAssignments(refresh = false): Promise<Cached<Assignment[]>> {
-  const res = await fetch(`${BASE}/academic/assignments${refresh ? '?refresh=true' : ''}`)
-  if (!res.ok) throw new Error(`assignments failed: ${res.status}`)
-  return res.json()
-}
-
-// Ignore an assignment so it stops showing in to-dos, nudges, and the brief.
-export async function ignoreAssignment(assignment: Assignment): Promise<void> {
-  const res = await fetch(`${BASE}/academic/ignore`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ assignment_id: assignment.id, title: assignment.title, course: assignment.course }),
-  })
-  if (!res.ok) throw new Error(`ignore failed: ${res.status}`)
-}
-
-export async function unignoreAssignment(assignmentId: string): Promise<void> {
-  const res = await fetch(`${BASE}/academic/ignore/${assignmentId}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`un-ignore failed: ${res.status}`)
-}
-
-// --- Proactive (M5): daily brief + deadline nudges ---
-export interface Brief {
-  for_date: string
-  content: string
-  created_at: string
-}
-
-// Today's brief — generated + cached on the first call of the day (one Claude call).
-export async function fetchBrief(): Promise<Brief> {
-  const res = await fetch(`${BASE}/brief/today`)
-  if (!res.ok) throw new Error(`brief failed: ${res.status}`)
-  return res.json()
-}
-
-export async function regenerateBrief(): Promise<Brief> {
-  const res = await fetch(`${BASE}/brief/regenerate`, { method: 'POST' })
-  if (!res.ok) throw new Error(`brief regenerate failed: ${res.status}`)
-  return res.json()
-}
-
-export interface NudgeItem {
-  type: 'assignment' | 'project'
-  label: string
-  sublabel: string
-  due: string | null
-}
-
-export interface Nudges {
-  overdue: NudgeItem[]
-  due_soon: NudgeItem[]
-  suggestions: string[]
-}
-
-// Tokenless: overdue items, things due soon, and replan suggestions.
-export async function fetchNudges(): Promise<Nudges> {
-  const res = await fetch(`${BASE}/nudges`)
-  if (!res.ok) throw new Error(`nudges failed: ${res.status}`)
-  return res.json()
-}
-
-// --- Mail (M6): Gmail read-only + local-LLM schedule extraction ---
-export interface Email {
-  id: string
-  thread_id: string
-  from: string
-  subject: string
-  date: string | null
-  snippet: string
-  body: string
-  unread: boolean
-  link: string
-}
-
-// Browse unread inbox (free Google API call). Served from a DB snapshot (instant);
-// pass refresh=true to force a fresh Gmail fetch.
-export async function fetchUnread(refresh = false, limit = 20): Promise<Cached<Email[]>> {
-  const res = await fetch(`${BASE}/mail/unread?limit=${limit}${refresh ? '&refresh=true' : ''}`)
-  if (!res.ok) throw new Error(`unread failed: ${res.status}`)
-  return res.json()
-}
-
-// Browse today's inbox, read + unread (free Google API call). Snapshot-served.
-export async function fetchToday(refresh = false, limit = 40): Promise<Cached<Email[]>> {
-  const res = await fetch(`${BASE}/mail/today?limit=${limit}${refresh ? '&refresh=true' : ''}`)
-  if (!res.ok) throw new Error(`today failed: ${res.status}`)
-  return res.json()
-}
-
-// Search mail with Gmail query syntax (free Google API call — no tokens).
-export async function searchMail(q: string, limit = 20): Promise<Email[]> {
-  const res = await fetch(`${BASE}/mail/search?q=${encodeURIComponent(q)}&limit=${limit}`)
-  if (!res.ok) throw new Error(`search failed: ${res.status}`)
-  return res.json()
-}
-
-// A schedule item the LOCAL model pulled out of an email (a suggestion only —
-// nothing is added to the calendar until you ask).
-export interface MailItem {
-  type: 'deadline' | 'meeting' | 'event' | 'other'
-  title: string
-  datetime: string | null
-  note: string
-  email_id: string
-  email_subject: string
-  email_from: string
-  link: string
-  pinned?: boolean // auto-pinned by the scan (dated/deadline/meeting/event)
-}
-
-export interface MailScan {
-  items: MailItem[]
-  scanned: number
-  scope?: string
-  model?: string
-  for_date?: string
-  auto_pinned?: number // how many items the scan auto-pinned
-}
-
-export type ScanScope = 'unread' | 'today'
-
-// Run the local model over mail to extract deadlines/meetings/events.
-// 'unread' always runs fresh; 'today' reads the once-a-day cached scan (the
-// scheduler pre-warms it each morning), with `force` to re-run it.
-export async function scanMail(scope: ScanScope = 'unread', force = false): Promise<MailScan> {
-  const url =
-    scope === 'today'
-      ? `${BASE}/mail/scan/today${force ? '?force=true' : ''}`
-      : `${BASE}/mail/scan?scope=unread`
-  const res = await fetch(url, { method: scope === 'today' ? 'GET' : 'POST' })
+async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   if (!res.ok) {
-    const detail = await res.json().catch(() => null)
-    throw new Error(detail?.detail ?? `scan failed: ${res.status}`)
+    // The backend explains refusals in plain words ({"detail": "..."}); show that, not the status code
+    const detail = await res.json().then((j) => j.detail, () => null);
+    throw new ApiError(typeof detail === "string" ? detail : `เกิดข้อผิดพลาด (${res.status})`);
   }
-  return res.json()
+  return res.json();
 }
 
-// --- Pinned emails (show on the Projects page; dated pins → calendar) ---
-export interface Pin {
-  email_id: string
-  subject: string
-  sender: string
-  link: string
-  note: string
-  date: string | null
-  on_calendar: boolean
-  created_at: string | null
-}
+// W2 คนและอีเมล (B2)
+export type Level = "important" | "interested" | "ignored";
+export type Person = {
+  id: number; name: string; level: Level; level_name: string; source: string; until: string | null;
+  days_left: number | null; expired: boolean; note: string; demote_reason: string; last_mail_at: string | null;
+  addresses: string[]; awaiting: boolean;
+};
+export type PersonMail = { id: string; sent_at: string; subject: string; from_me: boolean; summary: string; stage: string; link: string; needs_reply: boolean; done: string[] };
+export type Followup = { id: number; person_id: number | null; name: string; subject: string; waiting_on: "you" | "them"; since: string; days: number; remind_after_days: number };
+export type PersonDetail = Person & { emails: PersonMail[]; followups: Followup[] };
+export type MailSettings = {
+  keywords: string[]; interests: string[]; followup_days: number; emails_week: number; last_watch: string | null;
+  accounts: { id: string; label: string; connected: boolean; problem: string; address: string }[];
+};
 
-export async function fetchPins(): Promise<Pin[]> {
-  const res = await fetch(`${BASE}/mail/pins`)
-  if (!res.ok) throw new Error(`pins failed: ${res.status}`)
-  return res.json()
-}
+// W6 ไอเดีย (B6)
+export type IdeaRow = {
+  id: number; text: string; source: "key" | "discord" | "web"; source_name: string; tags: string[];
+  tagged: "" | "you" | "rules"; group_id: number | null; group: string; at: string;
+};
+export type GroupPreview = { name: string; size: number; new: boolean; tag: string } | null;
+export type IdeaGroupRow = {
+  id: number; name: string; tag: string; status: "open" | "asked" | "later" | "project" | "task"; status_name: string;
+  size: number; week: number; grew: string; last: string | null; about: string; tags: string[];
+  decision_id: number | null; waiting: boolean; project_id: number | null; task_id: number | null;
+  ideas: { id: number; text: string; source: IdeaRow["source"]; at: string }[];
+};
+export type IdeasPage = { recent: IdeaRow[]; total: number; ungrouped: number; groups: IdeaGroupRow[]; grown: number; round_on: boolean };
+export type SavedIdea = { id: number; tags: string[]; group: GroupPreview };
 
-export interface PinInput {
-  email_id: string
-  subject?: string
-  sender?: string
-  link?: string
-  date?: string | null
-  note?: string
-}
+// W2 ข้อเสนอปรับระดับรายสัปดาห์ (B7): from the weekly review while it waits, else as things stand now
+export type ProposalItem = {
+  person_id: number; name: string; level: Level; to: Level; choice: string; choices: [string, string][];
+  why: string; note: string; until: string | null;
+};
+export type Proposals = { decision_id: number | null; items: ProposalItem[] };
 
-// Pin an email. If `date` is set, the backend also adds it to your calendar.
-export async function pinEmail(input: PinInput): Promise<Pin> {
-  const res = await fetch(`${BASE}/mail/pins`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-  if (!res.ok) throw new Error(`pin failed: ${res.status}`)
-  return res.json()
-}
+// W5 ⑤ ⑥ ทำตามแผนได้ · ข้อสังเกต (B6)
+export type Followed = {
+  label: string; percent: number | null; checked: number; target: number; recording: boolean;
+  days: { label: string; done: number; missed: number }[];
+  notes: { title: string; sub: string; weekday: number; part: string; weeks: number; avoided: boolean }[];
+};
 
-export async function unpinEmail(emailId: string): Promise<void> {
-  const res = await fetch(`${BASE}/mail/pins/${encodeURIComponent(emailId)}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`unpin failed: ${res.status}`)
-}
+// W7 การใช้เวลา (B6)
+export type PrivacyRuleRow = { id: number; kind: "app" | "title" | "word"; kind_name: string; value: string; note: string };
+export type Recorder = {
+  installed: boolean; running: boolean; enabled: boolean; extension: "on" | "after_login" | "missing"; round_on: boolean;
+  paused_until: string | null; web: string; pause_minutes: number[];
+};
+export type PrivacyCard = {
+  recorder: Recorder; rules: PrivacyRuleRow[]; kinds: Record<PrivacyRuleRow["kind"], string>;
+  last_read: { to?: string; at?: string; error?: string; error_at?: string };
+};
+export type TimeBar = { label: string; start: string; minutes: Record<string, number> };
+export type TimeProject = { name: string; minutes: number; planned: number; short: number };
+export type Behaviour = { icon: "bolt" | "eye" | "trend" | "clock"; title: string; sub: string; link?: string };
+export type TimeRange = "today" | "week" | "month";
+export type TimePage = {
+  privacy: PrivacyCard; range: TimeRange; label: string; start: string; end: string;
+  categories: Record<string, string>; bars: TimeBar[]; projects: TimeProject[]; behaviours: Behaviour[];
+  unsorted: { app: string; title: string; minutes: number }[]; total: number; days_with_data: number;
+  rules: { field: "app" | "title"; match: string; category: string; project: string }[];
+};
 
-export interface LocalStatus {
-  up: boolean
-  model: string
-}
+export const api = {
+  // D4 ทบทวนรายสัปดาห์ (B7)
+  weeklyNow: () => call<{ title: string }>("POST", "/api/weekly/run"),
+  answerWeekly: (decisionId: number, act: string) => call<{ text: string }>("POST", `/api/weekly/decisions/${decisionId}`, { act }),
+  // W2 ข้อเสนอปรับระดับรายสัปดาห์ (B7)
+  proposals: () => call<Proposals>("GET", "/api/proposals/people"),
+  answerProposals: (items: { person_id: number; choice: string }[], decision_id: number | null) =>
+    call<{ action_ids: number[] }>("POST", "/api/proposals/people", { items, decision_id }),
+  // W7 การใช้เวลา (B6)
+  time: (range: TimeRange = "week") => call<TimePage>("GET", `/api/time?range=${range}`),
+  sortTime: (field: "app" | "title", match: string, category: string, project = "") =>
+    call<{ action_id: number }>("POST", "/api/time/categories", { field, match, category, project }),
+  setRecording: (on: boolean) => call<PrivacyCard & { action_id: number }>("PUT", "/api/time/recording", { on }),
+  pauseRecording: (minutes: number) => call<PrivacyCard & { until: string; action_id: number }>("POST", "/api/time/pause", { minutes }),
+  resumeRecording: () => call<PrivacyCard & { action_id: number }>("POST", "/api/time/resume"),
+  addPrivacyRule: (kind: string, value: string, note = "") => call<PrivacyCard & { action_id: number }>("POST", "/api/time/privacy", { kind, value, note }),
+  removePrivacyRule: (id: number) => call<PrivacyCard & { action_id: number }>("DELETE", `/api/time/privacy/${id}`),
+  // W6 ไอเดีย (B6)
+  ideas: () => call<IdeasPage>("GET", "/api/ideas"),
+  addIdea: (text: string, tags: string[] | null) => call<SavedIdea>("POST", "/api/ideas", { text, tags, source: "web" }),
+  suggestTags: (text: string) => call<{ tags: string[]; group: GroupPreview }>("GET", `/api/ideas/suggest?text=${encodeURIComponent(text)}`),
+  setIdeaTags: (id: number, tags: string[]) => call<SavedIdea>("PUT", `/api/ideas/${id}/tags`, { tags }),
+  removeIdea: (id: number) => call<{ action_id: number | null }>("DELETE", `/api/ideas/${id}`),
+  groupFolder: (id: number) => call<{ name: string }>("GET", `/api/ideas/groups/${id}/folder`),
+  groupProject: (id: number, name: string) => call<{ project_id: number; action_id: number }>("POST", `/api/ideas/groups/${id}/project`, { name }),
+  groupTask: (id: number) => call<{ task_id: number; action_id: number }>("POST", `/api/ideas/groups/${id}/task`),
+  groupLater: (id: number) => call<{ action_id: number }>("POST", `/api/ideas/groups/${id}/later`),
+  renameGroup: (id: number, name: string) => call<{ action_id: number }>("PUT", `/api/ideas/groups/${id}/name`, { name }),
+  ideasRound: () => call<{ line: string }>("POST", "/api/ideas/round"),
+  // W1 วันนี้ (B4)
+  today: () => call<TodayPage>("GET", "/api/today"),
+  // W5 ตาราง (B3)
+  followed: () => call<Followed>("GET", "/api/schedule/followed"),
+  setFollowTarget: (target: number) => call<{ target: number; action_id: number }>("PUT", "/api/schedule/followed/target", { target }),
+  blockDone: (id: number) => call<{ action_id: number }>("POST", `/api/blocks/${id}/done`),
+  avoidHours: (weekday: number, part: string) => call<{ action_id: number; line: string }>("POST", "/api/schedule/avoid", { weekday, part }),
+  week: (start: string, end: string) => call<Week>("GET", `/api/schedule?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`),
+  replan: () => call<{ line: string }>("POST", "/api/schedule/replan"),
+  tasks: () => call<{ items: TaskRow[] }>("GET", "/api/tasks"),
+  addTask: (t: NewTask) => call<Saved & { id: number }>("POST", "/api/tasks", t),
+  // Only the fields sent change; null puts one back to its default.
+  editTask: (id: number, change: Partial<NewTask>) => call<Saved>("PATCH", `/api/tasks/${id}`, change),
+  taskDone: (id: number) => call<Saved>("POST", `/api/tasks/${id}/done`),
+  addEvent: (e: NewEvent) => call<Saved & { id: number }>("POST", "/api/events", e),
+  rules: () => call<ScheduleRules>("GET", "/api/schedule/rules"),
+  saveRules: (r: { day_start: string; day_end: string; max_block: number; per_task_per_day: number; gap: number; estimates: Record<string, number>; reminders: string[] }) =>
+    call<{ action_id: number }>("PUT", "/api/schedule/rules", r),
+  courses: () => call<{ items: CourseRow[] }>("GET", "/api/courses"),
+  answerCourse: (decisionId: number, follow: boolean, folder?: string) =>
+    call<{ status: string; action_id: number }>("POST", `/api/courses/decisions/${decisionId}`, { follow, folder }),
+  status: () => call<Status>("GET", "/api/status"),
+  settings: () => call<Settings>("GET", "/api/settings"),
+  setTask: (task: string, model: string, effort: string) => call<Task & { action_id: number }>("PUT", `/api/settings/llm/${task}`, { model, effort }),
+  setTheme: (theme: string) => call<{ theme: string }>("PUT", "/api/settings/theme", { theme }),
+  setRound: (id: string, on: boolean) => call<{ round: string; on: boolean; action_id: number }>("PUT", `/api/settings/rounds/${id}`, { on }),
+  log: (range: string, group: string) =>
+    call<{ items: LogItem[]; groups: { key: string; label: string }[] }>("GET", `/api/log?range=${range}&group=${group}`),
+  undo: (id: number) => call<LogItem>("POST", `/api/log/${id}/undo`),
+  decisions: () => call<{ items: Decision[] }>("GET", "/api/decisions?status=pending"),
+  people: (level: Level) => call<{ counts: Record<Level | "followups", number>; items: Person[] }>("GET", `/api/people?level=${level}`),
+  person: (id: number) => call<PersonDetail>("GET", `/api/people/${id}`),
+  setLevel: (id: number, level: Level, opts: { days?: number | null; note?: string; reason?: string } = {}) =>
+    call<{ action_id: number }>("POST", `/api/people/${id}/level`, { level, ...opts }),
+  setNote: (id: number, note: string) => call<{ ok: boolean }>("PUT", `/api/people/${id}/note`, { note }),
+  addPerson: (address: string, name: string, days: number | null, note: string) =>
+    call<{ id: number; action_id: number }>("POST", "/api/people", { address, name, days, note }),
+  followups: () => call<{ items: Followup[] }>("GET", "/api/followups"),
+  answerFollowup: (id: number, act: "done" | "later") => call<{ ok: boolean }>("POST", `/api/followups/${id}`, { act }),
+  mailSettings: () => call<MailSettings>("GET", "/api/mail/settings"),
+  saveMailSettings: (s: { keywords?: string[]; interests?: string[]; followup_days?: number }) => call<MailSettings>("PUT", "/api/mail/settings", s),
+  answerAppointment: (id: number, accept: boolean) =>
+    call<{ id: number; status: string; action_id: number | null }>("POST", `/api/appointments/${id}`, { accept }),
+  decide: (id: number, action: "approve" | "reject") => call<{ id: number; status: string; action_id: number }>("POST", `/api/decisions/${id}`, { action }),
+  revise: (id: number, change: string) => call<Answer>("POST", `/api/decisions/${id}/revise`, { change }),
+  // W8 สมุดกติกา (B5)
+  ruleBook: () => call<RulesPage>("GET", "/api/rules"),
+  parseRule: (text: string) => call<Proposal>("POST", "/api/rules/parse", { text }),
+  addRule: (r: { kind: string; text: string; used_by?: Part[]; effect?: Record<string, unknown> | null; change?: Record<string, unknown> | null }) =>
+    call<{ rule_id?: number; action_id: number; why: string }>("POST", "/api/rules", r),
+  editRule: (id: number, change: { text?: string; used_by?: Part[]; enabled?: boolean }) =>
+    call<RuleRow & { action_id: number }>("PATCH", `/api/rules/${id}`, change),
+  deleteRule: (id: number) => call<{ action_id: number }>("DELETE", `/api/rules/${id}`),
+  answerLearned: (id: number, accept: boolean) => call<RuleRow & { action_id: number }>("POST", `/api/rules/${id}/answer`, { accept }),
+  setJobsRule: (r: { auto?: boolean; line?: number }) => call<{ auto: boolean; line: number; action_id: number }>("PUT", "/api/rules/jobs", r),
+  // W4 งานเบื้องหลัง (B5)
+  jobs: () => call<JobsPage>("GET", "/api/jobs"),
+  readQuota: () => call<{ quota: JobsPage["quota"] | null }>("POST", "/api/quota/read"),
+  // ทำต่อ: queued and planned at once (go: may start · false: waits for you in #อนุมัติ · null: the plan failed)
+  addJob: (projectId: number, note: string) =>
+    call<{ id: number; action_id: number; go: boolean | null; why: string }>("POST", "/api/jobs", { project_id: projectId, note }),
+  planJob: (id: number) => call<{ go: boolean; why: string }>("POST", `/api/jobs/${id}/plan`),
+  setJobEffort: (id: number, model: string, effort: string) => call<JobRow>("PUT", `/api/jobs/${id}/effort`, { model, effort }),
+  setJobBudget: (id: number, budget: number) => call<JobRow>("PUT", `/api/jobs/${id}/budget`, { budget }),
+  answerJob: (decisionId: number, approve: boolean) =>
+    call<{ job: JobRow; action_id: number }>("POST", `/api/jobs/decisions/${decisionId}`, { approve }),
+  reviseJob: (decisionId: number, change: string) => call<{ go: boolean; why: string }>("POST", `/api/jobs/decisions/${decisionId}/revise`, { change }),
+  dropJob: (id: number) => call<{ action_id: number }>("DELETE", `/api/jobs/${id}`),
+  runJob: (id: number) => call<{ line: string }>("POST", `/api/jobs/${id}/run`),
+  stopJob: (id: number) => call<{ ok: boolean }>("POST", `/api/jobs/${id}/stop`),
+  // W3 โปรเจค (B5)
+  projects: () => call<ProjectsPage>("GET", "/api/projects"),
+  editProject: (id: number, change: Partial<Pick<ProjectRow, "status" | "potential" | "urgency" | "hidden" | "allow_jobs">>) =>
+    call<{ action_id: number }>("PATCH", `/api/projects/${id}`, change),
+  scanProjects: () => call<{ line: string | null }>("POST", "/api/projects/scan"),
+  connect: () => call<{ text: string; inbox: string; example: string }>("GET", "/api/projects/connect"),
+  bookProject: (id: number, minutes = 120) => call<{ task_id: number; action_id?: number }>("POST", `/api/projects/${id}/book`, { minutes }),
+  answerLevel: (decisionId: number, potential: string, urgency: number) =>
+    call<{ ok: boolean }>("POST", `/api/projects/decisions/${decisionId}`, { potential, urgency }),
+};
 
-// Is the local model server (Ollama) reachable? Used to warn before scanning.
-export async function fetchLocalStatus(): Promise<LocalStatus> {
-  const res = await fetch(`${BASE}/mail/local-status`)
-  if (!res.ok) throw new Error(`local-status failed: ${res.status}`)
-  return res.json()
+export type AskEvents = {
+  onText: (chunk: string) => void;
+  onNote: (note: string) => void;
+  onDone: (answer: Answer) => void;
+  onError: (message: string) => void;
+};
+
+/** Ask the secretary and receive the answer as it is written (the backend streams NDJSON lines). */
+export async function askStream(text: string, deep: boolean, on: AskEvents, signal?: AbortSignal): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch("/api/ask", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, deep }), signal,
+    });
+  } catch {
+    if (!signal?.aborted) on.onError("ติดต่อเลขาไม่ได้ · เซิร์ฟเวอร์เปิดอยู่ไหม");
+    return;
+  }
+  if (!res.ok || !res.body) return on.onError(`ถามไม่สำเร็จ (${res.status})`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (!line) continue;
+      const msg = JSON.parse(line);
+      if (msg.type === "text") on.onText(msg.text);
+      else if (msg.type === "note") on.onNote(msg.text);
+      else if (msg.type === "done") on.onDone(msg.answer);
+      else if (msg.type === "error") on.onError(msg.message);
+    }
+  }
 }
