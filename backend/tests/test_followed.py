@@ -115,9 +115,11 @@ def test_the_planner_counts_only_what_was_worked_of_a_missed_block():
     with session() as s:
         row = s.get(Block, b)
         row.outcome, row.worked_minutes = "missed", 30
+    mail = task("ตอบอีเมล อ.วิภา", source="email")
     work, _, kept_blocks, _, fp_missed = sync._inputs(m(180), [])
     mine = next(w for w in work if w.task_id == t.id)
     assert mine.minutes == 240 - 30  # the other 90 minutes went back to the task
+    assert mine.focus and not next(w for w in work if w.task_id == mail.id).focus  # email replies never take focus hours
     with session() as s:
         s.get(Block, b).outcome = "done"
     work, _, _, _, fp_done = sync._inputs(m(180), [])

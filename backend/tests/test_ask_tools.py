@@ -46,12 +46,17 @@ def vipa():
             s.add(Email(id=f"at-m{i}", account="ku", thread_id=f"at-t{i}", person_id=p.id, sender="at-vipa@uni.ac.th",
                         sender_name="อ.วิภา", subject=subject, summary=summary, stage="summarized",
                         sent_at=start + timedelta(hours=9) - timedelta(days=days)))
+        other = Person(name="at-คนอื่น", level="interested")
+        s.add(other)
+        s.flush()
+        s.add(Email(id="at-other", account="ku", thread_id="at-t9", person_id=other.id, sender="other@x.com",
+                    subject="ร่างบทที่ 3 ของเพื่อน", summary="ไม่เกี่ยว", stage="summarized", sent_at=start + timedelta(hours=8)))
         pid = p.id
     yield pid
     with session() as s:
         s.execute(delete(Email).where(Email.id.like("at-%")))
         s.execute(delete(PersonAddress).where(PersonAddress.person_id == pid))
-        s.execute(delete(Person).where(Person.id == pid))
+        s.execute(delete(Person).where(Person.name.like("at-%")))
 
 
 def test_what_someone_sent_this_week_comes_with_gmail_links(vipa):

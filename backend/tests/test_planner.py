@@ -214,10 +214,10 @@ def test_with_two_tasks_the_first_takes_the_focus_hours_and_email_work_never_doe
 
 
 def test_a_task_never_gets_two_blocks_back_to_back_at_the_focus_hours_edge():
-    rules = Rules(focus=FOCUS, horizon_days=1, gap=15)
-    out = plan([Work(1, 4 * 60, max_block=120, per_day=4 * 60)], [], now=at(9, 7), rules=rules, tz=BKK)
+    rules = Rules(focus=FOCUS, horizon_days=1, gap=15, max_block=150)
+    out = plan([Work(1, 5 * 60, max_block=150, per_day=5 * 60)], [], now=at(9, 7), rules=rules, tz=BKK)
     spans = sorted((b.start, b.end) for b in out.blocks)
-    assert spans[0] == (at(9, 9), at(9, 11)) and minutes(out.blocks) == 4 * 60
+    assert spans[0] == (at(9, 9), at(9, 11, 30)) and minutes(out.blocks) == 5 * 60  # the focus hours exactly, then a break
     for (s1, e1), (s2, e2) in zip(spans, spans[1:]):
         assert s2 - e1 >= timedelta(minutes=15), f"{e1:%H:%M} then {s2:%H:%M}"
 

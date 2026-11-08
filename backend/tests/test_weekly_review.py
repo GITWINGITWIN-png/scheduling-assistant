@@ -58,6 +58,12 @@ def week(tmp_path, monkeypatch):
             s.add(Block(task_id=t.id, starts_at=day(d, 13), ends_at=day(d, 15), status="planned", outcome="missed"))
         for d in (9, 11, 12):  # three mornings of the plan for wr-lab; you worked on it half an hour in all
             s.add(Block(task_id=t.id, starts_at=day(d, 14), ends_at=day(d, 15), status="planned", outcome=""))
+        ok = Task(title="wr-ok: ทำต่อ", source="project", project="wr-ok", source_ref="weekly-test")  # kept to its plan
+        s.add(ok)
+        s.flush()
+        s.add(Block(task_id=ok.id, starts_at=day(13, 16), ends_at=day(13, 18), status="planned"))
+        s.add(Activity(start=day(13, 16), end=day(13, 18), app="code", title="ok.py - wr-ok - VS Code", category="code",
+                       project="wr-ok"))
         for d in (9, 10, 11, 12, 13):  # mornings of steady code: the focus hours
             s.add(Activity(start=day(d, 9), end=day(d, 11), app="code", title="x.py - other - VS Code", category="code"))
         s.add(Activity(start=day(9, 14), end=day(9, 14, 30), app="code", title="lab.py - wr-lab - VS Code", category="code",
@@ -67,7 +73,8 @@ def week(tmp_path, monkeypatch):
     with session() as s:
         s.execute(delete(Activity))
         for model, where in ((Block, Block.task_id.in_(select(Task.id).where(Task.project == "wr-lab"))),
-                             (Task, Task.project == "wr-lab"), (Project, Project.name == "wr-lab"),
+                             (Block, Block.task_id.in_(select(Task.id).where(Task.project == "wr-ok"))),
+                             (Task, Task.project.in_(("wr-lab", "wr-ok"))), (Project, Project.name == "wr-lab"),
                              (Person, Person.name.like("wr-%")), (Brief, Brief.kind == "weekly"),
                              (Decision, Decision.kind == "weekly")):
             s.execute(delete(model).where(where))
@@ -88,6 +95,7 @@ def test_a_week_brings_a_topic_for_each_thing_to_decide(week):
     sched = found["schedule"]["proposal"]
     assert sched["focus"] == {"from": "09:00", "to": "11:00"} and sched["avoid"] == [{"weekday": 1, "part": "บ่าย"}]
     # the plan: three 1-hour blocks and Tuesday's missed 2 hours; 4.5 hours short, booked up to the 4-hour cap
+    assert "wr-ok" not in [b["name"] for b in found["time"]["proposal"]["projects"]]  # it got its plan: nothing to book
     ours = [b for b in found["time"]["proposal"]["projects"] if b["name"] == "wr-lab"]  # (other files share this week)
     assert ours == [{"name": "wr-lab", "minutes": 30, "planned": 300, "book": 240}]
     project = found["project"]
