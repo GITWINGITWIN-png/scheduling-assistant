@@ -360,11 +360,15 @@ export type AskEvents = {
 };
 
 /** Ask the secretary and receive the answer as it is written (the backend streams NDJSON lines). */
-export async function askStream(text: string, deep: boolean, on: AskEvents, signal?: AbortSignal): Promise<void> {
+/** One earlier message in the ask box, sent along so a follow-up ("ทำต่อ") makes sense. */
+export type Said = { who: "คุณ" | "เลขา"; text: string };
+
+export async function askStream(text: string, deep: boolean, on: AskEvents, history: Said[] = [],
+                                signal?: AbortSignal): Promise<void> {
   let res: Response;
   try {
     res = await fetch("/api/ask", {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, deep }), signal,
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, deep, history }), signal,
     });
   } catch {
     if (!signal?.aborted) on.onError("ติดต่อเลขาไม่ได้ · เซิร์ฟเวอร์เปิดอยู่ไหม");

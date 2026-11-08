@@ -2,8 +2,10 @@
 // Same flow as the Discord chat: Sonnet answers with its sources; an order or a plan request goes
 // to Opus, which does it (B9: listed with ย้อนกลับ, and ทำเลย for what can't be undone) or plans it;
 // "ให้ Opus คิดต่อ" asks Opus the same question.
+// Claude remembers what this box shows (the last few questions and answers), like the Discord chat
+// reads its channel, so "ทำต่อ" carries on the order before it. ล้าง empties the box and its memory.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { askStream, type Answer } from "../api";
+import { askStream, type Answer, type Said } from "../api";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
 import { OrderParts } from "./OrderParts";
@@ -14,6 +16,22 @@ import { Button, Markdown, Spinner } from "./ui";
 type Turn = { id: number; question: string; deep: boolean; text: string; note: string; answer: Answer | null; error: string };
 
 let nextId = 1;
+const REMEMBER = 3; // questions and answers sent along with a new question (the server trims long ones)
+
+/** The conversation before a question, as Claude should see it: the answer's text and its lists. */
+function remembered(turns: Turn[]): Said[] {
+  return turns.filter((t) => t.answer).slice(-REMEMBER).flatMap((t): Said[] => [
+    { who: "คุณ", text: t.question },
+    { who: "เลขา", text: answerText(t.answer!) },
+  ]);
+}
+
+function answerText(a: Answer): string {
+  const lines = [a.kind === "plan" ? `แผน: ${a.title}` : "", a.text];
+  if (a.confirms?.length) lines.push("รอคุณกดยืนยัน (ย้อนกลับไม่ได้):", ...a.confirms.map((c) => `- ${c.title}`));
+  if (a.done?.length) lines.push("เลขาทำแล้ว:", ...a.done.map((d, i) => `${i + 1}. ${d.summary}${d.target ? ` · ${d.target}` : ""}`));
+  return lines.filter(Boolean).join("\n");
+}
 
 export function AskBox() {
   const { refresh } = useStatus();
@@ -41,8 +59,11 @@ export function AskBox() {
   const update = (id: number, patch: (t: Turn) => Partial<Turn>) =>
     setTurns((all) => all.map((t) => (t.id === id ? { ...t, ...patch(t) } : t)));
 
-  const ask = (question: string, deep = false) => {
+  // before: how many turns came before the question (all of them for a new one; for "ให้ Opus คิดต่อ",
+  // the ones before the question it asks again, as on Discord)
+  const ask = (question: string, deep = false, before = turns.length) => {
     const id = nextId++;
+    const history = remembered(turns.slice(0, before));
     setTurns((all) => [...all, { id, question, deep, text: "", note: "", answer: null, error: "" }]);
     setOpen(true);
     askStream(question, deep, {
@@ -50,7 +71,7 @@ export function AskBox() {
       onNote: (note) => update(id, () => ({ note, text: "" })),
       onDone: (answer) => { update(id, () => ({ answer })); refresh(); },
       onError: (error) => update(id, () => ({ error })),
-    });
+    }, history);
   };
 
   const addRevised = (a: Answer, question: string) =>
@@ -74,7 +95,7 @@ export function AskBox() {
             <Button sm kind="ghost" onClick={() => setTurns([])}>ล้าง</Button>
             <Button sm kind="ghost" icon="x" onClick={() => setOpen(false)} />
           </div>
-          {turns.map((t) => (
+          {turns.map((t, i) => (
             <article key={t.id} className="flex flex-col gap-2 border-t border-line pt-3 first-of-type:border-0 first-of-type:pt-0">
               <p className="self-end max-w-[85%] rounded-s bg-accent-soft px-3 py-1.5 text-sm">{t.question}</p>
               {t.note && <p className="text-sm text-accent-strong flex items-center gap-1.5"><Icon name="sparkle" size={15} />{t.note}</p>}
@@ -89,7 +110,7 @@ export function AskBox() {
                   {t.answer.kind === "plan" && t.answer.decision_id
                     ? <PlanActions decisionId={t.answer.decision_id} onRevised={(a) => addRevised(a, t.question)} />
                     : t.answer.kind === "answer" && t.answer.model !== "Opus" && !t.deep
-                      && <div><Button sm disabled={busy} onClick={() => ask(t.question, true)}>ให้ Opus คิดต่อ</Button></div>}
+                      && <div><Button sm disabled={busy} onClick={() => ask(t.question, true, i)}>ให้ Opus คิดต่อ</Button></div>}
                 </>
               )}
             </article>

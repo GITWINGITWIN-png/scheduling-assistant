@@ -243,12 +243,16 @@ def toolset(via: Via, taken: Taken, *, request: str = "", planning: bool = True,
     from app.features.schedule import sync
 
     made: list[SdkMcpTool] = []
+    # At the limit Opus stops and says what is left. In the chat, "ทำต่อ" then carries on: the next
+    # message brings this answer along (ask._prompt). A plan's run has no chat turn to carry on from.
+    full = (f"ทำครบ {limit} อย่างในคำสั่งเดียวแล้ว · หยุดตรงนี้ บอกผู้ใช้ว่ายังเหลืออะไร (บอกชื่อให้ครบ) "
+            + ("และพิมพ์ “ทำต่อ” ให้ทำที่เหลือได้" if planning else "ให้สั่งต่อในแชท"))
 
     def action(name: str, description: str, required: dict, optional: dict | None = None, *, acts: bool = True):
         def wrap(fn: Callable[[dict], Awaitable]):
             async def handler(args: dict) -> dict:
                 if acts and taken.count >= limit:
-                    return _text(f"ทำครบ {limit} อย่างในคำสั่งเดียวแล้ว · หยุดตรงนี้ แล้วบอกผู้ใช้ว่าที่เหลือให้สั่งใหม่")
+                    return _text(full)
                 try:
                     return _text(await fn(args))
                 except ValueError as exc:  # what you asked for can't be done (as the page would say)

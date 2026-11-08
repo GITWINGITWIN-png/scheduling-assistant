@@ -34,16 +34,25 @@ MAX_BUTTONS = 25  # Discord's limit for one message
 
 
 async def _history(message: discord.Message, limit: int = 6) -> list[tuple[str, str]]:
-    """The last few messages before this one, so a follow-up like "แล้วเมื่อวานล่ะ" makes sense."""
+    """The last few messages before this one, so a follow-up like "แล้วเมื่อวานล่ะ" or "ทำต่อ" makes
+    sense. Only yours and the secretary's: anyone else in the channel isn't part of the conversation."""
     items: list[tuple[str, str]] = []
     async for m in message.channel.history(limit=limit, before=message):
-        if m.author.bot:
-            card = m.embeds[0] if m.embeds else None
-            said = " ".join(x for x in ((card.title if card else ""), (card.description if card else ""), m.content) if x)
-            items.append(("เลขา", said))
-        else:
+        if dc.bot.user is not None and m.author.id == dc.bot.user.id:
+            items.append(("เลขา", _said(m)))
+        elif dc.bot.is_owner(m.author):
             items.append(("คุณ", m.content))
     return list(reversed(items))
+
+
+def _said(m: discord.Message) -> str:
+    """What one of the secretary's messages says: its text and its card, with the card's lists
+    (เลขาทำแล้ว, รอคุณกดยืนยัน), which is where an order's answer says what it did."""
+    card = m.embeds[0] if m.embeds else None
+    parts = [m.content if not m.content.startswith("✨") else ""]  # ✨ is only the hand-off note
+    if card is not None:
+        parts += [card.title or "", card.description or "", *(f"{f.name}\n{f.value}" for f in card.fields)]
+    return "\n".join(p for p in parts if p)
 
 
 def answer_card(a: ask.Answer, deep_button: bool = True) -> tuple[discord.Embed, discord.ui.View | None]:

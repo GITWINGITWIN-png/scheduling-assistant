@@ -7,11 +7,15 @@ can show text as it arrives:
     {"type": "text", "text": "..."}                               as many as come
     {"type": "done", "answer": {...}}                             model, effort, sources, decision id
     {"type": "error", "message": "..."}                           instead of done, if Claude failed
+
+The page sends the conversation it shows along with the question (history), the way the Discord
+chat reads the channel: a follow-up like "ทำต่อ" or "แล้วเมื่อวานล่ะ" needs what came before it.
 """
 
 import asyncio
 import json
 from dataclasses import asdict
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -23,9 +27,16 @@ from app.features import ask, ask_orders, decisions
 router = APIRouter(prefix="/api", tags=["ask"])
 
 
+class Said(BaseModel):
+    """One earlier message in the ask box: yours (คุณ) or the secretary's answer (เลขา)."""
+    who: Literal["คุณ", "เลขา"]
+    text: str = Field(max_length=8000)
+
+
 class AskIn(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
     deep: bool = False  # True = "ให้ Opus คิดต่อ"
+    history: list[Said] = Field(default_factory=list, max_length=8)  # oldest first; ask._prompt trims it
 
 
 @router.post("/ask")
@@ -38,12 +49,14 @@ async def ask_stream(body: AskIn) -> StreamingResponse:
     async def on_note(note: str) -> None:
         await queue.put({"type": "note", "text": note})
 
+    history = [(h.who, h.text) for h in body.history]
+
     async def work() -> None:
         try:
             if body.deep:
-                a = await ask.deepen(body.text, on_text=on_text)
+                a = await ask.deepen(body.text, history, on_text=on_text)
             else:
-                a = await ask.ask(body.text, on_text=on_text, on_note=on_note)
+                a = await ask.ask(body.text, history, on_text=on_text, on_note=on_note)
             await queue.put({"type": "done", "answer": {**asdict(a), "footer": a.footer}})
         except llm.LLMError as exc:
             await queue.put({"type": "error", "message": str(exc)})
