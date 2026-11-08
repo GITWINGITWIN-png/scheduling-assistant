@@ -25,6 +25,10 @@ How it decides:
    blocks" would just be one long sitting.
 5. Whatever doesn't fit before the due date is reported (`Plan.short`), never placed late.
 6. A task can say "not before" (`Work.not_before`, B6's ย้ายไปพรุ่งนี้): its blocks start after it.
+7. Your schedule rules (B7, from the weekly review or the schedule page's ข้อสังเกต):
+   - `avoid`: a weekday's hours that keep being missed are never booked, as if busy every week;
+   - `focus`: your focus hours are filled first within each day. Days still go in order, so
+     work isn't pushed to a later day to wait for focus hours (quick email replies don't use it).
 """
 
 from __future__ import annotations
@@ -44,6 +48,8 @@ class Rules:
     per_task_per_day: int = 180  # minutes one task may take in a day
     horizon_days: int = 14
     step: int = 15  # blocks start on multiples of this many minutes
+    avoid: tuple[tuple[int, time, time], ...] = ()  # (weekday, 0 = Monday, from, to): never booked
+    focus: tuple[time, time] | None = None  # your focus hours, filled first within each day
 
 
 @dataclass(frozen=True)
@@ -55,6 +61,7 @@ class Work:
     max_block: int | None = None  # this task's longest block (minutes); None: rules.max_block
     per_day: int | None = None  # the most this task may take in a day; None: rules.per_task_per_day
     not_before: datetime | None = None  # none of its blocks before this (B6: "ย้ายไปพรุ่งนี้")
+    focus: bool = True  # may go first into the focus hours (False: quick work like email replies)
 
 
 @dataclass(frozen=True)
@@ -94,7 +101,11 @@ def free_time(busy: list[Interval], *, now: datetime, rules: Rules, tz: ZoneInfo
     start = _ceil(now.astimezone(tz), rules.step)
     today = start.date()
     gap = timedelta(minutes=rules.gap)
-    blocked = sorted((s.astimezone(tz) - gap, e.astimezone(tz) + gap) for s, e in busy)
+    blocked = [(s.astimezone(tz) - gap, e.astimezone(tz) + gap) for s, e in busy]
+    for i in range(rules.horizon_days):  # your avoided hours: busy every week, no gap around them
+        day = today + timedelta(days=i)
+        blocked += [(datetime.combine(day, a, tz), datetime.combine(day, b, tz)) for wd, a, b in rules.avoid if wd == day.weekday()]
+    blocked.sort()
     out: list[Interval] = []
     for i in range(rules.horizon_days):
         day = today + timedelta(days=i)
@@ -132,42 +143,82 @@ def _length(room: int, remaining: int, day_left: int, longest: int, rules: Rules
     return length if length >= smallest else 0
 
 
+def _apart(s: datetime, e: datetime, placed: list[Placed], gap: timedelta) -> list[Interval]:
+    """[s, e) without what lies within `gap` of the blocks already placed (the task's break)."""
+    spans = [(s, e)]
+    for p in placed:
+        lo, hi = p.start - gap, p.end + gap
+        spans = [part for a, b in spans for part in ((a, min(b, lo)), (max(a, hi), b)) if part[1] > part[0]]
+    return spans
+
+
+def _focus_first(free: list[Interval], focus: tuple[time, time], backwards: bool) -> list[Interval]:
+    """The free time cut at the focus hours' edges, in the order to fill it: day by day (latest
+    day first when filling backwards), the focus hours first within a day."""
+    parts = []
+    for s, e in free:
+        f0, f1 = (datetime.combine(s.date(), t, s.tzinfo) for t in focus)
+        cuts = sorted({s, e, *(c for c in (f0, f1) if s < c < e)})
+        parts += [(a, b, f0 <= a and b <= f1) for a, b in zip(cuts, cuts[1:])]
+    if backwards:
+        parts.sort(key=lambda p: (-p[0].date().toordinal(), not p[2], -p[0].timestamp()))
+    else:
+        parts.sort(key=lambda p: (p[0].date(), not p[2], p[0]))
+    return [(a, b) for a, b, _ in parts]
+
+
 def _fill(work: Work, free: list[Interval], until: datetime, remaining: int, used: dict[tuple[int, date], int],
           rules: Rules, *, backwards: bool) -> tuple[list[Placed], int]:
     placed: list[Placed] = []
     longest = work.max_block or rules.max_block
     per_day = work.per_day or rules.per_task_per_day
     order = sorted(free, reverse=backwards)
-    for s, e in order:
+    focused = bool(rules.focus and work.focus)
+    if focused:
+        order = _focus_first(order, rules.focus, backwards)
+    gap = timedelta(minutes=rules.gap)
+    for s0, e0 in order:
         if remaining <= 0:
             break
-        e = min(e, until)
+        e0 = min(e0, until)
         if work.not_before is not None:
-            s = max(s, work.not_before)
-        while remaining > 0 and e > s:
-            if backwards:
-                end = _floor(e, rules.step)  # e.g. due 16:59 -> the block ends 16:45
-                room = int((end - _ceil(s, rules.step)).total_seconds() // 60)
-                day = (end - timedelta(minutes=1)).date()
-            else:
-                begin = _ceil(s, rules.step)
-                room = int((e - begin).total_seconds() // 60)
-                day = begin.date()
-            day_left = per_day - used.get((work.task_id, day), 0)
-            length = _length(room, remaining, day_left, longest, rules)
-            if length <= 0:
-                break
-            if backwards:
-                piece = (end - timedelta(minutes=length), end)
-                e = piece[0] - timedelta(minutes=rules.gap)  # a break before this task's next block
-            else:
-                piece = (begin, begin + timedelta(minutes=length))
-                s = piece[1] + timedelta(minutes=rules.gap)
-            _take(free, piece)
-            used[(work.task_id, day)] = used.get((work.task_id, day), 0) + length
-            placed.append(Placed(work.task_id, *piece))
-            remaining -= length
+            s0 = max(s0, work.not_before)
+        # Cut at the focus hours, the free time comes in pieces that touch each other: keep this
+        # task's break around what it already has, so two of its blocks are never back to back.
+        spans = _apart(s0, e0, placed, gap) if focused else [(s0, e0)]
+        for s, e in (reversed(spans) if backwards else spans):
+            remaining = _fill_span(work, free, s, e, remaining, used, rules, longest, per_day, placed, backwards=backwards)
     return placed, remaining
+
+
+def _fill_span(work: Work, free: list[Interval], s: datetime, e: datetime, remaining: int,
+               used: dict[tuple[int, date], int], rules: Rules, longest: int, per_day: int, placed: list[Placed],
+               *, backwards: bool) -> int:
+    """Blocks of one task in one span of free time (adds to `placed`). -> minutes still to place."""
+    while remaining > 0 and e > s:
+        if backwards:
+            end = _floor(e, rules.step)  # e.g. due 16:59 -> the block ends 16:45
+            room = int((end - _ceil(s, rules.step)).total_seconds() // 60)
+            day = (end - timedelta(minutes=1)).date()
+        else:
+            begin = _ceil(s, rules.step)
+            room = int((e - begin).total_seconds() // 60)
+            day = begin.date()
+        day_left = per_day - used.get((work.task_id, day), 0)
+        length = _length(room, remaining, day_left, longest, rules)
+        if length <= 0:
+            break
+        if backwards:
+            piece = (end - timedelta(minutes=length), end)
+            e = piece[0] - timedelta(minutes=rules.gap)  # a break before this task's next block
+        else:
+            piece = (begin, begin + timedelta(minutes=length))
+            s = piece[1] + timedelta(minutes=rules.gap)
+        _take(free, piece)
+        used[(work.task_id, day)] = used.get((work.task_id, day), 0) + length
+        placed.append(Placed(work.task_id, *piece))
+        remaining -= length
+    return remaining
 
 
 def plan(work: list[Work], busy: list[Interval], *, now: datetime, rules: Rules = Rules(),

@@ -134,37 +134,11 @@ def behaviours(range_: str, rs: list[Activity], per_project: list[dict]) -> list
     out: list[dict] = []
     if not rs:
         return out
-    tz = get_config().tz
-    active = defaultdict(float)  # half-hour slot of the day -> minutes at the computer
-    work = defaultdict(float)  # the same, of code and studying only (what focus is about)
-    for r in rs:
-        t = r.start
-        while t < r.end:
-            slot = local(t).hour * 2 + local(t).minute // 30
-            nxt = min(r.end, datetime.combine(local(t).date(), time(slot // 2, 30 * (slot % 2)), tz) + timedelta(minutes=30))
-            active[slot] += (nxt - t).total_seconds() / 60
-            if r.category in WORK:
-                work[slot] += (nxt - t).total_seconds() / 60
-            t = nxt
-    sw = defaultdict(int)
-    for at in switches(rs):
-        sw[local(at).hour * 2 + local(at).minute // 30] += 1
-    days = max(1, len({local(r.start).date() for r in rs}))
-    best = None
-    for first in range(0, 48 - FOCUS_SLOTS + 1):
-        slots = range(first, first + FOCUS_SLOTS)
-        mins = sum(work[s] for s in slots)
-        # two hours you work right through on an average day: every half hour of it at least half
-        # used, so a window at the edge of your work (half empty, so few switches) can't win
-        if mins < 90 or any(work[s] < 0.5 * 30 * days for s in slots):
-            continue
-        rate = sum(sw[s] for s in slots) / (mins / 60)
-        if best is None or (rate, -mins) < (best[0], -best[2]):
-            best = (rate, first, mins)
+    active, work, sw, days = _slots(rs)
+    best = _best_focus(work, sw, days)
     if best is not None:
-        a = best[1]
-        out.append({"icon": "bolt", "title": f"โฟกัสดีสุด {a // 2:02d}:{30 * (a % 2):02d}–{(a + FOCUS_SLOTS) // 2:02d}:{30 * ((a + FOCUS_SLOTS) % 2):02d}",
-                    "sub": f"ช่วงนี้สลับแอปน้อยที่สุด ({best[0]:.0f} ครั้งต่อชั่วโมง) เหมาะกับงานคิดยาก"})
+        out.append({"icon": "bolt", "title": f"โฟกัสดีสุด {best['from']}–{best['to']}",
+                    "sub": f"ช่วงนี้สลับแอปน้อยที่สุด ({best['rate']:.0f} ครั้งต่อชั่วโมง) เหมาะกับงานคิดยาก"})
     late = range(44, 48)  # 22:00–24:00
     late_min = sum(active[s] for s in late)
     early_min = sum(v for s, v in active.items() if s < 44)
@@ -201,6 +175,55 @@ def behaviours(range_: str, rs: list[Activity], per_project: list[dict]) -> list
         out.append({"icon": "clock", "title": f"ทำ {longest[1]} ต่อเนื่องนานสุด {_hm(longest[0].total_seconds() / 60)}",
                     "sub": f"{DAYS[when.weekday()]} {when.day} {MONTHS[when.month - 1]} เริ่ม {when:%H:%M}"})
     return out
+
+
+def _slots(rs: list[Activity]) -> tuple[dict[int, float], dict[int, float], dict[int, int], int]:
+    """Per half hour of the day (0 = 00:00, 47 = 23:30): minutes at the computer, minutes of work
+    (code and studying: what focus is about), app switches; and how many days there were."""
+    tz = get_config().tz
+    active: dict[int, float] = defaultdict(float)
+    work: dict[int, float] = defaultdict(float)
+    for r in rs:
+        t = r.start
+        while t < r.end:
+            slot = local(t).hour * 2 + local(t).minute // 30
+            nxt = min(r.end, datetime.combine(local(t).date(), time(slot // 2, 30 * (slot % 2)), tz) + timedelta(minutes=30))
+            active[slot] += (nxt - t).total_seconds() / 60
+            if r.category in WORK:
+                work[slot] += (nxt - t).total_seconds() / 60
+            t = nxt
+    sw: dict[int, int] = defaultdict(int)
+    for at in switches(rs):
+        sw[local(at).hour * 2 + local(at).minute // 30] += 1
+    return active, work, sw, max(1, len({local(r.start).date() for r in rs}))
+
+
+def _best_focus(work: dict[int, float], sw: dict[int, int], days: int) -> dict | None:
+    """The two hours (four half-hour slots) of work with the fewest app switches per hour of it."""
+    best = None
+    for first in range(0, 48 - FOCUS_SLOTS + 1):
+        slots = range(first, first + FOCUS_SLOTS)
+        mins = sum(work[s] for s in slots)
+        # two hours you work right through on an average day: every half hour of it at least half
+        # used, so a window at the edge of your work (half empty, so few switches) can't win
+        if mins < 90 or any(work[s] < 0.5 * 30 * days for s in slots):
+            continue
+        rate = sum(sw[s] for s in slots) / (mins / 60)
+        if best is None or (rate, -mins) < (best[0], -best[2]):
+            best = (rate, first, mins)
+    if best is None:
+        return None
+    a, b = best[1], best[1] + FOCUS_SLOTS
+    return {"from": f"{a // 2:02d}:{30 * (a % 2):02d}", "to": f"{b // 2:02d}:{30 * (b % 2):02d}", "rate": best[0]}
+
+
+def focus(start: datetime, end: datetime) -> dict | None:
+    """Your best focus hours over [start, end) ({"from", "to", "rate"}), or None (B7's schedule topic)."""
+    rs = rows(start, end)
+    if not rs:
+        return None
+    _, work, sw, days = _slots(rs)
+    return _best_focus(work, sw, days)
 
 
 def unsorted(rs: list[Activity], limit: int = 6) -> list[dict]:

@@ -111,8 +111,9 @@ function FollowedCard({ f, onTarget }: { f: Followed | null; onTarget: (t: numbe
   );
 }
 
-/** ⑥ ข้อสังเกต (B6): a part of a weekday where blocks keep being missed. */
-function NotesCard({ f }: { f: Followed | null }) {
+/** ⑥ ข้อสังเกต (B6): a part of a weekday where blocks keep being missed; B7: one press makes it a
+ *  rule (the planner keeps those hours free every week), kept in the rule book. */
+function NotesCard({ f, onAvoid }: { f: Followed | null; onAvoid: (weekday: number, part: string, title: string) => void }) {
   return (
     <Card title="ข้อสังเกต">
       {!f || f.notes.length === 0 ? (
@@ -120,8 +121,9 @@ function NotesCard({ f }: { f: Followed | null }) {
       ) : (
         <ul className="divide-y divide-line">
           {f.notes.map((n) => (
-            <li key={n.title} className="py-2"><span className="block font-semibold text-[14px]">{n.title}</span>
-              <span className="block text-xs text-muted">{n.sub}</span></li>
+            <li key={n.title} className="py-2 flex flex-col gap-1.5"><span className="block font-semibold text-[14px]">{n.title}</span>
+              <span className="block text-xs text-muted">{n.sub}</span>
+              {!n.avoided && <span><Button sm kind="p" onClick={() => onAvoid(n.weekday, n.part, n.title)}>ไม่วางบล็อกช่วงนี้</Button></span>}</li>
           ))}
         </ul>
       )}
@@ -264,7 +266,13 @@ export function Schedule() {
             try { const r = await api.setFollowTarget(v); setToast({ text: `ตั้งเป้าทำตามแผน ${v}%`, actionId: r.action_id, key: Date.now() }); loadFollowed(); }
             catch (e) { setToast({ text: (e as Error).message, actionId: null, key: Date.now() }); }
           }} />
-          <NotesCard f={followedWeek} />
+          <NotesCard f={followedWeek} onAvoid={async (weekday, part, title) => {
+            try {
+              const r = await api.avoidHours(weekday, part);
+              setToast({ text: `เลขาจะไม่วางบล็อกช่วงนี้แล้ว (${title.split(" หลุด")[0]}) · ${r.line || "ตารางเดิมไม่มีบล็อกช่วงนั้น"}`, actionId: r.action_id, key: Date.now() });
+              changed();
+            } catch (e) { setToast({ text: (e as Error).message, actionId: null, key: Date.now() }); }
+          }} />
           <Pending reloadKey={key} onChange={changed} />
         </div>
       </div>

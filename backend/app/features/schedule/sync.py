@@ -55,17 +55,33 @@ lock = asyncio.Lock()  # the round and the "วางตารางใหม่
 
 # ------------------------------------------------------------------ rules and estimates
 def rules() -> Rules:
+    """Your planner settings, plus your schedule rules from the rule book (B7: hours to avoid,
+    focus hours first)."""
+    from app.core.rules import book
+
     saved = settings.get(RULES_KEY, {})
-    fields = {k: v for k, v in saved.items() if k in Rules.__dataclass_fields__}
+    fields = {k: v for k, v in saved.items() if k in Rules.__dataclass_fields__ and k not in ("avoid", "focus")}
     for k in ("day_start", "day_end"):
         if isinstance(fields.get(k), str):
             fields[k] = time.fromisoformat(fields[k])
+    fields["avoid"] = tuple(sorted((int(a["weekday"]), time.fromisoformat(a["from"]), time.fromisoformat(a["to"]))
+                                   for a in book.block_avoid()))
+    focus = book.focus_window()
+    fields["focus"] = (time.fromisoformat(focus["from"]), time.fromisoformat(focus["to"])) if focus else None
     return Rules(**fields)
 
 
+def _hhmm(v):
+    if isinstance(v, time):
+        return v.strftime("%H:%M")
+    if isinstance(v, (tuple, list)):
+        return [_hhmm(x) for x in v]
+    return v
+
+
 def rules_dict() -> dict:
-    """The rules as the web page shows them (times as "HH:MM")."""
-    return {k: (v.strftime("%H:%M") if isinstance(v, time) else v) for k, v in asdict(rules()).items()}
+    """The rules as the web page shows them (times as "HH:MM"); also part of the plan's fingerprint."""
+    return {k: _hhmm(v) for k, v in asdict(rules()).items()}
 
 
 def estimates() -> dict[str, int]:
@@ -137,7 +153,7 @@ def _inputs(at: datetime, busy: list[tuple[datetime, datetime]]) -> tuple[list[W
     for b in kept:  # past, running, about to start, or pinned by you: already counted (a missed one: what you did)
         covered[b.task_id] = covered.get(b.task_id, 0) + counted_minutes(b)
     work = [Work(t.id, estimate(t, est) - covered.get(t.id, 0), t.due_at, t.plan_mode, t.block_minutes, t.daily_minutes,
-                 t.not_before if t.not_before and t.not_before > at else None)
+                 t.not_before if t.not_before and t.not_before > at else None, focus=t.source != "email")
             for t in tasks]
     all_busy = (busy + [(b.starts_at, b.ends_at) for b in kept if b.ends_at > at]
                 + [(b.starts_at, b.ends_at) for b in deleted])

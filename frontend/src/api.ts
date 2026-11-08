@@ -208,7 +208,8 @@ export type Proposals = { decision_id: number | null; items: ProposalItem[] };
 // W5 ⑤ ⑥ ทำตามแผนได้ · ข้อสังเกต (B6)
 export type Followed = {
   label: string; percent: number | null; checked: number; target: number; recording: boolean;
-  days: { label: string; done: number; missed: number }[]; notes: { title: string; sub: string }[];
+  days: { label: string; done: number; missed: number }[];
+  notes: { title: string; sub: string; weekday: number; part: string; weeks: number; avoided: boolean }[];
 };
 
 // W7 การใช้เวลา (B6)
@@ -264,6 +265,7 @@ export const api = {
   followed: () => call<Followed>("GET", "/api/schedule/followed"),
   setFollowTarget: (target: number) => call<{ target: number; action_id: number }>("PUT", "/api/schedule/followed/target", { target }),
   blockDone: (id: number) => call<{ action_id: number }>("POST", `/api/blocks/${id}/done`),
+  avoidHours: (weekday: number, part: string) => call<{ action_id: number; line: string }>("POST", "/api/schedule/avoid", { weekday, part }),
   week: (start: string, end: string) => call<Week>("GET", `/api/schedule?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`),
   replan: () => call<{ line: string }>("POST", "/api/schedule/replan"),
   tasks: () => call<{ items: TaskRow[] }>("GET", "/api/tasks"),

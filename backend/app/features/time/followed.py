@@ -221,12 +221,19 @@ def followed(start: datetime, end: datetime) -> dict:
             "percent": round(100 * len(done) / counted) if counted else None}
 
 
-PARTS = ((0, 12, "เช้า"), (12, 17, "บ่าย"), (17, 24, "เย็น"))
+# The parts of a day a pattern is about, and the hours a rule keeps free for each.
+PARTS = {"เช้า": ("06:00", "12:00"), "บ่าย": ("12:00", "17:00"), "เย็น": ("17:00", "23:59")}
 WEEKDAYS = ["วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์", "วันอาทิตย์"]
 
 
+def part_of(hour: int) -> str:
+    return "เช้า" if hour < 12 else "บ่าย" if hour < 17 else "เย็น"
+
+
 def patterns(at: datetime, weeks: int = 4) -> list[dict]:
-    """ข้อสังเกต (W5 ⑥): a part of a weekday where blocks were missed in 2 or more of the last weeks."""
+    """ข้อสังเกต (W5 ⑥): a part of a weekday where blocks were missed in 2 or more of the last weeks.
+    -> [{weekday, part, weeks, title, sub, avoided}] (avoided: a rule of yours already keeps it free)."""
+    from app.core.rules import book
     from app.core.timefmt import local
 
     start = at - timedelta(weeks=weeks)
@@ -235,11 +242,42 @@ def patterns(at: datetime, weeks: int = 4) -> list[dict]:
         if b.outcome != "missed":
             continue
         when = local(b.starts_at)
-        part = next(name for lo, hi, name in PARTS if lo <= when.hour < hi)
-        seen[(when.weekday(), part)].add(when.isocalendar()[:2])
+        seen[(when.weekday(), part_of(when.hour))].add(when.isocalendar()[:2])
+    have = {(int(a["weekday"]), a["from"], a["to"]) for a in book.block_avoid()}
     out = []
     for (weekday, part), wks in sorted(seen.items(), key=lambda kv: -len(kv[1])):
         if len(wks) >= 2:
-            out.append({"title": f"{part}{WEEKDAYS[weekday]}หลุดแผน {len(wks)} สัปดาห์",
-                        "sub": "ช่วงนี้อาจไม่เหมาะกับบล็อกงาน · ย้ายบล็อกช่วงนี้ไปเวลาอื่นใน Google Calendar ได้ เลขาจะไม่ย้ายกลับ"})
+            avoided = (weekday, *PARTS[part]) in have
+            out.append({"weekday": weekday, "part": part, "weeks": len(wks), "avoided": avoided,
+                        "title": f"{part}{WEEKDAYS[weekday]}หลุดแผน {len(wks)} สัปดาห์",
+                        "sub": ("เลขาไม่วางบล็อกช่วงนี้แล้ว (กติกาในสมุดกติกา)" if avoided else
+                                "ช่วงนี้อาจไม่เหมาะกับบล็อกงาน · ให้เลขาไม่วางบล็อกช่วงนี้ หรือย้ายเองใน Google Calendar")})
     return out[:3]
+
+
+def avoid_rule(weekday: int, part: str, *, via: tuple[str, str] = ("หน้าตาราง", "")) -> tuple[int, int]:
+    """"ไม่วางบล็อกงานบ่ายวันอังคาร": a rule of yours the planner follows (book.block_avoid).
+    -> (rule id, action id)."""
+    from app.core.rules import book
+
+    if part not in PARTS or not 0 <= weekday <= 6:
+        raise ValueError("ไม่รู้จักช่วงนี้")
+    lo, hi = PARTS[part]
+    if any(int(a["weekday"]) == weekday and (a["from"], a["to"]) == (lo, hi) for a in book.block_avoid()):
+        raise ValueError("มีกติกานี้อยู่แล้ว")
+    return book.add(f"ไม่วางบล็อกงาน{part}{WEEKDAYS[weekday]} ({lo}–{hi})", ["planner"],
+                    effect={"type": "block_avoid", "weekday": weekday, "from": lo, "to": hi}, via=via)
+
+
+def focus_rule(start: str, end: str, *, via: tuple[str, str] = ("หน้าตาราง", "")) -> tuple[int, int]:
+    """"วางบล็อกงานช่วงโฟกัส 09:00–11:30 ก่อน": the planner fills these hours first each day.
+    -> (rule id, action id). An older focus rule stays in the book; the newest one is used."""
+    from datetime import time as _time
+
+    from app.core.rules import book
+
+    lo, hi = _time.fromisoformat(start), _time.fromisoformat(end)
+    if not lo < hi:
+        raise ValueError("ช่วงโฟกัสต้องเริ่มก่อนจบ")
+    return book.add(f"วางบล็อกงานช่วงโฟกัส {lo:%H:%M}–{hi:%H:%M} ก่อนช่วงอื่น (ไม่รวมงานตอบอีเมล)", ["planner"],
+                    effect={"type": "focus_first", "from": f"{lo:%H:%M}", "to": f"{hi:%H:%M}"}, via=via)

@@ -8,7 +8,8 @@ The rows of `rules` come in three kinds:
   planner) read them with every call (`prompt_block`). A few the code follows itself, through
   their `effect`: "ไม่รับนัดวันเสาร์" marks Saturday appointment requests (`appointment_note`),
   "งานของ finance ทำเองได้" lets that project's low-risk plans start without asking
-  (`standing_for`).
+  (`standing_for`), and B7's schedule rules keep blocks out of hours you keep missing
+  (`block_avoid`) or fill your focus hours first (`focus_window`).
 - learned: a pattern in your answers (learn.py), used only after you press "ใช้เป็นกติกา".
 - high_risk: work that always asks you first, however much quota is left: the 7 kinds agreed
   at the plan (RISKS: fixed, they can't be removed) and any you add. `flags()` spots the 7 in a
@@ -179,6 +180,17 @@ def appointment_note(starts_at: datetime | None) -> str:
 def standing_for(project: str) -> str:
     """A rule that lets this project's low-risk plans start without asking (its text), or ""."""
     return next((r.text for r in _effects("job_auto") if r.effect.get("project") == project), "")
+
+
+def block_avoid() -> list[dict]:
+    """B7: the hours the planner never books ({"weekday", "from", "to"}), from your rules."""
+    return [r.effect for r in _effects("block_avoid")]
+
+
+def focus_window() -> dict | None:
+    """B7: your focus hours ({"from", "to"}), filled first each day; the newest rule if several."""
+    rows = sorted(_effects("focus_first"), key=lambda r: r.id)
+    return rows[-1].effect if rows else None
 
 
 def auto() -> bool:
