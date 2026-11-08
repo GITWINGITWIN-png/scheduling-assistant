@@ -28,15 +28,19 @@ const VIEWS: { key: View; label: string }[] = [
   { key: "timeGridDay", label: "วัน" }, { key: "timeGridWeek", label: "สัปดาห์" }, { key: "dayGridMonth", label: "เดือน" },
 ];
 const DAY = 86_400_000;
-const LEGEND: [string, string][] = [["bg-bad", "นัด"], ["bg-warn", "เดดไลน์"], ["bg-accent", "บล็อกงาน"], ["bg-ok", "ทำแล้ว"], ["bg-muted", "หลุดแผน / รอรับ"]];
+const LEGEND: [string, string][] = [["bg-bad", "นัด"], ["bg-google", "นัดที่ตั้งสีใน Google"], ["bg-warn", "เดดไลน์"], ["bg-accent", "บล็อกงาน"],
+  ["bg-ok", "ทำแล้ว"], ["bg-muted", "หลุดแผน / รอรับ"]];
 
 // ------------------------------------------------------------------ what each item looks like
 // (kind = the .ev modifier in index.css; sub = the card's second line)
 function meetItem(e: CalItem): EventInput {
   const waiting = e.status === "proposed";
   const sub = waiting ? "รอคุณรับ" : [e.location, e.source === "email" ? "จากอีเมล" : ""].filter(Boolean).join(" · ");
+  // an appointment with its own colour in Google Calendar keeps the นัด look, in that colour (.tinted, --ev)
+  const tinted = !waiting && !!e.color;
   return { id: `e${e.id}`, title: waiting ? `${e.title}?` : e.title, start: e.start, end: e.end, allDay: e.all_day,
-           classNames: ["ev", waiting ? "miss" : "meet"], extendedProps: { picked: { type: "meet", ev: e } satisfies Picked, sub } };
+           classNames: ["ev", waiting ? "miss" : "meet", tinted ? "tinted" : ""].filter(Boolean),
+           extendedProps: { picked: { type: "meet", ev: e } satisfies Picked, sub, color: tinted ? e.color : "" } };
 }
 
 function blockItem(b: BlockItem): EventInput {
@@ -211,7 +215,8 @@ export function Week({ reloadKey, ghost, onPlanned, onCreate, onPick }: {
               slotMinTime={`${pad(lo)}:00:00`} slotMaxTime={`${pad(hi)}:00:00`} slotDuration="00:30:00" slotLabelInterval="02:00"
               slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
               allDaySlot={anyAllDay} allDayText="ทั้งวัน" dayHeaderContent={dayHeader} dayHeaderFormat={{ weekday: "short" }}
-              eventContent={eventContent} displayEventTime={false} eventMinHeight={18} dayMaxEvents={3} nowIndicator
+              eventContent={eventContent} eventDidMount={(arg) => { const c = arg.event.extendedProps.color as string; if (c) arg.el.style.setProperty("--ev", c); }}
+              displayEventTime={false} eventMinHeight={18} dayMaxEvents={3} nowIndicator
               stickyHeaderDates={false}
               selectable selectMirror selectLongPressDelay={300} select={select}
               events={events} eventClick={click} datesSet={dates} />

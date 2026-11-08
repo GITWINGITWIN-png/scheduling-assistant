@@ -100,6 +100,9 @@ body { background: var(--bg); color: var(--ink); }
 .schedule-cal .ev-in span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .schedule-cal .fc-daygrid-event .ev-in span { display: none; } /* month view: the title only */
 .schedule-cal .fc .fc-event.ev.meet { background: var(--bad-soft); color: var(--bad); border-left-color: var(--bad); }
+/* an appointment with its own colour in Google Calendar (--ev, set per event): the same soft look as นัด, in that colour */
+.schedule-cal .fc .fc-event.ev.meet.tinted { background: color-mix(in srgb, var(--ev) 18%, var(--panel));
+  color: color-mix(in srgb, var(--ev) 65%, var(--ink)); border-left-color: var(--ev); }
 .schedule-cal .fc .fc-event.ev.dead { background: var(--warn-soft); color: var(--warn); border-left-color: var(--warn); }
 .schedule-cal .fc .fc-event.ev.done { background: var(--ok-soft); color: var(--ok); border-left-color: var(--ok); }
 .schedule-cal .fc .fc-event.ev.miss { background: var(--panel); color: var(--muted); border: 1.5px dashed var(--line-2); }
@@ -126,6 +129,9 @@ body { background: var(--bg); color: var(--ink); }
   min-width: 0; align-self: stretch; display: flex; align-items: center; margin-right: 2px; cursor: default;
   background: var(--accent-soft); color: var(--accent-strong); border-left: 3px solid var(--accent); }
 .blk.meet { background: var(--bad-soft); color: var(--bad); border-left-color: var(--bad); }
+.blk.meet.tinted { background: color-mix(in srgb, var(--ev) 18%, var(--panel)); color: color-mix(in srgb, var(--ev) 65%, var(--ink));
+  border-left-color: var(--ev); }
+.bg-google { background: conic-gradient(#f4511e 0 25%, #039be5 0 50%, #8e24aa 0 75%, #f6bf26 0); } /* the legend's "coloured in Google" */
 .blk.dead { background: var(--warn-soft); color: var(--warn); border-left-color: var(--warn); }
 .blk.bg { background: var(--panel-2); color: var(--ink-2); border-left-color: var(--muted); }
 .blk.miss { background: transparent; color: var(--muted); border: 1.5px dashed var(--line-2); }

@@ -46,6 +46,15 @@ class CalEvent:
     busy: bool  # False for events marked "free" (transparency) or ones you declined
     recurring: bool  # one day of a repeating event (a weekly class): not reminded about
     description: str = ""  # as plain text (see plain_text)
+    color: str = ""  # its own colour (COLORS), or "" when it shows in its calendar's colour
+
+
+# Google Calendar's event colours: colorId -> (the colour Google draws it in today, its Thai name).
+# An event without a colorId takes its calendar's colour.
+COLORS = {"1": ("#7986cb", "ลาเวนเดอร์"), "2": ("#33b679", "เขียวอ่อน"), "3": ("#8e24aa", "ม่วง"),
+          "4": ("#e67c73", "ชมพู"), "5": ("#f6bf26", "เหลือง"), "6": ("#f4511e", "ส้ม"), "7": ("#039be5", "ฟ้า"),
+          "8": ("#616161", "เทา"), "9": ("#3f51b5", "น้ำเงิน"), "10": ("#0b8043", "เขียว"), "11": ("#d50000", "แดง")}
+COLOR_IDS = {hex_: color_id for color_id, (hex_, _) in COLORS.items()}
 
 
 SIGNATURE = "ลงโดยเลขา"  # the last line of every description the secretary writes
@@ -142,6 +151,17 @@ def move(event_id: str, start: datetime, end: datetime, *, calendar: str = "prim
         raise
 
 
+def recolor(event_id: str, color_id: str, *, calendar: str = "primary") -> bool:
+    """Give the event one of COLORS ("" = back to its calendar's colour). False if it no longer exists."""
+    try:
+        _service().events().patch(calendarId=calendar, eventId=event_id, body={"colorId": color_id or None}).execute()
+        return True
+    except HttpError as exc:
+        if _missing(exc):
+            return False
+        raise
+
+
 def retext(event_id: str, title: str, description: str, *, calendar: str = "primary") -> bool:
     """Change an event's title and description. False if it no longer exists."""
     try:
@@ -187,7 +207,8 @@ def window(start: datetime, end: datetime, *, calendar: str = "primary") -> list
                                 location=e.get("location", ""), link=e.get("htmlLink", ""),
                                 mark=e.get("extendedProperties", {}).get("private", {}).get(MARK, ""),
                                 busy=e.get("transparency") != "transparent" and not declined,
-                                recurring="recurringEventId" in e, description=plain_text(e.get("description", ""))))
+                                recurring="recurringEventId" in e, description=plain_text(e.get("description", "")),
+                                color=COLORS.get(str(e.get("colorId", "")), ("", ""))[0]))
         token = r.get("nextPageToken")
         if not token:
             return out

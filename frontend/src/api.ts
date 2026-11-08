@@ -58,6 +58,7 @@ export type CalItem = {
   description: string; // รายละเอียด: what you typed, or its description in Google Calendar
   source: string; source_name: string; recurring: boolean; link: string; mail: string; // link: Google Calendar · mail: the email it came from
   status: "placed" | "proposed"; decision_id: number | null; from: string; // proposed: waiting for you to รับ (who asked)
+  color: string; // its own colour in Google Calendar (#rrggbb), "" = drawn in the red of นัด
 };
 export type BlockItem = {
   id: number; task_id: number; title: string; start: string; end: string; pinned: boolean; past: boolean;
@@ -90,7 +91,8 @@ export type CourseRow = {
 };
 
 // W1 วันนี้ (B4)
-export type DayItem = { start: string; end: string; title: string; kind: "meet" | "block" | "dead" | "allday"; sub: string };
+export type DayItem = { start: string; end: string; title: string; kind: "meet" | "block" | "dead" | "allday"; sub: string;
+  color?: string }; // an appointment's own colour in Google Calendar
 export type RoundMark = { at: string; title: string; done: boolean; line: string };
 export type BriefView = { made_at: string; title: string; headline: string; fields: [string, string][]; footer: string; sent: boolean; link: string };
 export type TodayPage = {

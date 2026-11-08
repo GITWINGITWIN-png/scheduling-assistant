@@ -108,7 +108,7 @@ def refresh_calendar(start: datetime, end: datetime) -> list[tuple[datetime, dat
                 s.add(ev)
             ev.title, ev.starts_at, ev.ends_at, ev.all_day = e.title, e.start, e.end, e.all_day
             ev.location, ev.link, ev.recurring, ev.status = e.location, e.link, e.recurring, "placed"
-            ev.description = e.description
+            ev.description, ev.color = e.description, e.color  # a colour you set in Google shows on the pages too
             if not e.all_day:  # a whole-day entry (a holiday, a trip note) doesn't block hours
                 busy.append((e.start, e.end))
         for ev in s.scalars(select(Event).where(Event.status == "placed", Event.gcal_id != "",

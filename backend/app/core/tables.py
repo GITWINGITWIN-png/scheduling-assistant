@@ -134,6 +134,9 @@ class Event(Base):
     # รายละเอียด: what you typed when adding it, or the event's description in Google Calendar
     # (as plain text, without the secretary's own "ลงโดยเลขา" line). Shown when you click it.
     description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # สี: the colour you gave it in Google Calendar (#rrggbb, gcal.COLORS), "" for the calendar's
+    # own. The today and schedule pages draw it in that colour instead of the red of นัด.
+    color: Mapped[str] = mapped_column(String(16), default="", server_default="")
     source: Mapped[str] = mapped_column(String(20))  # email · calendar · you · project
     source_ref: Mapped[str] = mapped_column(String(64), default="")  # e.g. the Gmail message id
     gcal_id: Mapped[str] = mapped_column(String(128), default="")

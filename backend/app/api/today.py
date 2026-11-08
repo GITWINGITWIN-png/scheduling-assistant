@@ -121,7 +121,8 @@ def today_page() -> dict:
         "brief": brief,
         "headline": brief["headline"] if brief else morning.compose(at)["headline"],
         "morning_on": clock.enabled("morning"),
-        "plan": [{"start": _iso(i.start), "end": _iso(i.end), "title": i.title, "kind": i.kind, "sub": i.sub} for i in items],
+        "plan": [{"start": _iso(i.start), "end": _iso(i.end), "title": i.title, "kind": i.kind, "sub": i.sub,
+                  "color": i.color} for i in items],
         "secretary": _secretary(at),
         "actual": insights.today_actual(d),  # B6: the ทำจริง row
         "recording": clock.enabled("activity"),

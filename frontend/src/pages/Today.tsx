@@ -2,7 +2,7 @@
 // numbers (the same line as the brief in #สรุป, with the brief in full behind a link), the day as
 // rows (แผน · ทำจริง · เลขา, with the background work in purple), what waits for you, the background
 // work, today's important mail and the projects' news. The ทำจริง row is ActivityWatch's (B6), through the filter.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Link } from "react-router";
 import { api, type BriefView, type Decision, type DayItem, type RoundMark, type TodayPage } from "../api";
 import { DecisionRow } from "../components/Decisions";
@@ -83,7 +83,8 @@ function DayRows({ plan, secretary, runs, hours, actual, recording }: {
           const a = col(i.kind === "dead" ? i.end : i.start);
           const b = i.kind === "dead" ? a + 2 : col(i.end);
           return (
-            <span key={`${i.kind}${i.start}${i.title}`} className={`blk ${KIND[i.kind]}`} style={at(a, b, 2)}
+            <span key={`${i.kind}${i.start}${i.title}`} className={`blk ${KIND[i.kind]}${i.color ? " tinted" : ""}`}
+              style={{ ...at(a, b, 2), ...(i.color ? { "--ev": i.color } : {}) } as CSSProperties}
               title={`${hm(new Date(i.start))}${i.kind === "dead" ? "" : "–" + hm(new Date(i.end))} ${i.title}${i.sub ? ` · ${i.sub}` : ""}`}>
               {i.kind === "dead" ? `ส่ง ${i.title}` : i.title}</span>
           );
@@ -193,7 +194,8 @@ export function Today() {
 
   if (error) return <p className="text-sm text-bad">{error}</p>;
   if (!page) return <Spinner label="กำลังโหลด…" />;
-  const keys: [string, string][] = [["bg-accent", "บล็อกงาน"], ["bg-bad", "นัด"], ["bg-warn", "เดดไลน์"], ["bg-muted", "งานของเลขา"]];
+  const keys: [string, string][] = [["bg-accent", "บล็อกงาน"], ["bg-bad", "นัด"], ["bg-google", "นัดที่ตั้งสีใน Google"], ["bg-warn", "เดดไลน์"],
+    ["bg-muted", "งานของเลขา"]];
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">

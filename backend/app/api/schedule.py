@@ -71,6 +71,7 @@ def week(start: str, end: str) -> dict:
                         "recurring": e.recurring, "link": e.link,
                         "mail": _link(s, "email", e.source_ref) if e.source == "email" else "",
                         "status": e.status, "decision_id": asked[e.id].id if e.id in asked else None,
+                        "color": e.color,  # its colour in Google Calendar, "" for the red of นัด
                         "from": asked[e.id].detail.get("from", "") if e.id in asked else ""} for e in events],
             "blocks": [{"id": b.id, "task_id": b.task_id, "title": title, "start": _iso(b.starts_at), "end": _iso(b.ends_at),
                         "pinned": b.status == "pinned", "past": b.ends_at <= at, "running": b.starts_at <= at < b.ends_at,
@@ -96,6 +97,23 @@ class EventIn(Strict):
     all_day: bool = False
     location: str = ""
     description: str = ""
+
+
+class ColorIn(Strict):
+    event_ids: list[int]
+    color: str  # a gcal.COLORS id, "" = the calendar's own colour
+
+
+@router.post("/events/color")
+async def color_events(body: ColorIn) -> dict:
+    """สี: give events a Google Calendar colour, there and on these pages (one ย้อนกลับ for all)."""
+    try:
+        action_id = await events.recolor(body.event_ids, body.color, via=("หน้าตาราง", ""))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:  # Google didn't take it
+        raise HTTPException(409 if isinstance(exc, google.NeedsConsent) else 502, f"เปลี่ยนสีไม่ได้: {exc}")
+    return {"action_id": action_id}
 
 
 @router.post("/events")

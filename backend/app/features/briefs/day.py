@@ -158,6 +158,7 @@ class Item:
     title: str
     kind: str  # meet · block · dead · allday
     sub: str = ""
+    color: str = ""  # an appointment's own colour in Google Calendar (Event.color)
 
     def words(self) -> str:
         at = f"{local(self.start):%H:%M}"
@@ -178,7 +179,8 @@ def agenda(d: date) -> list[Item]:
         blocks = s.execute(select(Block, Task.title).join(Task, Task.id == Block.task_id).where(
             Block.status.in_(("planned", "pinned")), Block.starts_at >= lo, Block.starts_at < hi)).all()
         due = s.scalars(select(Task).where(Task.status == "open", Task.due_at >= lo, Task.due_at < hi)).all()
-        items = [Item(e.starts_at, e.ends_at, e.title, "allday" if e.all_day else "meet", e.location) for e in events]
+        items = [Item(e.starts_at, e.ends_at, e.title, "allday" if e.all_day else "meet", e.location, e.color)
+                 for e in events]
         items += [Item(b.starts_at, b.ends_at, title, "block") for b, title in blocks]
         items += [Item(t.due_at, t.due_at, t.title, "dead") for t in due]
     return sorted(items, key=lambda i: (i.kind != "allday", i.start if i.kind != "dead" else i.end))
