@@ -1,5 +1,6 @@
 """B5's web API for the projects page (W3): the registry, setting a project's levels and
-switches, scanning now, and answering "ตั้งระดับโปรเจคใหม่"."""
+switches, scanning now, and answering "ตั้งระดับโปรเจคใหม่". B10: connecting projects to the
+secretary (a note in each one that has Claude Code there send its progress with secretary-news)."""
 
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from app.core.config import get_config
 from app.core.db import session
 from app.core.tables import Decision
 from app.features import decisions
-from app.features.projects import advice, edit, scan
+from app.features.projects import advice, connect, edit, scan
 from app.features.jobs import queue
 from app.features.jobs.tables import Job
 from app.features.projects.tables import STATUSES, Project, ProjectNews
@@ -35,7 +36,8 @@ def _row(p: Project, asked: dict[int, int], news: dict[int, ProjectNews] | None 
             "allow_jobs": p.allow_jobs, "can_work": p.is_git and not scan.is_self(p.path) and not p.missing,
             "is_self": scan.is_self(p.path), "is_git": p.is_git, "last_activity": _iso(p.last_activity),
             "commits_14d": p.commits_14d, "progress": p.progress or {}, "missing": p.missing,
-            "decision_id": asked.get(p.id)}
+            "decision_id": asked.get(p.id),
+            "connected": None if connect.why_not(p) else connect.connected(p.path)}  # B10; None: can't be connected
 
 
 def _waiting_work(p: Project) -> dict | None:
@@ -143,13 +145,40 @@ async def answer_level(decision_id: int, body: LevelIn) -> dict:
 
 @router.get("/projects/connect")
 def connect_guide() -> dict:
-    """คู่มือเชื่อมต่อ (W3 ⑥): CONNECT.md to read on the page, and where the inbox is."""
+    """คู่มือเชื่อมต่อ (W3 ⑥): CONNECT.md to read on the page, where the inbox is, and (B10) whether
+    the secretary-news command is installed and the round that reads the inbox is on."""
     from pathlib import Path
 
+    from app.core import clock
     from app.core.config import REPO_DIR
     from app.features.projects import inbox
 
     guide = REPO_DIR / "docs" / "CONNECT.md"
     where = str(inbox.inbox_dir()).replace(str(Path.home()), "~", 1)
-    example = '{"kind": "report", "title": "feed วันนี้มาแล้ว", "body": "12 paper ใหม่", "link": "https://example.com"}'
-    return {"text": guide.read_text() if guide.is_file() else "", "inbox": f"{where}/<โปรเจค>/*.json", "example": example}
+    example = 'secretary-news report "เสร็จ: feed วันนี้มาแล้ว" --body "12 paper ใหม่"'
+    command = Path.home() / ".local" / "bin" / "secretary-news"  # the service's PATH may not have ~/.local/bin
+    return {"text": guide.read_text() if guide.is_file() else "", "inbox": f"{where}/<โปรเจค>/*.json", "example": example,
+            "command": command.exists(), "inbox_on": clock.enabled("inbox")}
+
+
+@router.post("/projects/connect")
+def connect_all() -> dict:
+    """เชื่อมทุกโปรเจค (B10): the note in every project that can have one (recorded, one ย้อนกลับ)."""
+    names, failed, action_id = connect.connect_all(("หน้าโปรเจค", ""))
+    return {"connected": names, "failed": failed, "action_id": action_id}
+
+
+@router.post("/projects/{project_id}/connect")
+def connect_project(project_id: int) -> dict:
+    try:
+        return {"action_id": connect.connect_one(project_id)}
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.delete("/projects/{project_id}/connect")
+def disconnect_project(project_id: int) -> dict:
+    try:
+        return {"action_id": connect.disconnect_one(project_id)}
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc

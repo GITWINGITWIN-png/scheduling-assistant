@@ -155,7 +155,9 @@ export type ProjectRow = {
   news: { title: string; at: string; urgent: boolean; kind: string } | null;
   job: { id: number; status: JobStatus; title: string } | null;
   secretary?: { branch: string; ahead: number } | null; // the secretary's work waiting for you to merge
+  connected: boolean | null; // B10: sends its news to the secretary (null: can't, e.g. the secretary itself)
 };
+export type ConnectGuide = { text: string; inbox: string; example: string; command: boolean; inbox_on: boolean };
 export type Advice = { project_id: number; project: string; kind: "stale" | "short"; title: string; detail: string; next: string };
 export type ProjectsPage = { items: ProjectRow[]; advice: Advice[]; root: string; scanned: boolean };
 
@@ -353,7 +355,10 @@ export const api = {
   editProject: (id: number, change: Partial<Pick<ProjectRow, "status" | "potential" | "urgency" | "hidden" | "allow_jobs">>) =>
     call<{ action_id: number }>("PATCH", `/api/projects/${id}`, change),
   scanProjects: () => call<{ line: string | null }>("POST", "/api/projects/scan"),
-  connect: () => call<{ text: string; inbox: string; example: string }>("GET", "/api/projects/connect"),
+  connect: () => call<ConnectGuide>("GET", "/api/projects/connect"),
+  connectAll: () => call<{ connected: string[]; failed: string[]; action_id: number | null }>("POST", "/api/projects/connect"),
+  connectProject: (id: number) => call<{ action_id: number | null }>("POST", `/api/projects/${id}/connect`),
+  disconnectProject: (id: number) => call<{ action_id: number | null }>("DELETE", `/api/projects/${id}/connect`),
   bookProject: (id: number, minutes = 120) => call<{ task_id: number; action_id?: number }>("POST", `/api/projects/${id}/book`, { minutes }),
   answerLevel: (decisionId: number, potential: string, urgency: number) =>
     call<{ ok: boolean }>("POST", `/api/projects/decisions/${decisionId}`, { potential, urgency }),

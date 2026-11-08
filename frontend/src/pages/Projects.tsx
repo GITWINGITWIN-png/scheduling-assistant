@@ -3,9 +3,11 @@
 // its latest news), the secretary's advice from each PROGRESS.md (จองเวลา), and the guide for other
 // projects (CONNECT.md). A row opens the project's card: its levels and status, "ให้เลขาทำต่อได้"
 // (the gate for background work, off until you switch it on), ทำต่อ, จองเวลา, hide.
+// B10: "ส่งข่าวให้เลขา" connects a project: a note in its CLAUDE.local.md has Claude Code there send
+// its progress with secretary-news. The guide's card connects them all at once.
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { Link } from "react-router";
-import { api, type ProjectRow, type ProjectsPage } from "../api";
+import { api, type ConnectGuide, type ProjectRow, type ProjectsPage } from "../api";
 import { Markdown, Button, Card, Chip, Seg, Spinner, Switch } from "../components/ui";
 import { Rank, Urgency } from "../components/project";
 import { Toast, type ToastMsg } from "../components/Toast";
@@ -38,6 +40,10 @@ function ProjectCard({ p, anchor, onClose, say }: { p: ProjectRow; anchor: Ancho
     ? api.answerLevel(p.decision_id!, pot, urg).then(() => { say(`ตั้งระดับ ${p.name}: ${pot} · เร่งด่วน ${urg}`); onClose(); }, (e) => say((e as Error).message))
     : edit({ potential: pot, urgency: urg }, `ตั้งระดับ ${p.name}: ${pot} · เร่งด่วน ${urg}`);
   const why = p.is_self ? "เลขาไม่แก้โค้ดของตัวเองขณะทำงาน" : !p.is_git ? "ไม่มี git จึงไม่มี branch ให้ทำงานแยก" : p.missing ? "ไม่พบโฟลเดอร์" : "";
+  const noLink = p.is_self ? "นี่คือตัวเลขาเอง" : p.missing ? "ไม่พบโฟลเดอร์" : p.hidden ? "ซ่อนไว้ (ไม่ใช่โปรเจค)" : "";
+  const link = (on: boolean) => (on ? api.connectProject(p.id) : api.disconnectProject(p.id))
+    .then((r) => say(on ? `${p.name}: เชื่อมกับเลขาแล้ว · Claude ในโปรเจคนี้จะส่งความคืบหน้ามาเอง` : `${p.name}: เลิกเชื่อมกับเลขาแล้ว`, r.action_id),
+      (e) => say((e as Error).message));
   return (
     <Floating anchor={anchor} onClose={onClose} width={440}>
       <div className="p-5 flex flex-col gap-3.5">
@@ -68,6 +74,11 @@ function ProjectCard({ p, anchor, onClose, say }: { p: ProjectRow; anchor: Ancho
           )}
         </div>
         <div className="rounded-card bg-panel-2 p-3 flex flex-col gap-2 text-sm">
+          <div className="flex items-center gap-2.5">
+            <Switch on={!!p.connected} onChange={noLink ? undefined : link} title={noLink || undefined} />
+            <span className="grow"><b>ส่งข่าวให้เลขา</b><span className="block text-xs text-muted">{noLink
+              || "โน้ตใน CLAUDE.local.md บอก Claude ในโปรเจคนี้ให้ส่งความคืบหน้าด้วย secretary-news · ไม่แตะ CLAUDE.md และ git ไม่เห็น"}</span></span>
+          </div>
           <div className="flex items-center gap-2.5">
             <Switch on={p.allow_jobs} onChange={why ? undefined : (on) => edit({ allow_jobs: on }, on ? `${p.name}: ให้เลขาทำต่อได้` : `${p.name}: ปิดการทำต่อ`)}
               title={why || undefined} />
@@ -103,14 +114,34 @@ function ProjectCard({ p, anchor, onClose, say }: { p: ProjectRow; anchor: Ancho
 }
 
 // ------------------------------------------------------------------ the guide for other projects
-function Connect({ say }: { say: Say }) {
-  const [guide, setGuide] = useState<{ text: string; inbox: string; example: string } | null>(null);
+// connected / total: from the registry's rows, so they follow each project's switch as well
+function Connect({ say, connected, total }: { say: Say; connected: number; total: number }) {
+  const [guide, setGuide] = useState<ConnectGuide | null>(null);
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
   useEffect(() => { api.connect().then(setGuide, () => setGuide(null)); }, []);
+  const all = () => {
+    setBusy(true);
+    api.connectAll().then((r) => say(
+      (r.connected.length ? `เชื่อมกับเลขาแล้ว ${r.connected.length} โปรเจค` : "ทุกโปรเจคเชื่อมอยู่แล้ว")
+        + (r.failed.length ? ` · ข้าม ${r.failed.length}: ${r.failed.join(", ")}` : ""), r.action_id),
+    (e) => say((e as Error).message)).finally(() => setBusy(false));
+  };
   return (
     <Card title="คู่มือเชื่อมต่อ">
       <div className="flex flex-col gap-2.5">
-        <p className="text-[13px] text-ink-2">โปรเจคอื่นส่งรายงาน กำหนดการ และสถานะงาน เป็นไฟล์ JSON ลงโฟลเดอร์กลาง · เลขาอ่านทางเดียว ไม่ใช้โมเดล</p>
+        <p className="text-[13px] text-ink-2">โปรเจคอื่นส่งรายงาน กำหนดการ และสถานะงานให้เลขา ด้วยคำสั่ง <code>secretary-news</code> (ไฟล์ JSON ลงโฟลเดอร์กลาง) · เลขาอ่านทางเดียว ไม่ใช้โมเดล</p>
+        <div className="flex items-center gap-2.5 rounded-s bg-panel-2 px-3 py-2">
+          <span className="grow text-[13px]"><b>เชื่อมแล้ว {connected} จาก {total} โปรเจค</b>
+            <span className="block text-xs text-muted">เลขาเขียนโน้ตใน CLAUDE.local.md ของแต่ละโปรเจค ให้ Claude ที่ทำงานในนั้นส่งความคืบหน้ามาเอง</span></span>
+          {connected < total && <Button sm kind="p" disabled={busy} onClick={all}>{busy ? "…" : "เชื่อมทุกโปรเจค"}</Button>}
+        </div>
+        {guide && !guide.command && (
+          <p className="text-xs text-warn">ยังไม่ได้ติดตั้งคำสั่ง secretary-news · รัน <code>/usr/bin/python3 desktop/secretary_news.py install</code> ในโฟลเดอร์ของเลขา</p>
+        )}
+        {guide && !guide.inbox_on && (
+          <p className="text-xs text-warn">รอบ “อ่านข่าวจากโปรเจค” ปิดอยู่ · ข่าวรอในกล่องจนกว่าจะเปิดที่ <Link to="/settings" className="underline">หน้าตั้งค่า</Link></p>
+        )}
         <div className="flex items-center gap-2 h-9 rounded-s border border-line-2 bg-panel px-3 text-[13px] font-mono"><Icon name="folder" size={15} className="text-muted" />
           <span className="truncate">{guide?.inbox ?? "~/.secretary/inbox/<โปรเจค>/*.json"}</span></div>
         <div className="flex flex-wrap gap-1.5">
@@ -217,7 +248,8 @@ export function Projects() {
               </ul>
             )}
           </Card>
-          <Connect say={say} />
+          <Connect say={say} connected={page.items.filter((p) => p.connected).length}
+            total={page.items.filter((p) => p.connected !== null).length} />
         </div>
       </div>
       {current && <ProjectCard key={current.id} p={current} anchor={card!.anchor} onClose={() => setCard(null)} say={say} />}
