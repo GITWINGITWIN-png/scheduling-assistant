@@ -589,3 +589,122 @@ def test_undoing_twice_is_409_and_what_cant_be_undone_is_422():
     assert _status(api_log.undo, done) == (409, "รายการนี้ย้อนกลับไปแล้ว")  # the page shows it as undone
     plain = actions.record("note", "บันทึกเฉยๆ")
     assert _status(api_log.undo, plain) == (422, "รายการนี้ย้อนกลับไม่ได้")
+
+
+# ------------------------------------------------------------------ B9 check: Discord cards answered elsewhere
+from app.core.tables import Message  # noqa: E402
+from app.features import decisions  # noqa: E402
+
+
+class FakeCard:
+    """A Discord message with buttons (as Discord gives them back): edit() keeps what it was given."""
+
+    def __init__(self, *buttons):
+        self.components = [SimpleNamespace(children=[SimpleNamespace(custom_id=c, label=label, disabled=False)
+                                                     for c, label in buttons])]
+        self.edits: list[dict] = []
+        self.jump_url = "https://discord.com/channels/1/2/3"
+
+    async def edit(self, **kw):
+        self.edits.append(kw)
+
+
+class FakePress:
+    """A button press on that card, by you."""
+
+    def __init__(self, card):
+        self.user, self.message, self.said = SimpleNamespace(id=2), card, []
+
+        async def edit_message(**kw):
+            card.edits.append(kw)
+
+        async def send(text, **kw):
+            self.said.append((text, kw))
+
+        async def defer(**kw):
+            pass
+        self.response = SimpleNamespace(edit_message=edit_message, send_message=send, defer=defer)
+        self.followup = SimpleNamespace(send=send)
+
+
+def _buttons(view):
+    return [(b.item.custom_id, b.item.label, b.item.disabled) for b in view.children]
+
+
+@pytest.fixture
+def discord_up(monkeypatch):
+    """Discord connected, with #คุยกับเลขา giving back the cards posted in it: {discord id: card}."""
+    cards: dict[int, FakeCard] = {}
+
+    async def fetch_message(discord_id):
+        return cards[discord_id]
+    monkeypatch.setattr(dc.bot, "ready_event", SimpleNamespace(is_set=lambda: True))
+    monkeypatch.setattr(dc.bot, "is_closed", lambda: False)
+    monkeypatch.setitem(dc.bot.channels, "chat", SimpleNamespace(fetch_message=fetch_message))
+    monkeypatch.setattr(dc.SecretaryBot, "is_owner", staticmethod(lambda user: True))
+    monkeypatch.setitem(decisions.CARD_SETTLERS, "plan", ask_discord._settle_plan_card)
+    monkeypatch.setitem(decisions.CARD_SETTLERS, "order", ask_discord._settle_order_card)
+    monkeypatch.setattr(ask, "start_carry_out", lambda decision_id, via=ask.WEB: True)  # not carried out here
+    return cards
+
+
+def _posted(cards, card, answer):
+    """As if the bot had posted `answer` as `card` in #คุยกับเลขา."""
+    with session() as s:
+        row = Message(channel="chat", discord_id=900 + len(cards), kind=answer.kind, ref="", content=answer.text)
+        s.add(row)
+        s.flush()
+    cards[row.discord_id] = card
+    ask_discord._remember_card(answer, row)
+
+
+def _replan_order(monkeypatch):
+    async def replan_now(via):
+        return "ย้าย 1 บล็อก"
+    monkeypatch.setattr(sync, "replan_now", replan_now)
+    ts, taken = tools()
+    call(ts, "replan")
+    return taken.confirm[0]
+
+
+def test_an_order_answered_on_the_web_greys_out_its_buttons_in_discord(discord_up, monkeypatch):
+    order = _replan_order(monkeypatch)
+    card = FakeCard((f"order:{order}:yes", "ทำเลย A"), (f"order:{order}:no", "ไม่เอา A"), ("oundo:41", "ย้อนกลับ 1"))
+    _posted(discord_up, card, _answer(confirms=[{"id": order, "title": "วางตารางใหม่ทั้งหมด"}]))
+    assert _status(api_ask.confirm_order, order, api_ask.ConfirmIn(yes=True)) == (200, "")
+    assert _buttons(card.edits[-1]["view"]) == [(f"order:{order}:yes", "✅ ทำแล้ว", True),
+                                                (f"order:{order}:no", "ไม่เอา", True), ("oundo:41", "ย้อนกลับ 1", False)]
+
+
+def test_a_plan_answered_on_the_web_says_so_on_its_discord_card(discord_up):
+    plan = _plan()
+    card = FakeCard((f"plan:{plan}:approve", "ใช้แผนนี้"), (f"plan:{plan}:edit", "แก้"), (f"plan:{plan}:reject", "ไม่เอา"))
+    _posted(discord_up, card, _answer(kind="plan", decision_id=plan, title="od-เตรียมสอบ"))
+    assert _status(api_ask.decide, plan, api_ask.DecideIn(action="approve")) == (200, "")
+    assert card.edits[-1]["content"].startswith("✅ ใช้แผนนี้แล้ว (ตอบจากหน้าเว็บ)")
+    assert _buttons(card.edits[-1]["view"]) == []  # no plan buttons left on it
+
+
+def test_a_discord_button_pressed_after_an_answer_elsewhere_says_what_happened(discord_up, monkeypatch):
+    plan = _plan()
+    ask.decide(plan, "approve")  # on the web, say
+    card = FakeCard((f"plan:{plan}:approve", "ใช้แผนนี้"), (f"plan:{plan}:reject", "ไม่เอา"), ("oundo:41", "ย้อนกลับ 1"))
+    asyncio.run(ask_discord.PlanButton(plan, "approve").callback(FakePress(card)))
+    assert card.edits[-1]["content"] == "แผนนี้ตอบไปแล้ว · ✅ ใช้แผนนี้แล้ว"
+    assert _buttons(card.edits[-1]["view"]) == [("oundo:41", "ย้อนกลับ 1", False)]  # what was done stays undoable
+
+    order = _replan_order(monkeypatch)
+    asyncio.run(orders.confirm(order, False, via=VIA))  # ไม่เอา on the web
+    card = FakeCard((f"order:{order}:yes", "ทำเลย A"), (f"order:{order}:no", "ไม่เอา A"))
+    press = FakePress(card)
+    asyncio.run(ask_discord.ConfirmButton(order, "yes").callback(press))
+    assert _buttons(card.edits[-1]["view"]) == [(f"order:{order}:yes", "ทำเลย", True), (f"order:{order}:no", "❌ ไม่ทำ", True)]
+    assert press.said == [("ไม่ทำแล้ว: วางตารางใหม่ทั้งหมด (ย้ายบล็อกงานที่ยังไม่ถึงเวลา)", {"ephemeral": True})]
+
+    done = store.jot("od-จดจากแชท", via=VIA)["action_id"]
+    undo(done)  # on the web
+    card = FakeCard((f"oundo:{done}", "ย้อนกลับ 1"), ("oundo:43", "ย้อนกลับ 2"))
+    asyncio.run(ask_discord.OrderUndoButton(done, "ย้อนกลับ 1").callback(FakePress(card)))
+    assert _buttons(card.edits[-1]["view"]) == [(f"oundo:{done}", "↩️ ย้อนแล้ว 1", True), ("oundo:43", "ย้อนกลับ 2", False)]
+    with session() as s:
+        s.execute(delete(Idea).where(Idea.text.like("od-%")))

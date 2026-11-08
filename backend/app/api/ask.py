@@ -103,6 +103,7 @@ async def revise(decision_id: int, body: ReviseIn) -> dict:
         raise HTTPException(409, str(exc)) from exc
     except llm.LLMError as exc:
         raise HTTPException(502, str(exc)) from exc
+    await decisions.settle_card(decision_id)  # the old plan's card in #คุยกับเลขา (if any) says it was changed
     return {**asdict(a), "footer": a.footer}
 
 
@@ -119,11 +120,13 @@ async def confirm_order(decision_id: int, body: ConfirmIn) -> dict:
     422 = doing it failed: nothing was done, and the buttons stay for another press.
     """
     try:
-        return {"text": await ask_orders.confirm(decision_id, body.yes, via=("หน้าเว็บ", ""))}
+        said = await ask_orders.confirm(decision_id, body.yes, via=("หน้าเว็บ", ""))
     except ask_orders.ConfirmFailed as exc:
         raise HTTPException(422, str(exc)) from exc
     except ask_orders.ConfirmError as exc:
         raise HTTPException(409, str(exc)) from exc
+    await decisions.settle_card(decision_id)  # its buttons in #คุยกับเลขา (if any) say so too
+    return {"text": said}
 
 
 @router.get("/plans/{decision_id}/run")

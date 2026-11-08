@@ -12,6 +12,8 @@
 - B9: an order Opus carried out lists what it did, with "ย้อนกลับ N" for each thing
   (pressing one keeps the others), and "ทำเลย · ไม่เอา" for what can't be undone.
   A plan you approve is carried out, and its result is posted as a reply under the plan.
+- A plan or an order answered on the web edits its buttons here too, and a button
+  pressed after it was answered elsewhere says what happened and stops looking live.
 
 The logic is in features/ask.py; this file only turns it into Discord messages.
 """
@@ -26,7 +28,7 @@ from app.connectors import discord_bot as dc
 from app.core import actions
 from app.core.tables import Action, Decision, Message
 from app.core.db import session
-from app.features import ask, ask_orders
+from app.features import ask, ask_orders, decisions
 from app.features.actions_discord import UndoButton, after_undo
 
 log = logging.getLogger(__name__)
@@ -112,6 +114,74 @@ def _rebuilt(message: discord.Message, pressed: dict[str, str]) -> discord.ui.Vi
     return view
 
 
+def _rest(message: discord.Message | None) -> discord.ui.View:
+    """The card's B9 buttons (ย้อนกลับ N, ทำเลย) without a plan's: for a plan that's answered."""
+    return _rebuilt(message, {}) if message is not None else discord.ui.View(timeout=None)
+
+
+# How an order's two buttons look once it no longer waits, by its status (both greyed out)
+ORDER_PRESSED = {"approved": ("✅ ทำแล้ว", "ไม่เอา"), "rejected": ("ทำเลย", "❌ ไม่ทำ"), "expired": ("หมดเวลา", "หมดเวลา")}
+
+
+def _order_pressed(decision_id: int) -> dict[str, str]:
+    with session() as s:
+        d = s.get(Decision, decision_id)
+        status = d.status if d is not None else "expired"  # gone: nothing to press either
+    if status == "pending":
+        return {}
+    yes, no = ORDER_PRESSED.get(status, ORDER_PRESSED["expired"])
+    return {f"order:{decision_id}:yes": yes, f"order:{decision_id}:no": no}
+
+
+def _remember_card(a: ask.Answer, row: Message) -> None:
+    """Note which chat message holds this answer's plan and order buttons (Decision.message_id),
+    so an answer on the web can edit them there too (decisions.settle_card)."""
+    ids = ([a.decision_id] if a.kind == "plan" and a.decision_id else []) + [c["id"] for c in a.confirms]
+    if not ids:
+        return
+    with session() as s:
+        for d in s.scalars(select(Decision).where(Decision.id.in_(ids))):
+            d.message_id = row.id
+
+
+async def _card(decision_id: int) -> discord.Message | None:
+    """The chat message with this plan's or order's buttons: None when it was made on the web,
+    is gone, or Discord isn't connected."""
+    if not dc.bot.ready_event.is_set() or dc.bot.is_closed():
+        return None
+    with session() as s:
+        d = s.get(Decision, decision_id)
+        m = s.get(Message, d.message_id) if d is not None and d.message_id else None
+        target = (m.channel, m.discord_id) if m is not None else None
+    channel = dc.bot.channels.get(target[0]) if target else None
+    if channel is None:
+        return None
+    try:
+        return await channel.fetch_message(target[1])
+    except discord.HTTPException:
+        return None
+
+
+async def _settle_order_card(decision_id: int, where: str) -> None:
+    """decisions.CARD_SETTLERS: ทำเลย / ไม่เอา answered on the web greys out the same buttons here."""
+    if (message := await _card(decision_id)) is not None and (pressed := _order_pressed(decision_id)):
+        await message.edit(view=_rebuilt(message, pressed))
+
+
+async def _settle_plan_card(decision_id: int, where: str) -> None:
+    """decisions.CARD_SETTLERS: a plan answered on the web says so here, without the plan's buttons."""
+    if (message := await _card(decision_id)) is None:
+        return
+    with session() as s:
+        d = s.get(Decision, decision_id)
+        status = d.status if d is not None else ""
+    said = {"approved": f"✅ ใช้แผนนี้แล้ว (ตอบจาก{where}) · เลขากำลังลงมือทำตามแผน ผลจะตอบใต้แผนนี้",
+            "rejected": f"ไม่เอาแผนนี้ (ตอบจาก{where})",
+            "revised": f"✏️ แก้แผนนี้แล้วที่{where} · แผนใหม่อยู่ที่นั่น"}.get(status)
+    if said:
+        await message.edit(content=said, view=_rest(message))
+
+
 async def on_chat(message: discord.Message) -> None:
     if not message.content.strip():
         return
@@ -119,9 +189,10 @@ async def on_chat(message: discord.Message) -> None:
         a = await ask.ask(message.content, await _history(message), via=_via(message))
     card, view = answer_card(a)
     handed = a.kind in ("plan", "done") or a.model == "Opus"
-    await dc.bot.send("chat", content=f"✨ {ask.HANDOFF_NOTE}" if handed else None, embed=card, view=view,
-                      kind=a.kind, ref=f"decision:{a.decision_id}" if a.decision_id else "ask",
-                      reply_to=message, text_copy=a.text)
+    row, _ = await dc.bot.send("chat", content=f"✨ {ask.HANDOFF_NOTE}" if handed else None, embed=card, view=view,
+                               kind=a.kind, ref=f"decision:{a.decision_id}" if a.decision_id else "ask",
+                               reply_to=message, text_copy=a.text)
+    _remember_card(a, row)
 
 
 async def _owner_only(interaction: discord.Interaction) -> bool:
@@ -154,7 +225,8 @@ class DeepButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ask:deep"
         card, view = answer_card(a, deep_button=False)  # already Opus
         kwargs = {"view": view} if view else {}
         sent = await interaction.followup.send(embed=card, wait=True, **kwargs)
-        dc.bot.record("chat", sent, kind=a.kind, ref=f"decision:{a.decision_id}" if a.decision_id else "ask_deep", text_copy=a.text)
+        _remember_card(a, dc.bot.record("chat", sent, kind=a.kind, ref=f"decision:{a.decision_id}" if a.decision_id else "ask_deep",
+                                        text_copy=a.text))
 
 
 PLAN_ACTIONS = {
@@ -182,14 +254,16 @@ class PlanButton(discord.ui.DynamicItem[discord.ui.Button], template=r"plan:(?P<
             return
         try:
             _, action_id = ask.decide(self.decision_id, self.act, via=_via(interaction.message))
-        except ask.DecisionError as exc:
-            await interaction.response.send_message(str(exc), ephemeral=True)
+        except ask.DecisionError as exc:  # answered already (on the web, say): the card says how, without its buttons
+            await interaction.response.edit_message(content=str(exc), view=_rest(interaction.message))
             return
         if self.act == "approve":  # B9: it is being carried out; each thing it does comes with its own ย้อนกลับ
             await interaction.response.edit_message(content="✅ ใช้แผนนี้แล้ว · เลขากำลังลงมือทำตามแผน ผลจะตอบใต้แผนนี้",
-                                                    view=None)
+                                                    view=_rest(interaction.message))
             return
-        await interaction.response.edit_message(content="ไม่เอาแผนนี้", view=dc.buttons(UndoButton(action_id)))
+        view = _rest(interaction.message)
+        view.add_item(UndoButton(action_id))
+        await interaction.response.edit_message(content="ไม่เอาแผนนี้", view=view)
 
 
 class EditPlanModal(discord.ui.Modal, title="แก้แผน"):
@@ -204,14 +278,16 @@ class EditPlanModal(discord.ui.Modal, title="แก้แผน"):
         await interaction.response.defer(thinking=True)
         try:
             a = await ask.revise(self.decision_id, self.change.value, via=_via(interaction.message))
-        except ask.DecisionError as exc:
-            await interaction.followup.send(str(exc))
+        except ask.DecisionError as exc:  # answered already: the card says how, without its buttons
+            if interaction.message:
+                await interaction.message.edit(content=str(exc), view=_rest(interaction.message))
+            await interaction.followup.send(str(exc), ephemeral=True)
             return
         if interaction.message:  # the old plan: no more buttons on it
-            await interaction.message.edit(content="✏️ แก้แล้ว · ดูแผนใหม่ด้านล่าง", view=None)
+            await interaction.message.edit(content="✏️ แก้แล้ว · ดูแผนใหม่ด้านล่าง", view=_rest(interaction.message))
         card, view = answer_card(a)
         sent = await interaction.followup.send(content="✏️ แผนที่แก้แล้ว", embed=card, view=view, wait=True)
-        dc.bot.record("chat", sent, kind="plan", ref=f"decision:{a.decision_id}", text_copy=a.text)
+        _remember_card(a, dc.bot.record("chat", sent, kind="plan", ref=f"decision:{a.decision_id}", text_copy=a.text))
 
 
 class OrderUndoButton(discord.ui.DynamicItem[discord.ui.Button], template=r"oundo:(?P<id>\d+)"):
@@ -230,6 +306,8 @@ class OrderUndoButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ound
             return
         try:
             await actions.undo(self.action_id)
+        except actions.AlreadyUndone:  # undone already (on the web, say): the button shows it, as if pressed here
+            pass
         except actions.UndoError as exc:
             await interaction.response.send_message(str(exc), ephemeral=True)
             return
@@ -255,16 +333,17 @@ class ConfirmButton(discord.ui.DynamicItem[discord.ui.Button], template=r"order:
         if not await _owner_only(interaction):
             return
         await interaction.response.defer()  # replanning or a weekly topic can take longer than Discord's 3 seconds
+        elsewhere = False
         try:
             said = await ask_orders.confirm(self.decision_id, self.yes == "yes", via=_via(interaction.message))
-        except ask_orders.ConfirmError as exc:
+        except ask_orders.ConfirmFailed as exc:  # nothing was done: the buttons stay, for another press
             await interaction.followup.send(str(exc), ephemeral=True)
             return
-        yes, no = f"order:{self.decision_id}:yes", f"order:{self.decision_id}:no"
-        pressed = {yes: "✅ ทำแล้ว", no: "ไม่เอา"} if self.yes == "yes" else {yes: "ทำเลย", no: "❌ ไม่ทำ"}
-        if interaction.message:
-            await interaction.message.edit(view=_rebuilt(interaction.message, pressed))
-        await interaction.followup.send(said)
+        except ask_orders.ConfirmError as exc:  # answered already (on the web, say), or expired
+            said, elsewhere = str(exc), True
+        if interaction.message:  # the buttons show what happened, whichever press it was
+            await interaction.message.edit(view=_rebuilt(interaction.message, _order_pressed(self.decision_id)))
+        await interaction.followup.send(said, ephemeral=elsewhere)
 
 
 async def post_plan_result(decision_id: int, a: ask.Answer) -> None:
@@ -283,8 +362,9 @@ async def post_plan_result(decision_id: int, a: ask.Answer) -> None:
         except discord.HTTPException:
             log.info("plan %s's message is gone: its result goes to #คุยกับเลขา", decision_id)
     card, view = answer_card(a)
-    await dc.bot.send("chat", embed=card, view=view, kind="plan_run", ref=f"decision:{decision_id}", reply_to=reply_to,
-                      text_copy=a.text)
+    row, _ = await dc.bot.send("chat", embed=card, view=view, kind="plan_run", ref=f"decision:{decision_id}",
+                               reply_to=reply_to, text_copy=a.text)
+    _remember_card(a, row)
 
 
 def _via(message: discord.Message | None) -> ask.Via:
@@ -307,5 +387,7 @@ def setup() -> None:
     dc.bot.on_channel_message["chat"] = on_chat
     dc.register_buttons(DeepButton, PlanButton, OrderUndoButton, ConfirmButton)
     after_undo["plan.approve"] = after_undo["plan.reject"] = _plan_reopened
+    decisions.CARD_SETTLERS["plan"] = _settle_plan_card  # answered on the web: the chat card says so
+    decisions.CARD_SETTLERS["order"] = _settle_order_card
     if post_plan_result not in ask.CARRIED_OUT:
         ask.CARRIED_OUT.append(post_plan_result)

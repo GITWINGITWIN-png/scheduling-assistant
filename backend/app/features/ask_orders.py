@@ -189,6 +189,7 @@ async def _do_plan_approve(args: dict, via: Via) -> str:
     from app.features import ask
 
     d, _ = ask.decide(args["decision_id"], "approve", via=via)
+    await _settle(d.id, via)
     return f"ใช้แผน “{d.title}” แล้ว"
 
 

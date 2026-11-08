@@ -12,6 +12,7 @@ rule in your rule book (B5: "คุณมักไม่รับนัดวั
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy import select
 
@@ -34,10 +35,24 @@ SETTLED = {
     ("weekly", "expired"): "หมดรอบแล้ว · เลขาไม่เปลี่ยนอะไร",
 }
 
+# B9: a plan or an order from the chat has its buttons on the chat's answer card, which can hold
+# other buttons too (ย้อนกลับ N for what the order did): replacing the whole card would take those
+# away. features/ask_discord.py registers how to edit just their part: {kind: fn(decision_id, where)}.
+CARD_SETTLERS: dict[str, Callable[[int, str], Awaitable[None]]] = {}
+
 
 async def settle_card(decision_id: int, where: str = "หน้าเว็บ") -> None:
     """After an answer on the web: edit the request's #อนุมัติ message to say how it went (best
     effort: when Discord is down, the card only keeps its buttons, which then say it's settled)."""
+    with session() as s:
+        d = s.get(Decision, decision_id)
+        kind = d.kind if d is not None else None
+    if kind in CARD_SETTLERS:
+        try:
+            await CARD_SETTLERS[kind](decision_id, where)
+        except Exception as exc:  # best effort, as below
+            log.warning("couldn't update the card of decision %s: %s", decision_id, exc)
+        return
     with session() as s:
         d = s.get(Decision, decision_id)
         m = s.get(Message, d.message_id) if d is not None and d.message_id else None
