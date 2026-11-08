@@ -133,5 +133,14 @@ async def _undo_done(undo: dict) -> None:
             task.status = "open"
 
 
+async def _undo_add(undo: dict) -> None:
+    """A task added by you, by an email (mail/extract.py) or by an order in the chat: dropped,
+    so the planner frees its time."""
+    with session() as s:
+        if task := s.get(Task, undo["task_id"]):
+            task.status = "dropped"
+
+
+actions.register_undo("task.add", _undo_add)
 actions.register_undo("task.edit", _undo_edit)
 actions.register_undo("task.done", _undo_done)

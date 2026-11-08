@@ -122,9 +122,9 @@ def advice(at: datetime | None = None) -> list[Advice]:
     return sorted(out, key=lambda a: rank[a.project_id])
 
 
-def book(project_id: int, minutes: int = 120, *, via: tuple[str, str] = ("หน้าโปรเจค", "")) -> int:
+def book(project_id: int, minutes: int = 120, *, via: tuple[str, str] = ("หน้าโปรเจค", "")) -> tuple[int, int]:
     """จองเวลา: a task for the project's next step, no due date, so the planner books the first
-    free time ("จองบล็อก 2 ชม. พรุ่งนี้เช้า" in the mockup). -> task id."""
+    free time ("จองบล็อก 2 ชม. พรุ่งนี้เช้า" in the mockup). -> (task id, action id: ย้อนกลับ drops it)."""
     from app.features.schedule import tasks
 
     with session() as s:
@@ -133,9 +133,9 @@ def book(project_id: int, minutes: int = 120, *, via: tuple[str, str] = ("หน
             raise ValueError("ไม่พบโปรเจคนี้")
         nxt = (p.progress or {}).get("next", "")
         name = p.name
-    task_id, _ = tasks.add(f"{name}: {nxt or 'ทำต่อ'}", est_minutes=minutes, via=via,
+    task_id, action_id = tasks.add(f"{name}: {nxt or 'ทำต่อ'}", est_minutes=minutes, via=via,
                            details=f"จากคำแนะนำของเลขา · ขั้นถัดไปใน PROGRESS.md ของ {name}" if nxt else "")
     with session() as s:
         t = s.get(Task, task_id)
         t.project, t.source = name, "project"
-    return task_id
+    return task_id, action_id

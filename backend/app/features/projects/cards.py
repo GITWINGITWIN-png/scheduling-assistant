@@ -57,7 +57,7 @@ class LevelMenu(discord.ui.DynamicItem[discord.ui.Select], template=r"plevel:(?P
             return
         via = ("#อนุมัติ", interaction.message.jump_url if interaction.message else "")
         try:
-            d = scan.set_levels(self.decision_id, picked["pot"], int(picked["urg"]), via=via)
+            d, _ = scan.set_levels(self.decision_id, picked["pot"], int(picked["urg"]), via=via)
         except ValueError as exc:
             await interaction.response.send_message(str(exc), ephemeral=True)
             return

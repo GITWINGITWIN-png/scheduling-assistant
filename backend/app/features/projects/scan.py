@@ -131,8 +131,9 @@ def scan(root: Path | None = None, at: datetime | None = None) -> Scan:
     return result
 
 
-def set_levels(decision_id: int, potential: str, urgency: int, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> Decision:
-    """You answered "ตั้งระดับโปรเจคใหม่" (in #อนุมัติ or on the web)."""
+def set_levels(decision_id: int, potential: str, urgency: int, *,
+               via: tuple[str, str] = ("หน้าเว็บ", "")) -> tuple[Decision, int]:
+    """You answered "ตั้งระดับโปรเจคใหม่" (in #อนุมัติ, on the web, or in the chat). -> (it, action id)."""
     from app.core import actions
     from app.features.projects.tables import POTENTIALS
 
@@ -150,9 +151,10 @@ def set_levels(decision_id: int, potential: str, urgency: int, *, via: tuple[str
         d.status, d.answered_at = "approved", now()
         name = p.name
         s.expunge(d)
-    actions.record("project.level", f"ตั้งระดับโปรเจค {name}", f"{potential} · เร่งด่วน {urgency}", source_label=via[0],
-                   source_url=via[1], undo={"project_id": d.detail["project_id"], "decision_id": decision_id, "old": old})
-    return d
+    action_id = actions.record("project.level", f"ตั้งระดับโปรเจค {name}", f"{potential} · เร่งด่วน {urgency}",
+                               source_label=via[0], source_url=via[1],
+                               undo={"project_id": d.detail["project_id"], "decision_id": decision_id, "old": old})
+    return d, action_id
 
 
 async def run() -> str | None:

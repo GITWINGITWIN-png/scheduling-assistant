@@ -37,7 +37,7 @@ from app.core.db import now, session
 from app.core.rules import book
 from app.core.tables import Action, Decision, LLMUsage
 from app.core.timefmt import thai_datetime
-from app.features import ask_tools
+from app.features import ask_orders, ask_tools
 
 # The name each tool goes by when it's listed as a source under an answer
 SOURCE_NAMES = {
@@ -90,11 +90,13 @@ async def recent_actions(args: dict) -> dict:
                    "โทเคน": a.tokens, "ย้อนแล้ว": bool(a.undone_at)} for a in rows] or "ยังไม่มีบันทึกในช่วงนี้")
 
 
-@tool("pending_decisions", "เรื่องที่รอผู้ใช้ตัดสิน (แผนจาก Opus ฯลฯ)", {})
+@tool("pending_decisions", "เรื่องที่รอผู้ใช้ตัดสิน (แผน นัดจากอีเมล งานเบื้องหลัง หัวข้อทบทวนรายสัปดาห์ ฯลฯ) "
+      "พร้อม id และคำตอบที่ใช้ได้", {})
 async def pending_decisions(args: dict) -> dict:
+    ask_orders.expire_old()
     with session() as s:
         rows = s.scalars(select(Decision).where(Decision.status == "pending").order_by(Decision.created_at)).all()
-    return _text([{"ชนิด": d.kind, "เรื่อง": d.title, "เมื่อ": thai_datetime(d.created_at)} for d in rows] or "ไม่มีเรื่องที่รอ")
+    return _text([{**ask_orders.waiting_view(d), "เมื่อ": thai_datetime(d.created_at)} for d in rows] or "ไม่มีเรื่องที่รอ")
 
 
 @tool("model_usage", "โทเคนที่เลขาใช้ แยกตามงานและโมเดล ย้อนหลังตามจำนวนวัน",

@@ -78,7 +78,7 @@ async def people_and_mail(args: dict) -> dict:
         if query:
             q = q.where(or_(Email.subject.like(_like(query)), Email.summary.like(_like(query))))
         mails = s.scalars(q).all()
-        out = {"คน": [{"ชื่อ": p.name, "ระดับ": LEVELS[p.level], "หมดอายุ": thai_datetime(p.level_until) if p.level_until else "",
+        out = {"คน": [{"id": p.id, "ชื่อ": p.name, "ระดับ": LEVELS[p.level], "หมดอายุ": thai_datetime(p.level_until) if p.level_until else "",
                        "โน้ต": p.note} for p in people],
                "อีเมล": [{"เมื่อ": thai_datetime(e.sent_at), "จาก": e.sender_name or e.sender, "หัวข้อ": e.subject,
                           "สรุป": e.summary or ("(ยังไม่ได้สรุป)" if e.stage == "seen" else "(อ่านแค่หัวข้อ)"),
@@ -95,7 +95,7 @@ async def waiting_replies(args: dict) -> dict:
     with session() as s:
         rows = s.execute(select(Followup, Person.name).outerjoin(Person, Person.id == Followup.person_id)
                          .where(Followup.closed_at.is_(None)).order_by(Followup.since).limit(MAX_ROWS)).all()
-        return _text([{"กับ": who or "", "หัวข้อ": f.subject, "รอ": "คุณตอบ" if f.waiting_on == "you" else "เขาตอบ",
+        return _text([{"id": f.id, "กับ": who or "", "หัวข้อ": f.subject, "รอ": "คุณตอบ" if f.waiting_on == "you" else "เขาตอบ",
                        "ตั้งแต่": thai_datetime(f.since)} for f, who in rows] or "ไม่มีเรื่องค้าง")
 
 
@@ -119,7 +119,7 @@ async def schedule(args: dict) -> dict:
             "บล็อกงาน": [{"เมื่อ": thai_datetime(b.starts_at), "ถึง": f"{local(b.ends_at):%H:%M}", "งาน": title,
                           "ผล": outcome.get(b.outcome, b.outcome) + (f" (ทำ {b.worked_minutes} นาที)" if b.worked_minutes else ""),
                           "ทำแทน": b.instead} for b, title in blocks],
-            "กำหนดส่ง": [{"เมื่อ": thai_datetime(t.due_at), "งาน": t.title, "สถานะ": t.status} for t in due]})
+            "กำหนดส่ง": [{"id": t.id, "เมื่อ": thai_datetime(t.due_at), "งาน": t.title, "สถานะ": t.status} for t in due]})
 
 
 @tool("tasks", "รายการงาน: ชื่อ กำหนดส่ง มาจากไหน โปรเจค รายละเอียด · status: open (ค้าง) · done (เสร็จ) · all",
@@ -134,7 +134,7 @@ async def tasks(args: dict) -> dict:
             q = q.where(Task.status == status)
         if query:
             q = q.where(Task.title.like(_like(query)))
-        return _text([{"งาน": t.title, "ส่ง": thai_datetime(t.due_at) if t.due_at else "ไม่มีกำหนด", "ที่มา": TASK_SOURCES.get(t.source, t.source),
+        return _text([{"id": t.id, "งาน": t.title, "ส่ง": thai_datetime(t.due_at) if t.due_at else "ไม่มีกำหนด", "ที่มา": TASK_SOURCES.get(t.source, t.source),
                        "โปรเจค": t.project, "สถานะ": t.status, "รายละเอียด": t.details[:300]} for t in s.scalars(q)] or "ไม่มีงาน")
 
 
@@ -155,7 +155,7 @@ async def projects(args: dict) -> dict:
         rows = s.scalars(q.limit(MAX_ROWS)).all()
         if not rows:
             return _text(f"ไม่พบโปรเจค “{name}”" if name else "ยังไม่มีโปรเจคในทะเบียน")
-        out = [{"โปรเจค": p.name, "สถานะ": STATUSES.get(p.status, p.status), "ระดับ": f"{p.potential} · เร่งด่วน {p.urgency}",
+        out = [{"id": p.id, "โปรเจค": p.name, "สถานะ": STATUSES.get(p.status, p.status), "ระดับ": f"{p.potential} · เร่งด่วน {p.urgency}",
                 "ขั้นถัดไป": (p.progress or {}).get("next", ""), "ทำแล้ว/ค้าง": f"{(p.progress or {}).get('done', 0)}/{(p.progress or {}).get('todo', 0)}",
                 "ล่าสุด": thai_datetime(p.last_activity) if p.last_activity else ""} for p in rows]
         if name and len(rows) <= 3:
@@ -185,7 +185,7 @@ async def ideas(args: dict) -> dict:
         rows = [i for i in recent if not needle or needle in i.text.lower() or any(needle in tag for tag in i.tags or [])][:MAX_ROWS]
         return _text({"ไอเดีย": [{"เมื่อ": thai_datetime(i.created_at), "ไอเดีย": i.text, "แท็ก": i.tags, "จาก": SOURCES.get(i.source, i.source),
                                    "กลุ่ม": groups[i.group_id].name if i.group_id in groups else ""} for i in rows] or "ไม่พบ",
-                      "กลุ่ม": [{"กลุ่ม": g.name, "สถานะ": GROUP_STATUSES.get(g.status, g.status)} for g in groups.values()
+                      "กลุ่ม": [{"id": g.id, "กลุ่ม": g.name, "สถานะ": GROUP_STATUSES.get(g.status, g.status)} for g in groups.values()
                                 if not query or query.lower() in (g.name + g.tag).lower()][:MAX_ROWS]})
 
 

@@ -119,7 +119,7 @@ async def book(project_id: int, body: BookIn) -> dict:
     if not 15 <= body.minutes <= 600:
         raise HTTPException(400, "เวลา 15 นาทีถึง 10 ชั่วโมง")
     try:
-        task_id = advice.book(project_id, body.minutes)
+        task_id, _ = advice.book(project_id, body.minutes)
     except ValueError as exc:
         raise HTTPException(404, str(exc))
     from app.features.schedule import sync

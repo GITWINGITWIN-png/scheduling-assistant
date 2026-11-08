@@ -29,6 +29,7 @@ from app.core import actions, when
 from app.core.rules import learn
 from app.core.db import now, session
 from app.core.tables import Decision, Event, Task
+from app.features.schedule import tasks as _tasks  # noqa: F401  (registers the undo for task.add)
 from app.core.timefmt import thai_datetime
 from app.features.mail.tables import Email
 from app.features.mail.watch import AFTER_READ, ReadEmail, address_of
@@ -200,14 +201,9 @@ async def decide(decision_id: int, accept: bool, *, via: tuple[str, str] = ("ห
             return s.get(Decision, decision_id), action_id
 
 
-async def _undo_task(undo: dict) -> None:
-    with session() as s:
-        if task := s.get(Task, undo["task_id"]):
-            task.status = "dropped"
-
-
 actions.register_undo("calendar.place", _undo_place)
-actions.register_undo("task.add", _undo_task)
+# "task.add" (a task found in an email) is undone by features/schedule/tasks.py, where tasks are added;
+# the import below makes sure that undo is registered whenever this module is loaded
 
 
 def setup() -> None:

@@ -179,7 +179,7 @@ def test_time_booked_in_the_schedule_this_week_counts_toward_the_target(root):
 
 def test_booking_time_makes_a_task_for_the_next_step(root):
     from app.features.projects import advice
-    task_id = advice.book(rows()["alpha"].id, 120)
+    task_id, _ = advice.book(rows()["alpha"].id, 120)
     with session() as s:
         t = s.get(Task, task_id)
         assert (t.title, t.est_minutes, t.project, t.source, t.due_at) == ("alpha: ทำหน้าเว็บ › หน้าตั้งค่า", 120, "alpha", "project", None)
