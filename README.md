@@ -69,8 +69,13 @@ You reach the secretary in two places. Both are in Thai.
   - one button accepts every default.
 
 ### Projects and background work
-- **Projects:** `~/Projects` is scanned and each project's `PROGRESS.md` is read. Other
-  projects can report through JSON files ([`docs/CONNECT.md`](docs/CONNECT.md)).
+- **Projects:** `~/Projects` is scanned and each project's `PROGRESS.md` is read.
+- **Projects send their news (B10):** เชื่อมทุกโปรเจค on the projects page writes a note into
+  each project's `CLAUDE.local.md` (hidden from git; the project's own `CLAUDE.md` is left
+  alone). It tells Claude Code working there to report finished steps, questions, deadlines and
+  automatic runs with the `secretary-news` command, which scripts can call too. The news shows
+  on the today and projects pages and in the morning brief
+  ([`docs/CONNECT.md`](docs/CONNECT.md)).
 - **Continuing stopped work:** when work stops (the quota ran out, or you were interrupted),
   the secretary plans how to continue. Each plan has a risk score, a model and effort, and a
   token budget.
@@ -96,7 +101,8 @@ You reach the secretary in two places. Both are in Thai.
   - the schedule, tasks and projects;
   - ideas, time use, Classroom and the rules book.
 - **ให้ Opus คิดต่อ** hands a question on to Opus.
-- **Orders (B9):** an order goes to Opus. The action tools it gets cover:
+- **Orders (B9):** an order goes to Opus, and does at most 25 things (Discord's 25 buttons). The
+  chat remembers the conversation, so "ทำต่อ" carries on. The action tools it gets cover:
   - tasks and appointments, keeping hours free, replanning;
   - people's tiers, follow-ups, ideas, rules from a sentence;
   - continuing a project, answering what waits for you.
@@ -210,7 +216,9 @@ would otherwise start a second bot with the real token.
 5. **Always on:** [`docs/setup/always-on.md`](docs/setup/always-on.md).
 6. **Ideas and time use:** the Super+I key and ActivityWatch, in
    [`docs/setup/ideas-and-time.md`](docs/setup/ideas-and-time.md).
-7. **Rounds:** switch on the ones you want in ตั้งค่า.
+7. **Projects' news:** `/usr/bin/python3 desktop/secretary_news.py install` puts the
+   `secretary-news` command in `~/.local/bin`. Then press เชื่อมทุกโปรเจค on the projects page.
+8. **Rounds:** switch on the ones you want in ตั้งค่า.
 
 **Configuration (`backend/.env`):** every key starts with `SECRETARY_`, so v1's keys in the
 same file are ignored.
