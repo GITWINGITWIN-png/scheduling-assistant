@@ -290,8 +290,10 @@ async def answer_course(decision_id: int, body: CourseAnswer) -> dict:
     try:
         d, action_id = await classroom.decide(decision_id, body.follow, folder=body.folder, via=("หน้าเว็บ", ""))
         await decisions.settle_card(decision_id)  # its #อนุมัติ card says so too
-    except ValueError as exc:
+    except decisions.Answered as exc:  # answered already: the page shows how, in place of the buttons
         raise HTTPException(409, str(exc))
+    except ValueError as exc:  # couldn't be done: it still waits
+        raise HTTPException(422, str(exc))
     return {"status": d.status, "action_id": action_id}
 
 

@@ -10,6 +10,7 @@ import discord
 from app.connectors import discord_bot as dc
 from app.core.db import session
 from app.core.tables import Decision
+from app.features import decisions
 from app.features.actions_discord import UndoButton
 from app.features.classroom import sync
 
@@ -36,7 +37,10 @@ class CourseButton(discord.ui.DynamicItem[discord.ui.Button], template=r"course:
         via = ("#อนุมัติ", interaction.message.jump_url if interaction.message else "")
         try:
             d, action_id = await sync.decide(self.decision_id, self.act == "yes", via=via)
-        except ValueError as exc:
+        except decisions.Answered as exc:  # answered elsewhere (the web, say): the card says how, without buttons
+            await interaction.edit_original_response(content=str(exc), view=None)
+            return
+        except ValueError as exc:  # couldn't be done: the buttons stay
             await interaction.followup.send(str(exc), ephemeral=True)
             return
         note = (f"✅ ติดตามแล้ว · สื่อไปที่ `{d.detail['folder']}` · งานที่มีกำหนดส่งจะเข้าตารางในรอบถัดไป"

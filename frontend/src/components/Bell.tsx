@@ -1,7 +1,7 @@
 // The bell in the top bar: what waits for your decision: plans from Opus (B1), appointments
 // from email (B2), Classroom courses to follow (B3). B4's today page later gathers them in one place.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type Decision } from "../api";
+import { answeredAlready, api, type Decision } from "../api";
 import { Icon } from "../icons";
 import { useStatus } from "../status";
 import { DecisionRow } from "./Decisions";
@@ -10,21 +10,30 @@ import { Button, Spinner } from "./ui";
 
 // รับ · ไม่ไป for an appointment from someone who isn't important (B2), with ย้อนกลับ after รับ.
 // onChange: the page around it re-reads what it shows (the schedule redraws the calendar).
+// Answered elsewhere (#อนุมัติ, the chat, another copy of these buttons): a press shows how instead.
 export function AppointmentActions({ decisionId, onChange }: { decisionId: number; onChange?: () => void }) {
   const { refresh } = useStatus();
   const [state, setState] = useState<"open" | "placed" | "declined" | "undone">("open");
   const [actionId, setActionId] = useState<number | null>(null);
+  const [answered, setAnswered] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setError("");
-    try { await fn(); onChange?.(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); refresh(); }
+    try { await fn(); onChange?.(); } catch (e) {
+      if (answeredAlready(e)) { setAnswered(e.message); if (onChange) setTimeout(onChange, 1500); } // let it be read first
+      else setError((e as Error).message); // couldn't be done (the calendar): the buttons stay
+    } finally { setBusy(false); refresh(); }
   };
   const answer = (accept: boolean) => run(async () => {
     const r = await api.answerAppointment(decisionId, accept);
     setActionId(r.action_id); setState(accept ? "placed" : "declined");
   });
-  const undo = () => run(async () => { if (actionId) await api.undo(actionId); setState("undone"); });
+  const undo = () => run(async () => {
+    try { if (actionId) await api.undo(actionId); } catch (e) { if (!answeredAlready(e)) throw e; } // undone elsewhere: the same
+    setState("undone");
+  });
+  if (answered) return <p className="text-sm text-muted">{answered}</p>;
   return (
     <div className="flex flex-col gap-1.5">
       {state === "open" && (
@@ -47,17 +56,24 @@ export function CourseActions({ decisionId, folder: proposed, exists }: { decisi
   const [folder, setFolder] = useState(proposed);
   const [state, setState] = useState<"open" | "followed" | "ignored" | "undone">("open");
   const [actionId, setActionId] = useState<number | null>(null);
+  const [answered, setAnswered] = useState(""); // answered elsewhere: how, in place of the buttons
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setError("");
-    try { await fn(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); refresh(); }
+    try { await fn(); } catch (e) {
+      if (answeredAlready(e)) setAnswered(e.message); else setError((e as Error).message);
+    } finally { setBusy(false); refresh(); }
   };
   const answer = (follow: boolean) => run(async () => {
     const r = await api.answerCourse(decisionId, follow, follow ? folder : undefined);
     setActionId(r.action_id); setState(follow ? "followed" : "ignored");
   });
-  const undo = () => run(async () => { if (actionId) await api.undo(actionId); setState("undone"); });
+  const undo = () => run(async () => {
+    try { if (actionId) await api.undo(actionId); } catch (e) { if (!answeredAlready(e)) throw e; } // undone elsewhere: the same
+    setState("undone");
+  });
+  if (answered) return <p className="text-sm text-muted">{answered}</p>;
   return (
     <div className="flex flex-col gap-1.5">
       {state === "open" && (

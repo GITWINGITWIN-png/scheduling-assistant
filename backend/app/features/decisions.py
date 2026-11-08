@@ -35,6 +35,21 @@ SETTLED = {
     ("weekly", "expired"): "หมดรอบแล้ว · เลขาไม่เปลี่ยนอะไร",
 }
 
+class Answered(ValueError):
+    """The request no longer waits: it was answered already (somewhere else, or on another copy of
+    its buttons), or it is gone. Nothing is left to press, and the message says how it was answered.
+    A plain ValueError from the same functions means the press couldn't be done, and it still waits:
+    the web answers 409 for this one (the buttons give way to the message) and 422 for that one."""
+
+
+def answered(d: Decision | None, what: str) -> Answered:
+    """The refusal for pressing a request that no longer waits. what: "นัด", "วิชา"..."""
+    if d is None:
+        return Answered(f"ไม่พบ{what}นี้แล้ว")
+    said = SETTLED.get((d.kind, d.status, d.answer)) or SETTLED.get((d.kind, d.status)) or d.status
+    return Answered(f"{what}นี้ตอบไปแล้ว · {said}")
+
+
 # B9: a plan or an order from the chat has its buttons on the chat's answer card, which can hold
 # other buttons too (ย้อนกลับ N for what the order did): replacing the whole card would take those
 # away. features/ask_discord.py registers how to edit just their part: {kind: fn(decision_id, where)}.

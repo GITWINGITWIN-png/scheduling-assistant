@@ -32,6 +32,7 @@ from app.core import actions
 from app.core.config import get_config
 from app.core.db import now, session
 from app.core.tables import Decision, Task
+from app.features import decisions
 from app.features.classroom.tables import Course, CourseItem
 
 log = logging.getLogger(__name__)
@@ -213,9 +214,9 @@ async def decide(decision_id: int, follow: bool, *, folder: str | None = None,
     with session() as s:
         d = s.get(Decision, decision_id)
         if d is None or d.kind != "course":
-            raise ValueError("ไม่พบคำถามนี้")
-        if d.status != "pending":
-            raise ValueError("ตอบไปแล้ว")
+            raise decisions.answered(None, "วิชา")
+        if d.status != "pending":  # answered elsewhere: say how (the buttons then give way to it)
+            raise decisions.answered(d, "วิชา")
         course = s.get(Course, d.detail["course_id"])
         target = Path(folder or d.detail["folder"]).expanduser()
         created = None  # the topmost folder this creates, so undo removes only what it made

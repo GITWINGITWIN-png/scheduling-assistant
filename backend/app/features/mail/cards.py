@@ -25,6 +25,7 @@ from app.core.rules import book
 from app.core.db import session
 from app.core.tables import Decision, Event
 from app.core.timefmt import local
+from app.features import decisions
 from app.features.actions_discord import UndoButton
 from app.features.mail import extract, followups, rounds, watch
 from app.features.mail.tables import LEVELS, Email, Followup
@@ -113,7 +114,10 @@ class AppointmentButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ap
         via = ("#อนุมัติ", interaction.message.jump_url if interaction.message else "")
         try:
             d, action_id = await extract.decide(self.decision_id, self.act == "yes", via=via)
-        except ValueError as exc:
+        except decisions.Answered as exc:  # answered elsewhere (the web, say): the card says how, without buttons
+            await interaction.edit_original_response(content=str(exc), view=None)
+            return
+        except ValueError as exc:  # couldn't be done (the calendar): the buttons stay
             await interaction.followup.send(str(exc), ephemeral=True)
             return
         if action_id:

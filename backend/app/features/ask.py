@@ -464,5 +464,11 @@ async def revise(decision_id: int, change: str, via: Via = WEB) -> Answer:
             raise DecisionError("ไม่พบแผนนี้")
         if old.status != "pending":
             raise DecisionError(f"แผนนี้ตอบไปแล้ว · {ANSWERED.get(old.status, old.status)}")
-        old.status, old.answer, old.answered_at = "revised", change, now()
-    return await plan(old.detail.get("request", old.title), previous=old, change=change, via=via)
+        old.status, old.answer, old.answered_at = "revised", change, now()  # first, so a second แก้ can't start
+    try:
+        return await plan(old.detail.get("request", old.title), previous=old, change=change, via=via)
+    except Exception:
+        with session() as s:  # no new plan came (Opus failed, say): the old one waits again, as it was
+            d = s.get(Decision, decision_id)
+            d.status, d.answer, d.answered_at = "pending", "", None
+        raise

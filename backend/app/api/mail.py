@@ -153,8 +153,10 @@ async def answer_appointment(decision_id: int, body: AppointmentIn) -> dict:
     try:
         d, action_id = await extract.decide(decision_id, body.accept, via=("หน้าเว็บ", ""))
         await decisions.settle_card(decision_id)  # its #อนุมัติ card says so too
-    except ValueError as exc:
+    except decisions.Answered as exc:  # answered already: the page shows how, in place of the buttons
         raise HTTPException(409, str(exc))
+    except ValueError as exc:  # couldn't put it in the calendar: it still waits, press again
+        raise HTTPException(422, str(exc))
     return {"id": d.id, "status": d.status, "action_id": action_id}
 
 

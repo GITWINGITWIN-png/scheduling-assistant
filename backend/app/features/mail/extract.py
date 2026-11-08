@@ -31,6 +31,7 @@ from app.core.db import now, session
 from app.core.tables import Decision, Event, Task
 from app.features.schedule import tasks as _tasks  # noqa: F401  (registers the undo for task.add)
 from app.core.timefmt import thai_datetime
+from app.features import decisions
 from app.features.mail.tables import Email
 from app.features.mail.watch import AFTER_READ, ReadEmail, address_of
 
@@ -176,9 +177,9 @@ async def decide(decision_id: int, accept: bool, *, via: tuple[str, str] = ("ห
         with session() as s:
             d = s.get(Decision, decision_id)
             if d is None or d.kind != "appointment":
-                raise ValueError("ไม่พบนัดนี้")
-            if d.status != "pending":
-                raise ValueError("ตัดสินนัดนี้ไปแล้ว")
+                raise decisions.answered(None, "นัด")
+            if d.status != "pending":  # answered elsewhere: say how (the buttons then give way to it)
+                raise decisions.answered(d, "นัด")
             event_id, title, when_words = d.detail["event_id"], d.title, d.detail.get("when", "")
         action_id = None
         if accept:

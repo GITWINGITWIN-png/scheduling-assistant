@@ -708,3 +708,57 @@ def test_a_discord_button_pressed_after_an_answer_elsewhere_says_what_happened(d
     assert _buttons(card.edits[-1]["view"]) == [(f"oundo:{done}", "↩️ ย้อนแล้ว 1", True), ("oundo:43", "ย้อนกลับ 2", False)]
     with session() as s:
         s.execute(delete(Idea).where(Idea.text.like("od-%")))
+
+
+# ------------------------------------------------------------------ B9 check: the bell's appointment and course buttons
+from datetime import timedelta  # noqa: E402
+
+from app.api import mail as api_mail  # noqa: E402
+from app.api import schedule as api_schedule  # noqa: E402
+from app.connectors import google  # noqa: E402
+from app.core.tables import Event  # noqa: E402
+from app.features.classroom.tables import Course  # noqa: E402
+from app.features.mail import extract  # noqa: E402
+
+
+def test_an_appointment_answered_already_is_409_saying_how_and_a_calendar_failure_is_422(monkeypatch):
+    async def refuse(event_id, *, via):
+        raise google.NeedsConsent("gmail", "ยังไม่ได้อนุญาต Calendar")
+    monkeypatch.setattr(extract, "place", refuse)
+    start = now() + timedelta(days=3)
+    with session() as s:
+        ev = Event(title="od-นัดคุยโปรเจค", starts_at=start, ends_at=start + timedelta(hours=1), source="email", status="proposed")
+        s.add(ev)
+        s.flush()
+        d = Decision(kind="appointment", title="od-นัดคุยโปรเจค", detail={"event_id": ev.id, "when": "ศ. 10:00"})
+        s.add(d)
+        s.flush()
+        appt = d.id
+    answer = api_mail.answer_appointment
+    assert _status(answer, appt, api_mail.AppointmentIn(accept=True))[0] == 422  # not placed: it still waits
+    assert _status(answer, appt, api_mail.AppointmentIn(accept=False)) == (200, "")
+    assert _status(answer, appt, api_mail.AppointmentIn(accept=True)) == (409, "นัดนี้ตอบไปแล้ว · ไม่ไปนัดนี้")
+    assert _status(answer, 10**9, api_mail.AppointmentIn(accept=True)) == (409, "ไม่พบนัดนี้แล้ว")
+
+
+def test_a_course_answered_already_is_409_saying_how(tmp_path):
+    with session() as s:
+        s.merge(Course(id="od-os", name="od-OS", folder=str(tmp_path / "os")))
+        d = Decision(kind="course", title="od-OS", detail={"course_id": "od-os", "folder": str(tmp_path / "os")})
+        s.add(d)
+        s.flush()
+        course = d.id
+    answer = api_schedule.answer_course
+    assert _status(answer, course, api_schedule.CourseAnswer(follow=False)) == (200, "")
+    assert _status(answer, course, api_schedule.CourseAnswer(follow=True)) == (409, "วิชานี้ตอบไปแล้ว · ไม่ติดตามวิชานี้")
+
+
+def test_a_plan_whose_change_opus_couldnt_write_waits_again(monkeypatch):
+    async def run(task, prompt, **kw):
+        raise llm.LLMError("quota")
+    monkeypatch.setattr(llm, "run", run)
+    plan = _plan()
+    with pytest.raises(llm.LLMError):
+        asyncio.run(ask.revise(plan, "ย้ายเป็นพุธ"))
+    with session() as s:
+        assert s.get(Decision, plan).status == "pending"  # not stuck as "revised" with no new plan
