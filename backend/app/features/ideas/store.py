@@ -226,6 +226,26 @@ async def _undo_remove(undo: dict) -> None:
 actions.register_undo("idea.remove", _undo_remove)
 
 
+def jot(text: str, *, via: tuple[str, str]) -> dict:
+    """An idea from an order in the chat (B9, "จดไอเดีย …"). Kept like a #ไอเดีย message: the
+    #tags you typed, and the next round adds what the rules find. Unlike the other ways in, it
+    is recorded, so the answer's ย้อนกลับ removes it. -> add()'s answer and "action_id"."""
+    out = add(text, source="chat")
+    out["action_id"] = actions.record("idea.add", "จดไอเดีย", text.strip()[:120], source_label=via[0], source_url=via[1],
+                                      undo={"idea_id": out["id"]})
+    return out
+
+
+async def _undo_add(undo: dict) -> None:
+    with session() as s:
+        if (idea := s.get(Idea, undo["idea_id"])) is None:
+            raise actions.UndoError("ไอเดียนี้ถูกลบไปแล้ว")
+        s.delete(idea)
+
+
+actions.register_undo("idea.add", _undo_add)
+
+
 # ------------------------------------------------------------------ the popup's outbox
 def outbox() -> Path:
     """Where the popup keeps ideas while the secretary is down (one JSON object per line)."""

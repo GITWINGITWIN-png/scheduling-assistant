@@ -25,7 +25,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, UTCDateTime, now
 
-SOURCES = {"key": "คีย์ลัด", "discord": "#ไอเดีย", "web": "หน้าเว็บ"}
+SOURCES = {"key": "คีย์ลัด", "discord": "#ไอเดีย", "web": "หน้าเว็บ", "chat": "สั่งในแชท"}  # chat: B9
 GROUP_STATUSES = {
     "open": "กำลังโต",
     "asked": "เสนอแล้ว",  # grown enough: waiting for your answer (a Decision of kind "idea")

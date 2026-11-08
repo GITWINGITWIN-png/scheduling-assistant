@@ -184,8 +184,12 @@ class FollowupButton(discord.ui.DynamicItem[discord.ui.Button], template=r"fu:(?
             await interaction.response.send_message("ปุ่มนี้สำหรับเจ้าของเลขาเท่านั้น", ephemeral=True)
             return
         if self.act == "done":
-            followups.close(self.followup_id)
-            await interaction.response.edit_message(content="✅ ปิดเรื่องนี้แล้ว", view=None)
+            try:  # recorded: ย้อนกลับ (here, or in สิ่งที่เลขาทำ) opens it again
+                action_id = followups.done(self.followup_id, via=("#ด่วน", interaction.message.jump_url if interaction.message else ""))
+            except ValueError as exc:
+                await interaction.response.edit_message(content=f"✅ {exc}", view=None)
+                return
+            await interaction.response.edit_message(content="✅ ปิดเรื่องนี้แล้ว", view=dc.buttons(UndoButton(action_id)))
         else:
             followups.snooze(self.followup_id)
             await interaction.response.edit_message(content="⏰ จะเตือนอีกครั้งพรุ่งนี้", view=None)

@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
+from app.core import actions
 from app.core.db import now, session
 from app.features.mail import watch
 from app.features.mail.tables import Email, Followup, Person
@@ -96,6 +97,32 @@ def close(followup_id: int) -> Followup | None:
         if f and f.closed_at is None:
             f.closed_at = now()
         return f
+
+
+def done(followup_id: int, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> int:
+    """ตอบแล้ว, recorded so ย้อนกลับ opens it again (the page's button and an order in the
+    chat, B9). -> action id. Raises ValueError when it's gone or already closed."""
+    with session() as s:
+        f = s.get(Followup, followup_id)
+        if f is None:
+            raise ValueError("ไม่พบเรื่องค้างนี้")
+        if f.closed_at is not None:
+            raise ValueError("เรื่องนี้ปิดไปแล้ว")
+        f.closed_at = now()
+        person = s.get(Person, f.person_id)
+        target = f"{person.name if person else 'ไม่ทราบชื่อ'}: {f.subject}"
+    return actions.record("followup.close", "ปิดเรื่องค้าง", target, source_label=via[0], source_url=via[1],
+                          undo={"followup_id": followup_id})
+
+
+async def _undo_done(undo: dict) -> None:
+    with session() as s:
+        if (f := s.get(Followup, undo["followup_id"])) is None:
+            raise actions.UndoError("ไม่พบเรื่องค้างนี้แล้ว")
+        f.closed_at = None
+
+
+actions.register_undo("followup.close", _undo_done)
 
 
 def snooze(followup_id: int) -> None:

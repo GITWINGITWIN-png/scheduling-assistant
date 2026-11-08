@@ -131,7 +131,10 @@ class FollowupIn(BaseModel):
 @router.post("/followups/{followup_id}")
 def answer_followup(followup_id: int, body: FollowupIn) -> dict:
     if body.act == "done":
-        followups.close(followup_id)
+        try:
+            followups.done(followup_id, via=("หน้าเว็บ", ""))  # recorded: ย้อนกลับ opens it again
+        except ValueError:
+            pass  # already closed, or gone: nothing left to do
     elif body.act == "later":
         followups.snooze(followup_id)
     else:
