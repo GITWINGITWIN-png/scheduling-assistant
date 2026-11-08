@@ -421,3 +421,60 @@ def test_a_plan_not_approved_isnt_carried_out_and_a_failed_run_says_so(monkeypat
     assert "ทำตามแผนไม่จบ" in a.text and len(a.done) == 1 and ask.run_of(decision_id)["status"] == "failed"
     with session() as s:
         s.execute(delete(Idea).where(Idea.text.like("od-%")))
+
+
+# ------------------------------------------------------------------ B9.6: Discord
+from types import SimpleNamespace  # noqa: E402
+
+from app.features import ask_discord  # noqa: E402
+
+
+def _answer(done=(), confirms=(), kind="done", **kw):
+    return ask.Answer(kind, "ทำให้แล้ว", "Opus", "high", 12.0, 9000, done=list(done), confirms=list(confirms), **kw)
+
+
+def test_the_answer_lists_what_was_done_with_undo_n_and_what_waits_with_do_it():
+    a = _answer(done=[{"id": 41, "summary": "เพิ่มงาน: รายงาน", "target": "ส่ง ศ. 13 พ.ย.", "can_undo": True},
+                      {"id": 42, "summary": "วางตารางตามงานที่เปลี่ยน", "target": "", "can_undo": False},
+                      {"id": 43, "summary": "จดไอเดีย", "target": "สรุปเช้าเป็นเสียง", "can_undo": True}],
+                confirms=[{"id": 7, "title": "วางตารางใหม่ทั้งหมด"}])
+    embed, view = ask_discord.answer_card(a)
+    assert [f.name for f in embed.fields] == ["รอคุณกดยืนยัน (ย้อนกลับไม่ได้)", "เลขาทำแล้ว"]
+    assert embed.fields[1].value.splitlines() == ["1. เพิ่มงาน: รายงาน · ส่ง ศ. 13 พ.ย.", "2. วางตารางตามงานที่เปลี่ยน",
+                                                  "3. จดไอเดีย · สรุปเช้าเป็นเสียง"]
+    assert [(b.item.custom_id, b.item.label) for b in view.children] == [
+        ("order:7:yes", "ทำเลย A"), ("order:7:no", "ไม่เอา A"), ("oundo:41", "ย้อนกลับ 1"), ("oundo:43", "ย้อนกลับ 3")]
+
+
+def test_a_long_list_keeps_to_discords_25_buttons_and_says_where_the_rest_are():
+    a = _answer(done=[{"id": i, "summary": f"งาน {i}", "target": "", "can_undo": True} for i in range(1, 31)])
+    embed, view = ask_discord.answer_card(a)
+    assert len(view.children) == 25 and embed.fields[-1].name == "ย้อนรายการที่เหลือ"
+
+
+def test_plans_keep_their_buttons_and_an_answer_from_opus_has_no_think_more_button():
+    _, view = ask_discord.answer_card(_answer(kind="plan", decision_id=5, title="แผน"))
+    assert [b.item.custom_id for b in view.children] == ["plan:5:approve", "plan:5:edit", "plan:5:reject"]
+    assert ask_discord.answer_card(_answer(kind="answer"))[1] is None  # Opus asked back: no "ให้ Opus คิดต่อ"
+    sonnet = ask.Answer("answer", "มี 2 นัด", "Sonnet", "low", 2.0, 900)
+    assert [b.item.custom_id for b in ask_discord.answer_card(sonnet)[1].children] == ["ask:deep"]
+    result = ask_discord.answer_card(_answer(decision_id=5, title="เตรียมสอบ"))[0]
+    assert result.title == "ผลของแผน: เตรียมสอบ"
+
+
+def test_pressing_one_button_keeps_the_others_working():
+    def button(cid, label, disabled=False):
+        return SimpleNamespace(custom_id=cid, label=label, disabled=disabled)
+    message = SimpleNamespace(components=[SimpleNamespace(children=[
+        button("order:7:yes", "ทำเลย A"), button("order:7:no", "ไม่เอา A"), button("oundo:41", "ย้อนกลับ 1"),
+        button("oundo:43", "ย้อนกลับ 3", disabled=True)])])
+    view = ask_discord._rebuilt(message, {"oundo:41": "↩️ ย้อนแล้ว 1"})
+    assert [(b.item.custom_id, b.item.label, b.item.disabled) for b in view.children] == [
+        ("order:7:yes", "ทำเลย A", False), ("order:7:no", "ไม่เอา A", False), ("oundo:41", "↩️ ย้อนแล้ว 1", True),
+        ("oundo:43", "ย้อนกลับ 3", True)]
+
+
+def test_a_plans_result_is_announced_through_the_hook_discord_registers():
+    ask_discord.setup()
+    assert ask_discord.post_plan_result in ask.CARRIED_OUT
+    asyncio.run(ask_discord.post_plan_result(1, _answer()))  # the bot isn't connected in tests: nothing posted, nothing raised
