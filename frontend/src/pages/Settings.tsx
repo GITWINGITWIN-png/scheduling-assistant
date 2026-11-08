@@ -125,7 +125,8 @@ export function Settings() {
                 side={g.connected ? <Chip tone="ok">เชื่อมแล้ว</Chip> : <Chip tone="warn">รอเชื่อม</Chip>} />
             ))}
             {s.services.map((x) => (
-              <Row key={x.name} icon={x.icon as IconName} title={x.name} sub={x.detail} dim side={<Phase phase={x.phase} />} />
+              <Row key={x.name} icon={x.icon as IconName} title={x.name} sub={x.detail} dim={!!x.phase || x.tone === "muted"}
+                side={x.phase ? <Phase phase={x.phase} /> : <Chip tone={x.tone ?? "muted"}>{x.state}</Chip>} />
             ))}
             {!dc.connected && <p className="text-xs text-muted pt-2">วิธีตั้งค่า Discord: docs/setup/discord.md</p>}
           </Card>

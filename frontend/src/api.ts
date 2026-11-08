@@ -19,7 +19,7 @@ export type Settings = {
   clock: Round[];
   discord: { configured: boolean; connected: boolean; user: string; channels: string[]; problem: string };
   google: { id: string; label: string; does: string; connected: boolean; problem: string; address: string }[];
-  services: { icon: string; name: string; detail: string; phase: string }[];
+  services: { icon: string; name: string; detail: string; phase: string; state?: string; tone?: "ok" | "warn" | "muted" }[]; // B6: state is live
   jobs_rule: { auto: boolean; line: number; approval_days: number }; // B5: อนุมัติเอง (set in the rule book)
 };
 
@@ -37,6 +37,7 @@ export type Decision = {
   rule?: string; // appointment: a rule in your rule book it goes against ("" = none) (B5)
   job_id?: number | null; budget?: number | null; risks?: string[]; why?: string; stuck_at?: string; // background plan (B5)
   project_id?: number | null; // new project (B5)
+  group_id?: number | null; size?: number | null; about?: string; // a grown idea group (B6)
 };
 
 export type Answer = {
@@ -54,6 +55,7 @@ export type CalItem = {
 export type BlockItem = {
   id: number; task_id: number; title: string; start: string; end: string; pinned: boolean; past: boolean;
   running: boolean; task_status: "open" | "done" | "dropped";
+  outcome?: "" | "done" | "missed" | "away" | "unknown"; worked?: number | null; instead?: string; // B6: what really happened
 };
 export type DeadlineItem = { task_id: number; title: string; due: string; source: string; link: string };
 export type Week = { events: CalItem[]; blocks: BlockItem[]; deadlines: DeadlineItem[]; plan: { planned_at: string | null; short: { task_id: number; title: string; minutes: number }[] } };
@@ -87,6 +89,7 @@ export type BriefView = { made_at: string; title: string; headline: string; fiel
 export type TodayPage = {
   greeting: string; brief: BriefView | null; headline: string; morning_on: boolean;
   plan: DayItem[]; secretary: RoundMark[]; hours: [number, number];
+  actual?: { start: string; end: string; what: string; category: string; project: string }[]; recording?: boolean; // B6: ทำจริง
   important: { id: string; who: string; summary: string; at: string; done: string[]; link: string }[];
   news: { id: number; project: string; title: string; body: string; at: string; potential: string; urgent: boolean; failed: boolean; needs_you: boolean; link: string }[];
   jobs: {
@@ -180,10 +183,76 @@ export type MailSettings = {
   accounts: { id: string; label: string; connected: boolean; problem: string; address: string }[];
 };
 
+// W6 ไอเดีย (B6)
+export type IdeaRow = {
+  id: number; text: string; source: "key" | "discord" | "web"; source_name: string; tags: string[];
+  tagged: "" | "you" | "rules"; group_id: number | null; group: string; at: string;
+};
+export type GroupPreview = { name: string; size: number; new: boolean; tag: string } | null;
+export type IdeaGroupRow = {
+  id: number; name: string; tag: string; status: "open" | "asked" | "later" | "project" | "task"; status_name: string;
+  size: number; week: number; grew: string; last: string | null; about: string; tags: string[];
+  decision_id: number | null; waiting: boolean; project_id: number | null; task_id: number | null;
+  ideas: { id: number; text: string; source: IdeaRow["source"]; at: string }[];
+};
+export type IdeasPage = { recent: IdeaRow[]; total: number; ungrouped: number; groups: IdeaGroupRow[]; grown: number; round_on: boolean };
+export type SavedIdea = { id: number; tags: string[]; group: GroupPreview };
+
+// W5 ⑤ ⑥ ทำตามแผนได้ · ข้อสังเกต (B6)
+export type Followed = {
+  label: string; percent: number | null; checked: number; target: number; recording: boolean;
+  days: { label: string; done: number; missed: number }[]; notes: { title: string; sub: string }[];
+};
+
+// W7 การใช้เวลา (B6)
+export type PrivacyRuleRow = { id: number; kind: "app" | "title" | "word"; kind_name: string; value: string; note: string };
+export type Recorder = {
+  installed: boolean; running: boolean; enabled: boolean; extension: "on" | "after_login" | "missing"; round_on: boolean;
+  paused_until: string | null; web: string; pause_minutes: number[];
+};
+export type PrivacyCard = {
+  recorder: Recorder; rules: PrivacyRuleRow[]; kinds: Record<PrivacyRuleRow["kind"], string>;
+  last_read: { to?: string; at?: string; error?: string; error_at?: string };
+};
+export type TimeBar = { label: string; start: string; minutes: Record<string, number> };
+export type TimeProject = { name: string; minutes: number; planned: number; short: number };
+export type Behaviour = { icon: "bolt" | "eye" | "trend" | "clock"; title: string; sub: string; link?: string };
+export type TimeRange = "today" | "week" | "month";
+export type TimePage = {
+  privacy: PrivacyCard; range: TimeRange; label: string; start: string; end: string;
+  categories: Record<string, string>; bars: TimeBar[]; projects: TimeProject[]; behaviours: Behaviour[];
+  unsorted: { app: string; title: string; minutes: number }[]; total: number; days_with_data: number;
+  rules: { field: "app" | "title"; match: string; category: string; project: string }[];
+};
+
 export const api = {
+  // W7 การใช้เวลา (B6)
+  time: (range: TimeRange = "week") => call<TimePage>("GET", `/api/time?range=${range}`),
+  sortTime: (field: "app" | "title", match: string, category: string, project = "") =>
+    call<{ action_id: number }>("POST", "/api/time/categories", { field, match, category, project }),
+  setRecording: (on: boolean) => call<PrivacyCard & { action_id: number }>("PUT", "/api/time/recording", { on }),
+  pauseRecording: (minutes: number) => call<PrivacyCard & { until: string; action_id: number }>("POST", "/api/time/pause", { minutes }),
+  resumeRecording: () => call<PrivacyCard & { action_id: number }>("POST", "/api/time/resume"),
+  addPrivacyRule: (kind: string, value: string, note = "") => call<PrivacyCard & { action_id: number }>("POST", "/api/time/privacy", { kind, value, note }),
+  removePrivacyRule: (id: number) => call<PrivacyCard & { action_id: number }>("DELETE", `/api/time/privacy/${id}`),
+  // W6 ไอเดีย (B6)
+  ideas: () => call<IdeasPage>("GET", "/api/ideas"),
+  addIdea: (text: string, tags: string[] | null) => call<SavedIdea>("POST", "/api/ideas", { text, tags, source: "web" }),
+  suggestTags: (text: string) => call<{ tags: string[]; group: GroupPreview }>("GET", `/api/ideas/suggest?text=${encodeURIComponent(text)}`),
+  setIdeaTags: (id: number, tags: string[]) => call<SavedIdea>("PUT", `/api/ideas/${id}/tags`, { tags }),
+  removeIdea: (id: number) => call<{ action_id: number | null }>("DELETE", `/api/ideas/${id}`),
+  groupFolder: (id: number) => call<{ name: string }>("GET", `/api/ideas/groups/${id}/folder`),
+  groupProject: (id: number, name: string) => call<{ project_id: number; action_id: number }>("POST", `/api/ideas/groups/${id}/project`, { name }),
+  groupTask: (id: number) => call<{ task_id: number; action_id: number }>("POST", `/api/ideas/groups/${id}/task`),
+  groupLater: (id: number) => call<{ action_id: number }>("POST", `/api/ideas/groups/${id}/later`),
+  renameGroup: (id: number, name: string) => call<{ action_id: number }>("PUT", `/api/ideas/groups/${id}/name`, { name }),
+  ideasRound: () => call<{ line: string }>("POST", "/api/ideas/round"),
   // W1 วันนี้ (B4)
   today: () => call<TodayPage>("GET", "/api/today"),
   // W5 ตาราง (B3)
+  followed: () => call<Followed>("GET", "/api/schedule/followed"),
+  setFollowTarget: (target: number) => call<{ target: number; action_id: number }>("PUT", "/api/schedule/followed/target", { target }),
+  blockDone: (id: number) => call<{ action_id: number }>("POST", `/api/blocks/${id}/done`),
   week: (start: string, end: string) => call<Week>("GET", `/api/schedule?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`),
   replan: () => call<{ line: string }>("POST", "/api/schedule/replan"),
   tasks: () => call<{ items: TaskRow[] }>("GET", "/api/tasks"),

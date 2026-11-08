@@ -20,6 +20,8 @@ from app.features.mail import extract
 from app.features.mail.extract import gmail_link
 from app.features.mail.tables import Email
 from app.features.schedule import remind, sync, tasks
+from app.features.time import followed
+from app.features.time.followed import counted_minutes
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger(__name__)
@@ -78,7 +80,9 @@ def week(start: str, end: str) -> dict:
                         "from": asked[e.id].detail.get("from", "") if e.id in asked else ""} for e in events],
             "blocks": [{"id": b.id, "task_id": b.task_id, "title": title, "start": _iso(b.starts_at), "end": _iso(b.ends_at),
                         "pinned": b.status == "pinned", "past": b.ends_at <= at, "running": b.starts_at <= at < b.ends_at,
-                        "task_status": task_status} for b, title, task_status in blocks],
+                        "task_status": task_status,
+                        # B6: what really happened (features/time/followed.py)
+                        "outcome": b.outcome, "worked": b.worked_minutes, "instead": b.instead} for b, title, task_status in blocks],
             "deadlines": [{"task_id": t.id, "title": t.title, "due": _iso(t.due_at), "source": SOURCE_NAMES.get(t.source, t.source),
                            "link": _link(s, t.source, t.source_ref)} for t in due],
         }
@@ -161,10 +165,12 @@ def list_tasks() -> dict:
                          .order_by(Task.status.desc(), Task.due_at.is_(None), Task.due_at, Task.id)).all()
         blocks = s.scalars(select(Block).where(Block.status.in_(("planned", "pinned")), Block.task_id.in_([t.id for t in rows]))).all()
         booked: dict[int, list[int]] = {}
-        for b in blocks:
-            minutes = int((b.ends_at - b.starts_at).total_seconds() // 60)
+        for b in blocks:  # a missed block counts what you worked of it, as the planner counts it (B6)
             slot = booked.setdefault(b.task_id, [0, 0])
-            slot[0 if b.ends_at <= at else 1] += minutes
+            if b.ends_at <= at:
+                slot[0] += counted_minutes(b)
+            else:
+                slot[1] += int((b.ends_at - b.starts_at).total_seconds() // 60)
         items = [{"id": t.id, "title": t.title, "due": _iso(t.due_at), "status": t.status, "source": SOURCE_NAMES.get(t.source, t.source),
                   "est_minutes": t.est_minutes, "est_default": est.get(t.source, 60), "plan_mode": t.plan_mode,
                   "block_minutes": t.block_minutes, "daily_minutes": t.daily_minutes, "details": t.details,
@@ -317,3 +323,57 @@ async def answer_course(decision_id: int, body: CourseAnswer) -> dict:
     except ValueError as exc:
         raise HTTPException(409, str(exc))
     return {"status": d.status, "action_id": action_id}
+
+
+# ------------------------------------------------------------------ ทำตามแผนได้ · ข้อสังเกต (W5 ⑤ ⑥, B6)
+TARGET_KEY = "schedule.follow_target"  # your target, percent of blocks followed in a week
+
+
+@router.get("/schedule/followed")
+def followed_week() -> dict:
+    """⑤ This week: the share of checked blocks you followed, per day, against your target; ⑥ what
+    repeats (the last 4 weeks)."""
+    from app.features.time import insights
+
+    at = now()
+    start, end, label = insights.span("week", at)
+    f = followed.followed(start, min(end, at))
+    days = []
+    for i in range(7):
+        a, b = start + timedelta(days=i), start + timedelta(days=i + 1)
+        mins = lambda rows: sum(int((x.ends_at - x.starts_at).total_seconds() // 60) for x, _ in rows  # noqa: E731
+                                if a <= x.starts_at < b)
+        days.append({"label": insights.DAYS[i], "done": mins(f["done"]), "missed": mins(f["missed"])})
+    return {"label": label, "percent": f["percent"], "checked": f["checked"], "target": settings.get(TARGET_KEY, 80),
+            "days": days, "notes": followed.patterns(at), "recording": clock.enabled("activity")}
+
+
+class TargetIn(Strict):
+    target: int
+
+
+@router.put("/schedule/followed/target")
+def set_target(body: TargetIn) -> dict:
+    if not 10 <= body.target <= 100:
+        raise HTTPException(422, "เป้าต้องอยู่ระหว่าง 10 ถึง 100%")
+    old = settings.get(TARGET_KEY, 80)
+    settings.put(TARGET_KEY, body.target)
+    action_id = actions.record("schedule.target", f"ตั้งเป้าทำตามแผน {body.target}%", f"เดิม {old}%", source_label="หน้าตาราง",
+                               undo={"target": old})
+    return {"target": body.target, "action_id": action_id}
+
+
+async def _undo_target(undo: dict) -> None:
+    settings.put(TARGET_KEY, undo["target"])
+
+
+actions.register_undo("schedule.target", _undo_target)
+
+
+@router.post("/blocks/{block_id}/done")
+def block_done(block_id: int) -> dict:
+    """นับว่าทำแล้ว: a block the rules called missed, that you did where they couldn't see."""
+    try:
+        return {"action_id": followed.mark_done(block_id, via=("หน้าตาราง", ""))}
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc

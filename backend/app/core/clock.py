@@ -72,7 +72,9 @@ ROUNDS: dict[str, Round] = {r.id: r for r in (
     Round("jobs", "งานเบื้องหลังในโปรเจค", "ทุก 15 นาที 01:00–06:00", {"hour": "1-5", "minute": "*/15"}, "B5"),
     Round("morning", "สรุปเช้า", "07:00", {"hour": 7, "minute": 0}, "B4"),
     Round("evening", "ทบทวนเย็น", "21:00", {"hour": 21, "minute": 0}, "B4"),
-    Round("ideas", "จัดกลุ่มไอเดีย", "00:00 และ 12:00", {"hour": "0,12", "minute": 5}, "B6"),
+    Round("ideas", "จัดกลุ่มไอเดีย", "00:05 และ 12:05", {"hour": "0,12", "minute": 5}, "B6"),
+    # B6: read ActivityWatch 5 minutes before each schedule round, so a missed block is known when it re-plans
+    Round("activity", "อ่านการใช้เวลาจาก ActivityWatch", "ทุก 15 นาที", {"minute": "10,25,40,55"}, "B6"),
     Round("weekly", "ทบทวนรายสัปดาห์", "อาทิตย์ 19:00", {"day_of_week": "sun", "hour": 19, "minute": 0}, "B7"),
     Round("backup", "สำรองฐานข้อมูล (เก็บ 14 วัน)", "ทุกวัน 03:30", {"hour": 3, "minute": 30}, "B1"),
 )}

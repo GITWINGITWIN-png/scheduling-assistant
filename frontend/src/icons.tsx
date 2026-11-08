@@ -35,6 +35,13 @@ const PATHS = {
   shield: "M12 3 4.5 6v6c0 4.4 3.2 7.7 7.5 9 4.3-1.3 7.5-4.6 7.5-9V6z",
   alert: "M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z M12 9v4 M12 17h.01",
   search: "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13z M20 20l-4.6-4.6",
+  // B6: the ideas and time pages
+  key: "M3 7.5A1.5 1.5 0 0 1 4.5 6h15A1.5 1.5 0 0 1 21 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16.5z M7 10h.01 M11 10h.01 M15 10h.01 M7 14h10",
+  lock: "M7 11V8a5 5 0 0 1 10 0v3 M5.5 11h13v9.5h-13z",
+  pause: "M8 5v14 M16 5v14",
+  play: "M7 4.5v15l12-7.5z",
+  bolt: "M13 2 4 14h7l-1 8 9-12h-7z",
+  trend: "M3 17l6-6 4 4 8-8 M15 7h6v6",
 } as const;
 
 export type IconName = keyof typeof PATHS;

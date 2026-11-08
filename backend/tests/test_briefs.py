@@ -175,7 +175,7 @@ def test_the_evening_review_reports_the_day_and_tomorrow(thursday, monkeypatch):
     assert fields["บล็อกวันนี้"] == "09:00 บล็อก รายงาน OS · 14:00 บล็อก รายงาน OS"
     assert fields["ปิดงานวันนี้"] == "สไลด์ datacom"  # an undone one isn't counted
     assert fields["พรุ่งนี้"] == "09:00 เรียน OS (ห้อง 204) · 13:00 บล็อก รายงาน OS"
-    assert "B6" in b["footer"]  # how well the plan was followed waits for ActivityWatch (the user's choice)
+    assert "ยังไม่ได้เปิดบันทึกกิจกรรม" in b["footer"]  # B6: nothing recorded, so it can't say how the plan went
 
 
 def test_tonight_lists_the_rounds_that_are_on_and_says_how_often_the_frequent_ones_run(monkeypatch):

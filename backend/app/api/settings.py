@@ -25,15 +25,26 @@ PLANNED_TASKS = [
     {"label": "เตือนนัด · ซิงก์ปฏิทิน", "model": "สคริปต์", "effort": "—", "phase": ""},  # built in B3: no phase, not greyed
     {"label": "งานเบื้องหลัง", "model": "Opus", "effort": "ต่อแผน", "phase": "B5"},
     {"label": "ย่อข่าวโปรเจค", "model": "OmniRoute", "effort": "—", "phase": "B5"},
-    {"label": "จัดหมวดหน้าต่าง", "model": "กติกา → Omni", "effort": "—", "phase": "B6"},
-    {"label": "แท็กไอเดีย", "model": "OmniRoute", "effort": "—", "phase": "B6"},
+    # B6, rules only until OmniRoute runs (the user's choice at the B6 plan)
+    {"label": "จัดหมวดหน้าต่าง", "model": "กติกา (OmniRoute ยังไม่ต่อ)", "effort": "—", "phase": ""},
+    {"label": "แท็กและจัดกลุ่มไอเดีย", "model": "กติกา (OmniRoute ยังไม่ต่อ)", "effort": "—", "phase": ""},
 ]
 
-# Connections and the phase each arrives in (W10 ④); Discord's status is live
-SERVICES = [
-    {"icon": "eye", "name": "ActivityWatch", "detail": "บนเครื่องนี้ + ตัวกรอง", "phase": "B6"},
-    {"icon": "robot", "name": "OmniRoute", "detail": "API แบบ OpenAI · งานเล็ก", "phase": "B6"},
-]
+
+def services() -> list[dict]:
+    """Connections (W10 ④): ActivityWatch's state is live (B6); OmniRoute waits for you to run it."""
+    from app.features.time import recorder
+
+    if not recorder.installed():
+        aw = ("ยังไม่ติดตั้ง", "warn")
+    elif recorder.enabled() and clock_mod.enabled("activity"):
+        aw = ("บันทึกอยู่", "ok")
+    else:
+        aw = ("ปิดอยู่", "muted")
+    return [{"icon": "eye", "name": "ActivityWatch", "detail": "บนเครื่องนี้ + ตัวกรอง · เปิดปิดที่หน้าการใช้เวลา", "phase": "",
+             "state": aw[0], "tone": aw[1]},
+            {"icon": "robot", "name": "OmniRoute", "detail": "API แบบ OpenAI · งานเล็ก · ระหว่างนี้ใช้กติกา", "phase": "",
+             "state": "ยังไม่ต่อ", "tone": "muted"}]
 
 
 @router.get("/settings")
@@ -52,7 +63,7 @@ def get_settings() -> dict:
         # live since B2: Gmail (every account) + Calendar (google.CALENDAR_ACCOUNT), with your address
         # on each (the mail settings card that listed them moved here, W10)
         "google": [{**g, "address": watch.address_of(g["id"])} for g in google.status()],
-        "services": SERVICES,
+        "services": services(),
         # B5: the rule "งานเบื้องหลังทำเองได้เมื่อโควตาเหลือเกิน 70%" (W10's อนุมัติเอง; changed in the rule book)
         "jobs_rule": {"auto": rules_book.auto(), "line": rules_book.line(), "approval_days": APPROVAL_DAYS},
     }
@@ -149,6 +160,8 @@ def decisions(status: str = "pending") -> dict:
                        "job_id": d.detail.get("job_id"), "budget": d.detail.get("budget"),  # background plan (B5)
                        "risks": d.detail.get("risks", []), "why": d.detail.get("why", ""), "stuck_at": d.detail.get("stuck_at", ""),
                        "project_id": d.detail.get("project_id"),  # new project (B5)
+                       "group_id": d.detail.get("group_id"), "size": d.detail.get("size"),  # a grown idea group (B6)
+                       "about": d.detail.get("project", ""),
                        "folder": d.detail.get("folder", ""), "exists": d.detail.get("exists", False),  # course (B3)
                        "link": d.detail.get("link", ""), "clash": clash.get(d.id), "rule": against.get(d.id, ""),
                        "created_at": d.created_at.isoformat()} for d in rows]}

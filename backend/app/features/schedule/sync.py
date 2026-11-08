@@ -12,8 +12,10 @@ Each run:
    blocks, rules, today's date) are boiled down to a fingerprint; the same fingerprint as
    last time means nothing to do, so blocks don't shuffle every 15 minutes.
 3. **Write the difference.** Blocks starting within the next hour (FREEZE), or already
-   running, stay as they are. Past blocks count as work done on their task (until B6 can
-   check what really happened). Only future blocks that changed are deleted and added.
+   running, stay as they are. Past blocks count as work done on their task, except a block
+   B6 found missed (you were at the computer, on something else): it counts only the minutes
+   you really worked on it, so the rest goes back to the task and gets new time
+   (features/time/followed.py). Only future blocks that changed are deleted and added.
 
 Nothing here uses a model. Writes go to the "เลขา" calendar only; your own calendar is
 only read.
@@ -38,6 +40,7 @@ from app.core.tables import Block, Event, Task
 from app.core.timefmt import local, thai_datetime
 from app.features.schedule.planner import Placed, Plan, Rules, Work, plan
 from app.features.schedule.tasks import SOURCE_NAMES
+from app.features.time.followed import counted_minutes
 
 log = logging.getLogger(__name__)
 
@@ -131,16 +134,19 @@ def _inputs(at: datetime, busy: list[tuple[datetime, datetime]]) -> tuple[list[W
     kept = [b for b in blocks if b.task_id in open_ids and (b.status == "pinned" or b.starts_at < at + FREEZE)]
     movable = [b for b in blocks if b not in kept]
     covered: dict[int, int] = {}
-    for b in kept:  # past, running, about to start, or pinned by you: already counted
-        covered[b.task_id] = covered.get(b.task_id, 0) + int((b.ends_at - b.starts_at).total_seconds() // 60)
-    work = [Work(t.id, estimate(t, est) - covered.get(t.id, 0), t.due_at, t.plan_mode, t.block_minutes, t.daily_minutes)
+    for b in kept:  # past, running, about to start, or pinned by you: already counted (a missed one: what you did)
+        covered[b.task_id] = covered.get(b.task_id, 0) + counted_minutes(b)
+    work = [Work(t.id, estimate(t, est) - covered.get(t.id, 0), t.due_at, t.plan_mode, t.block_minutes, t.daily_minutes,
+                 t.not_before if t.not_before and t.not_before > at else None)
             for t in tasks]
     all_busy = (busy + [(b.starts_at, b.ends_at) for b in kept if b.ends_at > at]
                 + [(b.starts_at, b.ends_at) for b in deleted])
     fingerprint = hashlib.sha256(json.dumps({
         "day": local(at).date().isoformat(),
         "tasks": sorted((t.id, t.due_at.isoformat() if t.due_at else "", estimate(t, est), t.plan_mode,
-                         t.block_minutes or 0, t.daily_minutes or 0) for t in tasks),
+                         t.block_minutes or 0, t.daily_minutes or 0,
+                         t.not_before.isoformat() if t.not_before and t.not_before > at else "") for t in tasks),
+        "missed": sorted((b.id, b.worked_minutes or 0) for b in kept if b.outcome == "missed"),
         "busy": sorted((s_.isoformat(), e.isoformat()) for s_, e in busy),
         "pinned": sorted((b.id, b.starts_at.isoformat(), b.ends_at.isoformat()) for b in blocks if b.status == "pinned"),
         "deleted": sorted(b.id for b in deleted),

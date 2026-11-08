@@ -24,6 +24,7 @@ How it decides:
    back to back: the gap (15 minutes) is kept between them as a break, otherwise "1-hour
    blocks" would just be one long sitting.
 5. Whatever doesn't fit before the due date is reported (`Plan.short`), never placed late.
+6. A task can say "not before" (`Work.not_before`, B6's ย้ายไปพรุ่งนี้): its blocks start after it.
 """
 
 from __future__ import annotations
@@ -53,6 +54,7 @@ class Work:
     mode: str = "early"  # early · late
     max_block: int | None = None  # this task's longest block (minutes); None: rules.max_block
     per_day: int | None = None  # the most this task may take in a day; None: rules.per_task_per_day
+    not_before: datetime | None = None  # none of its blocks before this (B6: "ย้ายไปพรุ่งนี้")
 
 
 @dataclass(frozen=True)
@@ -140,6 +142,8 @@ def _fill(work: Work, free: list[Interval], until: datetime, remaining: int, use
         if remaining <= 0:
             break
         e = min(e, until)
+        if work.not_before is not None:
+            s = max(s, work.not_before)
         while remaining > 0 and e > s:
             if backwards:
                 end = _floor(e, rules.step)  # e.g. due 16:59 -> the block ends 16:45

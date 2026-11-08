@@ -168,6 +168,9 @@ class Task(Base):
     # รายละเอียดงาน: what to do, where, where to hand it in; free text, links allowed. A
     # Classroom task starts with the teacher's instructions and the link to hand it in.
     details: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # Not before this time (B6: "ย้ายไปพรุ่งนี้" in the evening review): the planner places its
+    # blocks only after it. None: as soon as there's free time.
+    not_before: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(10), default="open", index=True)  # open · done · dropped
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
 
@@ -178,7 +181,12 @@ class Block(Base):
     status: planned (the planner may move it) · pinned (you moved it in Google Calendar,
     so it stays where you put it) · deleted (you deleted it there: its time counts as
     busy) · removed (a re-plan took it back, or the "เลขา" calendar was deleted).
-    A block in the past counts as work done on its task, until B6 can check.
+    B6 checks a block once it has ended, against what ActivityWatch saw (features/time/followed.py):
+    outcome done (you worked on it at least half the time) · missed (you were at the computer, on
+    something else) · away (you weren't at the computer: it may have been done offline, so it
+    still counts as done) · unknown (nothing was recorded then) · "" not checked yet. A missed
+    block counts only the minutes you really worked on it, so the rest goes back to its task and
+    the planner finds new time for it.
     """
 
     __tablename__ = "blocks"
@@ -190,6 +198,10 @@ class Block(Base):
     gcal_id: Mapped[str] = mapped_column(String(128), default="")
     status: Mapped[str] = mapped_column(String(10), default="planned", index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
+    outcome: Mapped[str] = mapped_column(String(8), default="", server_default="")
+    worked_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)  # on its task, from ActivityWatch
+    present_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)  # at the computer at all
+    instead: Mapped[str] = mapped_column(Text, default="", server_default="")  # what you did instead (a missed block)
 
 
 class Reminder(Base):

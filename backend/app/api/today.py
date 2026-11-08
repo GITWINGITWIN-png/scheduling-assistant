@@ -4,7 +4,8 @@
   brief in full behind "ดูสรุปเช้าฉบับเต็ม"; before today's brief exists, the same numbers
   counted now.
 - the day as rows (W1 ③): แผน (appointments, work blocks, due dates) and เลขา (the daily rounds
-  that ran today, and the ones still to come). ทำจริง (ActivityWatch) comes in B6.
+  that ran today, and the ones still to come), and ทำจริง (B6): what ActivityWatch saw, by project
+  or category, through the privacy filter.
 - เรื่องสำคัญ (W1 ⑤): today's mail from important people or matching a keyword, with what
   the secretary did; the same count as the side menu's number.
 - งานเบื้องหลัง and ข่าวโปรเจค (W1 ⑥ ⑦, B5): what runs and waits, today's runs on the เลขา row,
@@ -25,6 +26,7 @@ from app.core.tables import Action, Message
 from app.core.timefmt import local
 from app.features.briefs import day, morning
 from app.features.briefs.tables import Brief
+from app.features.time import insights
 
 router = APIRouter(prefix="/api")
 
@@ -121,6 +123,8 @@ def today_page() -> dict:
         "morning_on": clock.enabled("morning"),
         "plan": [{"start": _iso(i.start), "end": _iso(i.end), "title": i.title, "kind": i.kind, "sub": i.sub} for i in items],
         "secretary": _secretary(at),
+        "actual": insights.today_actual(d),  # B6: the ทำจริง row
+        "recording": clock.enabled("activity"),
         "important": [{"id": m.id, "who": m.who, "summary": m.summary, "at": _iso(m.sent_at), "done": m.done, "link": m.link}
                       for m in day.important_mail(day.day_start(d), at)],
         "news": _news(at),

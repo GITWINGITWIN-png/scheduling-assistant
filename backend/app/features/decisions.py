@@ -28,6 +28,8 @@ SETTLED = {
     ("project_level", "approved"): "✅ ตั้งระดับโปรเจคแล้ว",
     ("job", "approved"): "✅ อนุมัติแผนแล้ว · ใช้ได้ 3 วัน", ("job", "rejected"): "ไม่เอาแผนนี้",
     ("job", "revised"): "แก้แผนแล้ว · แผนใหม่ส่งตามมา", ("job", "cancelled"): "งานนี้ออกจากคิวแล้ว",
+    ("idea", "approved", "project"): "✅ เปิดเป็นโปรเจคแล้ว", ("idea", "approved", "task"): "✅ ทำเป็นงานในตารางแล้ว",
+    ("idea", "rejected"): "ยังก่อน · เลขาจะถามใหม่เมื่อกลุ่มโตขึ้นอีก",
 }
 
 
@@ -37,7 +39,7 @@ async def settle_card(decision_id: int, where: str = "หน้าเว็บ")
     with session() as s:
         d = s.get(Decision, decision_id)
         m = s.get(Message, d.message_id) if d is not None and d.message_id else None
-        text = SETTLED.get((d.kind, d.status)) if d is not None else None
+        text = (SETTLED.get((d.kind, d.status, d.answer)) or SETTLED.get((d.kind, d.status))) if d is not None else None
         target = (m.channel, m.discord_id) if m is not None else None
     if not (text and target) or not dc.bot.ready_event.is_set() or dc.bot.is_closed():
         return
