@@ -14,10 +14,10 @@ from app.core.config import get_config
 from app.core.db import session
 from app.core.tables import Decision
 from app.features import decisions
-from app.features.projects import advice, scan
+from app.features.projects import advice, edit, scan
 from app.features.jobs import queue
 from app.features.jobs.tables import Job
-from app.features.projects.tables import POTENTIALS, STATUSES, Project, ProjectNews
+from app.features.projects.tables import STATUSES, Project, ProjectNews
 
 router = APIRouter(prefix="/api")
 
@@ -87,48 +87,14 @@ class ProjectEdit(Strict):
     allow_jobs: bool | None = None
 
 
-WORDS = {"status": "สถานะ", "potential": "potential", "urgency": "ความเร่งด่วน", "hidden": "ซ่อน", "allow_jobs": "ให้เลขาทำต่อได้"}
-
-
 @router.patch("/projects/{project_id}")
 def edit_project(project_id: int, body: ProjectEdit) -> dict:
     """Change what you see on a project's row (recorded, ย้อนกลับ in สิ่งที่เลขาทำ)."""
-    changes = {k: getattr(body, k) for k in body.model_fields_set}
-    if not changes:
-        raise HTTPException(400, "ไม่มีอะไรให้แก้")
-    if changes.get("status", "active") not in STATUSES or changes.get("potential", "C") not in POTENTIALS \
-            or not 0 <= changes.get("urgency", 0) <= 5:
-        raise HTTPException(400, "สถานะ potential S–F หรือความเร่งด่วน 0–5 ไม่ถูกต้อง")
-    with session() as s:
-        p = s.get(Project, project_id)
-        if p is None:
-            raise HTTPException(404, "ไม่พบโปรเจคนี้")
-        if changes.get("allow_jobs"):
-            if scan.is_self(p.path):
-                raise HTTPException(409, "เลขาไม่ทำงานเบื้องหลังในโค้ดของตัวเอง")
-            if not p.is_git:
-                raise HTTPException(409, "โปรเจคนี้ยังไม่มี git · เลขาทำงานบน branch แยก จึงต้องมี git ก่อน")
-        old = {k: getattr(p, k) for k in changes}
-        for k, v in changes.items():
-            setattr(p, k, v)
-        if "potential" in changes or "urgency" in changes:
-            p.level_set = True
-        name = p.name
-    what = " · ".join(f"{WORDS[k]} {STATUSES.get(v, v) if k == 'status' else ('เปิด' if v is True else 'ปิด' if v is False else v)}"
-                      for k, v in changes.items())
-    action_id = actions.record("project.edit", f"แก้โปรเจค {name}", what, source_label="หน้าโปรเจค",
-                               undo={"project_id": project_id, "old": old})
+    try:
+        action_id = edit.edit(project_id, {k: getattr(body, k) for k in body.model_fields_set})
+    except edit.EditError as exc:
+        raise HTTPException(exc.code, str(exc))
     return {"action_id": action_id}
-
-
-async def _undo_edit(undo: dict) -> None:
-    with session() as s:
-        if p := s.get(Project, undo["project_id"]):
-            for k, v in undo["old"].items():
-                setattr(p, k, v)
-
-
-actions.register_undo("project.edit", _undo_edit)
 
 
 @router.post("/projects/scan")
@@ -156,8 +122,8 @@ async def book(project_id: int, body: BookIn) -> dict:
         task_id = advice.book(project_id, body.minutes)
     except ValueError as exc:
         raise HTTPException(404, str(exc))
-    from app.api.schedule import _replan_if_on
-    return {"task_id": task_id, "plan": await _replan_if_on()}
+    from app.features.schedule import sync
+    return {"task_id": task_id, "plan": await sync.replan_if_on(("หน้าโปรเจค", ""))}
 
 
 class LevelIn(Strict):

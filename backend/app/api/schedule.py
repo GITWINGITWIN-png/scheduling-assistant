@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
@@ -10,16 +10,15 @@ from sqlalchemy import select
 
 from app.connectors import google
 from app.core import actions, clock, settings
-from app.core.config import get_config
 from app.core.db import now, session
+from app.core.timefmt import from_local
 from app.core.tables import Block, Decision, Event, Task
 from app.features import decisions
 from app.features.classroom import sync as classroom
 from app.features.classroom.tables import STATES, Course, CourseItem
-from app.features.mail import extract
 from app.features.mail.extract import gmail_link
 from app.features.mail.tables import Email
-from app.features.schedule import remind, sync, tasks
+from app.features.schedule import events, remind, sync, tasks
 from app.features.time import followed
 from app.features.time.followed import counted_minutes
 
@@ -35,12 +34,7 @@ class Strict(BaseModel):
 SOURCE_NAMES = tasks.SOURCE_NAMES
 
 
-def _local(value: str | None) -> datetime | None:
-    """A time from the page ("2026-11-10T17:00", no zone) is your local time."""
-    if not value:
-        return None
-    dt = datetime.fromisoformat(value)
-    return dt if dt.tzinfo else dt.replace(tzinfo=get_config().tz)
+_local = from_local  # a time from the page ("2026-11-10T17:00", no zone) is your local time
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -106,36 +100,23 @@ class EventIn(Strict):
 
 @router.post("/events")
 async def add_event(body: EventIn) -> dict:
-    """A กิจกรรม from the schedule page goes straight into your main Google Calendar, the same
-    way an appointment from email does (extract.place): recorded in สิ่งที่เลขาทำ, ย้อนกลับ
-    deletes it, the secretary reminds you of it, and blocks are re-planned around it."""
-    title = body.title.strip()
-    if not title:
-        raise HTTPException(400, "ใส่ชื่อกิจกรรมก่อน")
+    """A กิจกรรม from the schedule page goes straight into your main Google Calendar
+    (features/schedule/events.py says how), then blocks are re-planned around it."""
     try:
-        if body.all_day:  # whole days: local midnight to the midnight after the last day
-            tz = get_config().tz
-            start = datetime.combine(date.fromisoformat(body.start[:10]), time(0), tz)
-            end = datetime.combine(date.fromisoformat(body.end[:10]) + timedelta(days=1), time(0), tz)
+        if body.all_day:
+            start, end = events.whole_days(date.fromisoformat(body.start[:10]), date.fromisoformat(body.end[:10]))
         else:
             start, end = _local(body.start), _local(body.end)
     except ValueError:
         raise HTTPException(400, "วันหรือเวลาไม่ถูกต้อง")
-    if end <= start:
-        raise HTTPException(400, "เวลาจบต้องหลังเวลาเริ่ม")
-    with session() as s:
-        ev = Event(title=title, starts_at=start, ends_at=end, all_day=body.all_day, location=body.location.strip(),
-                   description=body.description.strip(), source="you", status="proposed")
-        s.add(ev)
-        s.flush()
-        event_id = ev.id
     try:
-        action_id = await extract.place(event_id, via=("หน้าตาราง", ""), note=body.description)
-    except Exception as exc:  # not written: forget it, and say why
-        with session() as s:
-            s.delete(s.get(Event, event_id))
+        event_id, action_id = await events.add(body.title, start, end, all_day=body.all_day, location=body.location,
+                                               description=body.description, via=("หน้าตาราง", ""))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:  # Google didn't take it: the event was forgotten
         raise HTTPException(409 if isinstance(exc, google.NeedsConsent) else 502, f"ลงปฏิทินไม่ได้: {exc}")
-    return {"id": event_id, "action_id": action_id, "plan": await _replan_if_on()}
+    return {"id": event_id, "action_id": action_id, "plan": await sync.replan_if_on(("หน้าตาราง", ""))}
 
 
 @router.post("/schedule/replan")
@@ -145,17 +126,6 @@ async def replan() -> dict:
 
 
 # ------------------------------------------------------------------ tasks
-async def _replan_if_on() -> str | None:
-    """A task changed on this page: if the schedule round is switched on, plan now rather
-    than in up to 15 minutes. If it's off, the calendar is left alone (วางตารางใหม่ still works)."""
-    if not clock.enabled("schedule"):
-        return None
-    line = await sync.run()
-    if line:
-        actions.record("schedule.plan", "วางตารางตามงานที่เปลี่ยน", line, source_label="หน้าตาราง")
-    return line
-
-
 @router.get("/tasks")
 def list_tasks() -> dict:
     """Open tasks (due first), with the time booked and done so far, and the ones closed this week."""
@@ -197,7 +167,7 @@ async def add_task(body: TaskIn) -> dict:
                                        daily_minutes=body.daily_minutes, details=body.details, via=("หน้าตาราง", ""))
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return {"id": task_id, "action_id": action_id, "plan": await _replan_if_on()}
+    return {"id": task_id, "action_id": action_id, "plan": await sync.replan_if_on(("หน้าตาราง", ""))}
 
 
 class TaskEdit(Strict):
@@ -233,7 +203,7 @@ async def edit_task(task_id: int, body: TaskEdit) -> dict:
         raise HTTPException(400, str(exc))
     if {"title", "details"} & changes.keys():  # the blocks already in the calendar say the new text too
         await sync.retext(task_id)
-    return {"action_id": action_id, "plan": await _replan_if_on()}
+    return {"action_id": action_id, "plan": await sync.replan_if_on(("หน้าตาราง", ""))}
 
 
 @router.post("/tasks/{task_id}/done")
@@ -242,7 +212,7 @@ async def task_done(task_id: int) -> dict:
         action_id = tasks.done(task_id, via=("หน้าตาราง", ""))
     except ValueError as exc:
         raise HTTPException(409, str(exc))
-    return {"action_id": action_id, "plan": await _replan_if_on()}
+    return {"action_id": action_id, "plan": await sync.replan_if_on(("หน้าตาราง", ""))}
 
 
 # ------------------------------------------------------------------ rules

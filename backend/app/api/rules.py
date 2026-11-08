@@ -12,11 +12,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
-from app.core import actions, settings
 from app.core.db import session
 from app.core.rules import book, learn, parse
 from app.core.tables import Rule
-from app.features.projects.tables import Project
+from app.features import rule_sentences as sentences
 
 router = APIRouter(prefix="/api")
 
@@ -58,17 +57,6 @@ def rules_page() -> dict:
 
 
 # ------------------------------------------------------------------ a rule typed as a sentence
-def context() -> parse.Context:
-    from app.features.mail import watch
-    from app.features.schedule import sync
-
-    with session() as s:
-        projects = {p.name: p.allow_jobs for p in s.scalars(select(Project).where(Project.hidden.is_(False),
-                                                                                  Project.missing.is_(False)))}
-    hours = sync.rules_dict()
-    return parse.Context(projects, hours["day_start"], hours["day_end"], tuple(watch.keywords()))
-
-
 class SentenceIn(Strict):
     text: str
 
@@ -76,7 +64,7 @@ class SentenceIn(Strict):
 @router.post("/rules/parse")
 async def parse_sentence(body: SentenceIn) -> dict:
     """What the sentence would become (nothing is saved yet)."""
-    p, tokens = await parse.parse(body.text, context())
+    p, tokens = await parse.parse(body.text, sentences.context())
     return {**p.__dict__, "ok": p.ok, "tokens": tokens}
 
 
@@ -92,37 +80,11 @@ class RuleIn(Strict):
 def add_rule(body: RuleIn) -> dict:
     """ใช้กติกานี้: save what the page shows, checked again the same way as the model's answer."""
     raw = {**(body.effect or {}), **(body.change or {}), "type": body.kind, "text": body.text, "used_by": body.used_by}
-    p = parse.proposal(body.text, raw, context())
-    if not p.ok:
-        raise HTTPException(400, p.why)
-    if p.kind == "schedule_hours":
-        from app.features.schedule import sync
-        action_id = _setting(sync.RULES_KEY, {**(settings.get(sync.RULES_KEY, {}) or {}), **p.change}, p.text)
-        return {"action_id": action_id, "why": p.why}
-    if p.kind == "mail_keywords":
-        from app.features.mail import watch
-        action_id = _setting(watch.KEYWORDS_KEY, watch.keywords() + p.change["add"], p.text)
-        return {"action_id": action_id, "why": p.why}
+    p = parse.proposal(body.text, raw, sentences.context())
     try:
-        rule_id, action_id = book.add(p.text, p.used_by, effect=p.effect, kind="high_risk" if p.kind == "high_risk" else "yours")
+        return sentences.save(p)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return {"rule_id": rule_id, "action_id": action_id, "why": p.why}
-
-
-def _setting(key: str, value, text: str) -> int:
-    """A rule that is really one of your settings: change the setting (recorded, undoable)."""
-    old = settings.get(key)
-    settings.put(key, value)
-    return actions.record("rule.setting", "ตั้งกติกาจากประโยค", text, source_label=book.WEB[0],
-                          undo={"key": key, "old": old})
-
-
-async def _undo_setting(undo: dict) -> None:
-    settings.put(undo["key"], undo["old"])
-
-
-actions.register_undo("rule.setting", _undo_setting)
 
 
 # ------------------------------------------------------------------ editing

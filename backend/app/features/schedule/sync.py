@@ -268,6 +268,20 @@ async def replan_now(via: tuple[str, str] = ("หน้าเว็บ", "")) ->
     return line
 
 
+async def replan_if_on(via: tuple[str, str] = ("หน้าตาราง", "")) -> str | None:
+    """A task or an event just changed (on a page, or by an order in the chat): if the schedule
+    round is switched on, plan now rather than in up to 15 minutes. If it's off, the calendar is
+    left alone (วางตารางใหม่ still works)."""
+    from app.core import clock  # here, as in setup(): the clock module is wired up after this one
+
+    if not clock.enabled("schedule"):
+        return None
+    line = await run()
+    if line:
+        actions.record("schedule.plan", "วางตารางตามงานที่เปลี่ยน", line, source_label=via[0], source_url=via[1])
+    return line
+
+
 def setup() -> None:
     from app.core import clock
     clock.attach("schedule", run)

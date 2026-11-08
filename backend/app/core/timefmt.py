@@ -17,6 +17,15 @@ def local(dt: datetime) -> datetime:
     return dt.astimezone(get_config().tz)
 
 
+def from_local(value: str | None) -> datetime | None:
+    """A time written without a zone ("2026-11-10T17:00", from a page or from the chat) is your
+    local time. One with a zone is kept as it is. Raises ValueError when it isn't a date."""
+    if not value:
+        return None
+    dt = datetime.fromisoformat(value)
+    return dt if dt.tzinfo else dt.replace(tzinfo=get_config().tz)
+
+
 def thai_date(dt: datetime, long: bool = False) -> str:
     """'พ. 5 พ.ย. 2569', or with long=True 'วันพุธ 5 พ.ย. 2569'."""
     d = local(dt)
