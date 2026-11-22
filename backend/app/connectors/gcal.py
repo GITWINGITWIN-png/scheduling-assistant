@@ -120,12 +120,16 @@ def blocks_calendar(*, create: bool = True) -> str | None:
 
 # ------------------------------------------------------------------ writing
 def _when(start: datetime, end: datetime, all_day: bool) -> dict:
-    tz = get_config().timezone
+    cfg = get_config()
     if all_day:
-        return {"start": {"date": start.date().isoformat()},
-                "end": {"date": (max(end, start + timedelta(days=1))).date().isoformat()}}
-    return {"start": {"dateTime": start.isoformat(), "timeZone": tz},
-            "end": {"dateTime": end.isoformat(), "timeZone": tz}}
+        # An all-day event is a date in your zone, not an instant. The store hands times back in
+        # UTC, where your midnight is still the evening before (17:00 in Bangkok). Taking the date
+        # from that UTC value put every all-day event one day early, so read it in your zone.
+        first, after = start.astimezone(cfg.tz).date(), end.astimezone(cfg.tz).date()
+        return {"start": {"date": first.isoformat()},
+                "end": {"date": max(after, first + timedelta(days=1)).isoformat()}}
+    return {"start": {"dateTime": start.isoformat(), "timeZone": cfg.timezone},
+            "end": {"dateTime": end.isoformat(), "timeZone": cfg.timezone}}
 
 
 def insert(title: str, start: datetime, end: datetime, *, all_day: bool = False, location: str = "",
