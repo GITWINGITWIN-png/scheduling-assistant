@@ -311,10 +311,8 @@ the decisions, and what each commit holds) is kept in a private build log.
 - read-only mail with a local LLM.
 
 M7 (mail replies) was not built. M8 (a 3D character companion) is parked and is not part of
-this copy. Details are in [`docs/v1/README.md`](docs/v1/README.md). There are also two
-interactive maps:
-- `docs/map/`: v1 as of M8;
-- `docs/reference-map/`: how 15 similar open-source projects are designed.
+this copy. Details are in [`docs/v1/README.md`](docs/v1/README.md). There is also an
+interactive map, `docs/reference-map/`, of how 15 similar open-source projects are designed. It is a snapshot from 4 November 2026; where it points to `docs/map/`, it means the v1 map, which is kept at tag `v1-final`.
 
 ---
 
