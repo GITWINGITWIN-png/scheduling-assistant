@@ -5,15 +5,15 @@ sent it, plans your week into Google Calendar, and keeps your projects moving wh
 Claude quota runs out. It reports to you on Discord and on a local web page. Everything it
 does is logged, and an action that can be undone carries its undo.
 
-> This README is the project's canonical record: what the secretary does, how it is built,
-> how to run it, and how it got here. `PROGRESS.md` tracks only what is still in flight.
+> This README is the project's public record: what the secretary does, how it is built,
+> how to run it, and how it got here. The planning documents and the day-to-day progress log
+> are kept private, so some commit messages name files that are not in this copy.
 
 **Status: v2 (2026-11-08).**
 - v2 is a clean rewrite. It was planned on a plan board in three stages (features → look →
-  development plan) and built phase by phase from [`docs/plan-v2/PLAN.md`](docs/plan-v2/PLAN.md).
+  development plan) and built phase by phase from that plan.
 - Phases B1–B7 are done and merged.
 - B8 (the web page on the iPad through Tailscale) is set aside for now; the iPad uses Discord.
-- A few checks still wait for their real time; they're listed in `PROGRESS.md`.
 - v1 is kept at tag `v1-final`, and its README is archived in [`docs/v1/README.md`](docs/v1/README.md).
 
 ---
@@ -188,7 +188,7 @@ code is older than the code on disk.
 ```bash
 cd backend && uv run uvicorn app.main:app --reload --port 8001   # a second instance next to the service
 cd frontend && npm run dev                                       # http://localhost:5173, its /api goes to the service on :8000
-cd backend && uv run pytest                                      # 398 tests
+cd backend && uv run pytest                                      # 445 tests
 ```
 A second process gets the web page and the API only. The clock and the Discord bot stay with
 whichever process started first (`~/.secretary/worker.lock`), so a question is never answered
@@ -253,7 +253,7 @@ backend/tests/        pytest
 frontend/src/         React: pages/, components/ (the shell, the bell, the ask box), themes.css
 desktop/              the Super+I popup and its key, the ActivityWatch installer
 deploy/               install.sh · uninstall.sh · the systemd user unit
-docs/                 plan-v2/ (the plan and the build log) · setup/ (guides) · CONNECT.md · v1/
+docs/                 setup/ (guides), CONNECT.md, map/ and reference-map/ (interactive maps), v1/
 ```
 
 ---
@@ -261,9 +261,8 @@ docs/                 plan-v2/ (the plan and the build log) · setup/ (guides) �
 ## Progress log
 
 **v2** (each phase was planned in chat, built one commit per step on its own branch, checked by
-the user, then merged into `v2` with `--no-ff`). The full record of every phase is in
-[`docs/plan-v2/BUILD-LOG.md`](docs/plan-v2/BUILD-LOG.md): the answers, the decisions, and what
-each commit holds.
+the user, then merged into `v2` with `--no-ff`). The full record of every phase (the answers,
+the decisions, and what each commit holds) is kept in a private build log.
 
 - **Planning (2026-11-04 → 05).** The user's handwritten feature list became `feature.md`.
   The plan board then covered:
@@ -271,31 +270,31 @@ each commit holds.
   - the look (a mockup of every screen, 6 themes);
   - the development plan (phases B1–B8, code layout, data model, decisions).
 
-  It was exported to `docs/plan-v2/PLAN.md`.
-- **B1 foundation** (2026-11-05, `69d9e84`):
+  It was exported to a plan document, which is kept private.
+- **B1 foundation** (2026-11-05, `62ed55e`):
   - the store, the clock, and the action log with undo;
   - the Claude caller (model and effort per task, tokens recorded);
   - the Discord bot, and the web page's shell with themes;
   - the systemd service and the daily backup.
-- **B2 mail and people** (2026-11-05, `fba8e61`):
+- **B2 mail and people** (2026-11-05, `efa6f9d`):
   - three tiers with end dates and notes;
   - the 5-minute watch, and the 00:00 and 12:00 rounds;
   - appointments into Calendar, tasks from mail, follow-ups;
   - the people page.
-- **B3 schedule** (2026-11-06, `e824116`):
+- **B3 schedule** (2026-11-06, `34389e8`):
   - planning backwards from deadlines, synced with Google Calendar;
   - Classroom coursework and materials;
   - reminders, and the schedule page.
-- **B4 briefs and today** (2026-11-06, `4b08ca8`): the morning and evening briefs, the
+- **B4 briefs and today** (2026-11-06, `2d92d55`): the morning and evening briefs, the
   decisions gathered in one place, and the today page.
-- **B5 projects and background work** (2026-11-06, `e5e4698`):
+- **B5 projects and background work** (2026-11-06, `6118cc7`):
   - the project registry, project news and the project inbox;
   - the quota watcher, risk rules, budgets and the stopper;
   - worktrees, #อนุมัติ, and the rules book.
-- **B6 ideas and time** (2026-11-08, `14b6ff9`):
+- **B6 ideas and time** (2026-11-08, `056a4ee`):
   - the Super+I popup and #ไอเดีย, with rule tags and groups;
   - ActivityWatch behind the blocklist, categories, and planned vs actual.
-- **B7 weekly review and ask anything** (2026-11-08, `1c28ea4`):
+- **B7 weekly review and ask anything** (2026-11-08, `aaf0698`):
   - the weekly review with one message per topic and accept-all;
   - weekly people proposals;
   - hours to avoid and focus hours in the planner;
@@ -311,8 +310,8 @@ each commit holds.
 - the daily brief;
 - read-only mail with a local LLM.
 
-M7 (mail replies) was not built. M8 (a 3D character companion) is parked on branch
-`m8-character`. Details are in [`docs/v1/README.md`](docs/v1/README.md). There are also two
+M7 (mail replies) was not built. M8 (a 3D character companion) is parked and is not part of
+this copy. Details are in [`docs/v1/README.md`](docs/v1/README.md). There are also two
 interactive maps:
 - `docs/map/`: v1 as of M8;
 - `docs/reference-map/`: how 15 similar open-source projects are designed.
@@ -326,3 +325,5 @@ interactive maps:
 - **Frontend:** React 19 · Vite · TypeScript · Tailwind 4 · React Router · FullCalendar.
 - **Desktop:** a GTK 4 popup for Super+I · ActivityWatch (awatcher) with a GNOME Shell
   extension for the focused window.
+
+Built with help from AI coding assistants.
