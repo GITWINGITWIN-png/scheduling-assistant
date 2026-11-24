@@ -1,13 +1,13 @@
 """What the time page shows (W7 ① ② ③), from `activity` and the schedule's blocks. Rules only, no model.
 
-- per day (per hour for "วันนี้"), by category (①);
+- per day (per hour for "Today"), by category (①);
 - per project, against the time the schedule set aside for it (②): a project's plan is the blocks
   of its tasks in the same days, up to now (blocks still to come aren't short yet);
-- behaviours the rules notice (③): the two hours you focus best (the most work, code or
+- behaviors the rules notice (③): the two hours you focus best (the most work, code or
   studying, with the fewest app switches per hour of it; a meeting or browsing isn't focus),
   whether you switch apps much more after 22:00, the projects that got far less than planned, and
   your longest stretch on one project;
-- what the rules couldn't sort (อื่นๆ), the biggest first, so you can sort it yourself.
+- what the rules couldn't sort (Other), the biggest first, so you can sort it yourself.
 
 An "app switch" is a change of app between two windows that follow each other closely (within
 SWITCH_GAP), so walking away isn't counted as switching.
@@ -71,7 +71,7 @@ def minutes(r: Activity) -> float:
 
 
 def buckets(range_: str, start: datetime, end: datetime, rs: list[Activity]) -> list[dict]:
-    """① One bar per day (per hour for วันนี้): minutes per category."""
+    """① One bar per day (per hour for Today): minutes per category."""
     tz = get_config().tz
     if range_ == "today":
         edges = [start + timedelta(hours=h) for h in range(25)]
@@ -227,7 +227,7 @@ def focus(start: datetime, end: datetime) -> dict | None:
 
 
 def unsorted(rs: list[Activity], limit: int = 6) -> list[dict]:
-    """อื่นๆ: what the rules couldn't place, by app (and the title that took most of it)."""
+    """Other: what the rules couldn't place, by app (and the title that took most of it)."""
     by_app: dict[str, float] = defaultdict(float)
     titles: dict[tuple[str, str], float] = defaultdict(float)
     for r in rs:
@@ -252,7 +252,7 @@ def page(range_: str, at: datetime) -> dict:
 
 
 def today_actual(d: date) -> list[dict]:
-    """W1's ทำจริง row: the day's stretches by project or category, small gaps closed."""
+    """W1's actual-time row: the day's stretches by project or category, small gaps closed."""
     tz = get_config().tz
     start = datetime.combine(d, time(0), tz)
     out: list[dict] = []

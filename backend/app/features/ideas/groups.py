@@ -6,12 +6,12 @@ Each round, rules only (the user's choice at the B6 plan, until OmniRoute is con
    rules as the suggestions: #tags, project names, the tags you already use;
 3. puts every tagged idea in the group of its first non-project tag, and makes the group when
    it's new (a group is one tag, its name starts as the tag);
-4. proposes the groups that have grown to GROWN ideas, once: a card in #ไอเดีย (D6 ④) and a
-   "เรื่องที่รอคุณตัดสิน" (the bell, the today page, the ideas page):
-   - เปิดโปรเจค: a folder ~/Projects/<name> with a README.md and a PROGRESS.md built from the
-     group's ideas (no model), on the projects page as ไอเดีย (the user's choice, 4.ก);
-   - ทำเป็นงาน: one task with the ideas as its details, which the planner books time for;
-   - ยังก่อน: asked again when the group has AGAIN_AFTER more ideas.
+4. proposes the groups that have grown to GROWN ideas, once: a card in #Ideas (D6 ④) and a
+   "Things waiting for your decision" (the bell, the today page, the ideas page):
+   - Open project: a folder ~/Projects/<name> with a README.md and a PROGRESS.md built from the
+     group's ideas (no model), on the projects page as Idea (the user's choice, 4.a);
+   - Make it a task: one task with the ideas as its details, which the planner books time for;
+   - Not yet: asked again when the group has AGAIN_AFTER more ideas.
 
 A round with nothing new says nothing (no card, no log line).
 """
@@ -36,8 +36,8 @@ from app.features.ideas.tables import SOURCES, Idea, IdeaGroup
 
 log = logging.getLogger(__name__)
 
-GROWN = 4  # ideas before a group is proposed (the plan: "เช่น 4 ไอเดียขึ้นไป", accepted at the B6 plan)
-AGAIN_AFTER = 2  # "ยังก่อน": proposed again once it has this many more
+GROWN = 4  # ideas before a group is proposed (the plan: "e.g. 4 ideas or more", accepted at the B6 plan)
+AGAIN_AFTER = 2  # "not yet": proposed again once it has this many more
 
 # Called after a round with something to tell: (Round). cards.py posts the D6 cards.
 POSTED: list[Callable[["Round"], Awaitable[None]]] = []
@@ -115,7 +115,7 @@ def ripe() -> list[int]:
 
 
 def propose(group_id: int) -> int:
-    """Ask once: a "เรื่องที่รอคุณตัดสิน" of kind "idea". -> the decision id."""
+    """Ask once: a "Things waiting for your decision" of kind "idea". -> the decision id."""
     with session() as s:
         g = s.get(IdeaGroup, group_id)
         n = size(s, g.id)
@@ -128,7 +128,7 @@ def propose(group_id: int) -> int:
 
 
 def about_project(s, group_id: int) -> str | None:
-    """The project its ideas name most ("เกี่ยวกับ finance"), if any."""
+    """The project its ideas name most ("about finance"), if any."""
     projects = store.project_tags()
     count: dict[str, int] = {}
     for tags in s.scalars(select(Idea.tags).where(Idea.group_id == group_id)):
@@ -210,7 +210,7 @@ def suggested_folder(group_id: int) -> str:
 
 
 def open_project(group_id: int, name: str, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> tuple[int, int]:
-    """เปิดโปรเจค: the folder, its README.md and PROGRESS.md, on the projects page. -> (project id, action id)."""
+    """Open project: the folder, its README.md and PROGRESS.md, on the projects page. -> (project id, action id)."""
     from app.features.projects.tables import DEFAULT_POTENTIAL, DEFAULT_URGENCY, Project
 
     name = folder_name(name)
@@ -230,7 +230,7 @@ def open_project(group_id: int, name: str, *, via: tuple[str, str] = ("หน้
         f"- [ ] เขียนเป้าหมายใน README.md\n{steps}\n", encoding="utf-8")
     from app.features.projects import progress
 
-    with session() as s:  # registered now, so the next scan doesn't ask "ตั้งระดับโปรเจคใหม่" about it
+    with session() as s:  # registered now, so the next scan doesn't ask "set a new project level" about it
         p = Project(name=name, path=str(folder), status="idea", potential=DEFAULT_POTENTIAL, urgency=DEFAULT_URGENCY,
                     first_seen=now(), scanned_at=now(), last_activity=now(), progress=progress.read(folder))
         s.add(p)
@@ -245,7 +245,7 @@ def open_project(group_id: int, name: str, *, via: tuple[str, str] = ("หน้
 
 
 def make_task(group_id: int, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> tuple[int, int]:
-    """ทำเป็นงาน: one task in the schedule, the ideas as its details. -> (task id, action id)."""
+    """Make it a task: one task in the schedule, the ideas as its details. -> (task id, action id)."""
     with session() as s:
         g = _waiting(s, group_id)
         title, about = g.name, about_project(s, g.id)
@@ -267,7 +267,7 @@ def make_task(group_id: int, *, via: tuple[str, str] = ("หน้าเว็�
 
 
 def later(group_id: int, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> int:
-    """ยังก่อน: not now; asked again when it has grown by AGAIN_AFTER. -> action id."""
+    """Not yet: not now; asked again when it has grown by AGAIN_AFTER. -> action id."""
     with session() as s:
         g = _waiting(s, group_id)
         old = (g.status, g.asked_size)

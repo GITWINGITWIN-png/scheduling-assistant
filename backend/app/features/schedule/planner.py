@@ -1,4 +1,4 @@
-"""The planner (ตัววางตาราง, feature 3.1): where each task's work goes. Pure: no Google, no database.
+"""The planner (the schedule placer, feature 3.1): where each task's work goes. Pure: no Google, no database.
 
 Given the work still to do, the times you're busy and your rules, `plan()` returns work
 blocks. sync.py feeds it from the calendar and writes the result back, and
@@ -7,7 +7,7 @@ plan costs no tokens and the same inputs always give the same blocks.
 
 How it decides:
 
-1. Free time = each day's window (09:00–22:00 by default) from now to the horizon
+1. Free time = each day's window (09:00-22:00 by default) from now to the horizon
    (14 days), minus busy events with a gap kept around them (15 minutes).
 2. Tasks with a due date go first, earliest due date first; tasks without one get
    what's left, oldest first.
@@ -16,7 +16,7 @@ How it decides:
    early" target was tried and removed: filling earliest-first already gives exactly
    that whenever it's possible, and the tests showed the target changed nothing.)
    "late" (on request): fill the free time closest to the due date, working backwards.
-4. A block is 30–120 minutes and starts on a quarter hour. One task gets at most 3 hours
+4. A block is 30-120 minutes and starts on a quarter hour. One task gets at most 3 hours
    a day, so big work spreads over several days instead of eating one. A task can set its
    own longest block and daily limit (`Work.max_block`, `Work.per_day`); the rules are
    only the default. Blocks already fixed (`kept`: running, about to start, or moved by
@@ -24,8 +24,8 @@ How it decides:
    back to back: the gap (15 minutes) is kept between them as a break, otherwise "1-hour
    blocks" would just be one long sitting.
 5. Whatever doesn't fit before the due date is reported (`Plan.short`), never placed late.
-6. A task can say "not before" (`Work.not_before`, B6's ย้ายไปพรุ่งนี้): its blocks start after it.
-7. Your schedule rules (B7, from the weekly review or the schedule page's ข้อสังเกต):
+6. A task can say "not before" (`Work.not_before`, B6's Move to tomorrow): its blocks start after it.
+7. Your schedule rules (B7, from the weekly review or the schedule page's observations):
    - `avoid`: a weekday's hours that keep being missed are never booked, as if busy every week;
    - `focus`: your focus hours are filled first within each day. Days still go in order, so
      work isn't pushed to a later day to wait for focus hours (quick email replies don't use it).
@@ -60,7 +60,7 @@ class Work:
     mode: str = "early"  # early · late
     max_block: int | None = None  # this task's longest block (minutes); None: rules.max_block
     per_day: int | None = None  # the most this task may take in a day; None: rules.per_task_per_day
-    not_before: datetime | None = None  # none of its blocks before this (B6: "ย้ายไปพรุ่งนี้")
+    not_before: datetime | None = None  # none of its blocks before this (B6: "move to tomorrow")
     focus: bool = True  # may go first into the focus hours (False: quick work like email replies)
 
 

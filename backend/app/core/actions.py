@@ -1,4 +1,4 @@
-"""The action log (บันทึกสิ่งที่เลขาทำ, feature P9): one recorder for everything the secretary does.
+"""The action log (what the secretary did, feature P9): one recorder for everything the secretary does.
 
 Rules that keep the log trustworthy:
 - **Everything goes through `record()`.** A feature that does something (adds an
@@ -6,7 +6,7 @@ Rules that keep the log trustworthy:
   here in the same step. The log is plain code, no model, so it costs no tokens.
 - **Undo is opt-in per kind.** An action that can be reversed passes `undo=`:
   the data needed to reverse it. Its feature registers how with
-  `register_undo(kind, fn)`. W9's ย้อนกลับ button and Discord's both call
+  `register_undo(kind, fn)`. W9's Undo button and Discord's both call
   `undo(id)`.
 - **Undoing is recorded too** (kind "undo"), so the log stays a complete history.
   Nothing is deleted.
@@ -52,7 +52,7 @@ def register_undo(kind: str, fn: UndoFn) -> None:
 
 def record(kind: str, summary: str, target: str = "", *, source_label: str = "", source_url: str = "",
            undo: dict | None = None, tokens: int | None = None) -> int:
-    """Write one action and return its id. summary = ทำอะไร, target = กับอะไร (in your words)."""
+    """Write one action and return its id. summary = what it does, target = what it is done to (in your words)."""
     with session() as s:
         a = Action(kind=kind, summary=summary, target=target[:500], source_label=source_label,
                    source_url=source_url, undo=undo, tokens=tokens)

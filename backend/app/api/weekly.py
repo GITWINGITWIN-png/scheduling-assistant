@@ -1,5 +1,5 @@
 """B7's weekly review on the web: answer a topic from the bell or the today page, accept a whole
-review, and "ส่งตอนนี้" (make this week's review now, without waiting for Sunday 19:00)."""
+review, and "Send now" (make this week's review now, without waiting for Sunday 19:00)."""
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
@@ -32,6 +32,6 @@ async def accept_all(brief_id: int) -> dict:
 
 @router.post("/weekly/run")
 async def run_now() -> dict:
-    """ส่งตอนนี้: this week's review now (it replaces one already made this week; its waiting topics expire)."""
+    """Send now: this week's review now (it replaces one already made this week; its waiting topics expire)."""
     title = await review.send(again=True)
     return {"title": title or ""}

@@ -1,4 +1,4 @@
-// Links inside รายละเอียดงาน: found in the text you typed (or that came from Classroom) and
+// Links inside task details: found in the text you typed (or that came from Classroom) and
 // made clickable wherever the details are shown.
 import { Fragment } from "react";
 

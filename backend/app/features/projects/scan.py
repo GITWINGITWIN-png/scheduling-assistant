@@ -6,9 +6,9 @@ the last 14 days had, and its PROGRESS.md (progress.py). No network, no model.
 
 The first scan meets everything at once (40-odd folders here, backups and copies among them),
 so it records them quietly: potential C, urgency 2, and the status from recent activity (a
-change in the last 14 days: กำลังทำ, otherwise พัก). You set the levels, or hide what isn't a
+change in the last 14 days: active, otherwise paused). You set the levels, or hide what isn't a
 project, on the projects page (the user's choice at the B5 plan). A folder that appears after
-that is asked about in #อนุมัติ (D5 ⑥); until you answer it works with C · 2.
+that is asked about in #approvals (D5 ⑥); until you answer it works with C, 2.
 
 my_secretary itself is listed like any project, but the secretary never works on it in the
 background: it would be changing its own code while it runs.
@@ -31,7 +31,7 @@ from app.core.tables import Decision
 from app.features.projects import progress
 from app.features.projects.tables import DEFAULT_POTENTIAL, DEFAULT_URGENCY, Project
 
-ACTIVE_DAYS = 14  # a change within this many days: กำลังทำ on the first scan
+ACTIVE_DAYS = 14  # a change within this many days: in progress on the first scan
 STATE_KEY = "state.projects"  # {"first_scan": when}: after it, a new folder is asked about
 
 # Called with (project id, decision id) when a new project's levels are asked (cards.py posts it).
@@ -133,7 +133,7 @@ def scan(root: Path | None = None, at: datetime | None = None) -> Scan:
 
 def set_levels(decision_id: int, potential: str, urgency: int, *,
                via: tuple[str, str] = ("หน้าเว็บ", "")) -> tuple[Decision, int]:
-    """You answered "ตั้งระดับโปรเจคใหม่" (in #อนุมัติ, on the web, or in the chat). -> (it, action id)."""
+    """You answered "Set the project level again" (in #approvals, on the web, or in the chat). -> (it, action id)."""
     from app.core import actions
     from app.features.projects.tables import POTENTIALS
 

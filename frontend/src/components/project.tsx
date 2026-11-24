@@ -38,7 +38,7 @@ export function Meter({ value, tone = "accent", mark, thick = false }: { value: 
   );
 }
 
-/** The quota line (the rule "งานเบื้องหลังทำเองได้เมื่อโควตาเหลือเกิน 70%"): a number and บันทึก. */
+/** The quota line (the rule "background work can run on its own when more than 70% of the quota is left"): a number and Save. */
 export function LineEditor({ line, onSave, onCancel }: { line: number; onSave: (line: number) => void; onCancel: () => void }) {
   const [value, setValue] = useState(String(line));
   return (

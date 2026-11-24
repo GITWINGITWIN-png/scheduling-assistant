@@ -1,7 +1,7 @@
-"""กิจกรรม you add yourself (the schedule page's form, or an order in the chat, B9).
+"""Events you add yourself (the schedule page's form, or an order in the chat, B9).
 
 It goes straight into your main Google Calendar, the same way an appointment from email does
-(mail/extract.place): recorded in สิ่งที่เลขาทำ, ย้อนกลับ deletes it, the secretary reminds
+(mail/extract.place): recorded in What the secretary did, Undo deletes it, the secretary reminds
 you of it, and blocks are re-planned around it.
 """
 
@@ -27,7 +27,7 @@ def whole_days(first: date, last: date) -> tuple[datetime, datetime]:
 
 async def add(title: str, start: datetime, end: datetime, *, all_day: bool = False, location: str = "",
               description: str = "", via: tuple[str, str] = ("หน้าตาราง", "")) -> tuple[int, int]:
-    """Put a กิจกรรม in the calendar. -> (event id, action id).
+    """Put an event in the calendar. -> (event id, action id).
 
     Raises ValueError for what you typed (no title, the end before the start). If Google can't
     take it, the event is forgotten and Google's error is raised as it is (google.NeedsConsent
@@ -53,7 +53,7 @@ async def add(title: str, start: datetime, end: datetime, *, all_day: bool = Fal
 
 
 async def recolor(event_ids: list[int], color_id: str, *, via: tuple[str, str] = ("หน้าตาราง", "")) -> int:
-    """สี: give events one of Google Calendar's colours (gcal.COLORS; "" = the calendar's own), in
+    """Colour: give events one of Google Calendar's colours (gcal.COLORS; "" = the calendar's own), in
     Google and here, so the pages draw them in it. One recorded action for all of them, and undo
     gives each one its old colour back. -> the action id.
 

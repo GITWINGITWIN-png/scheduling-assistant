@@ -3,13 +3,13 @@
 POST /api/ask streams the answer as NDJSON, one JSON object per line, so the page
 can show text as it arrives:
 
-    {"type": "note", "text": "เป็นการวางแผน · ส่งต่อให้ Opus"}   only for plans
+    {"type": "note", "text": "This is a plan, passed on to Opus"}   only for plans
     {"type": "text", "text": "..."}                               as many as come
     {"type": "done", "answer": {...}}                             model, effort, sources, decision id
     {"type": "error", "message": "..."}                           instead of done, if Claude failed
 
 The page sends the conversation it shows along with the question (history), the way the Discord
-chat reads the channel: a follow-up like "ทำต่อ" or "แล้วเมื่อวานล่ะ" needs what came before it.
+chat reads the channel: a follow-up like "Continue" or "and yesterday?" needs what came before it.
 """
 
 import asyncio
@@ -35,7 +35,7 @@ class Said(BaseModel):
 
 class AskIn(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
-    deep: bool = False  # True = "ให้ Opus คิดต่อ"
+    deep: bool = False  # True = "let Opus keep thinking"
     history: list[Said] = Field(default_factory=list, max_length=8)  # oldest first; ask._prompt trims it
 
 
@@ -86,7 +86,7 @@ async def decide(decision_id: int, body: DecideIn) -> dict:
         d, action_id = ask.decide(decision_id, body.action, body.note)
     except ask.DecisionError as exc:
         raise HTTPException(409, str(exc)) from exc
-    await decisions.settle_card(decision_id)  # a card for it in #อนุมัติ (if any) says so too
+    await decisions.settle_card(decision_id)  # a card for it in #approvals (if any) says so too
     return {"id": d.id, "status": d.status, "action_id": action_id}
 
 
@@ -96,14 +96,14 @@ class ReviseIn(BaseModel):
 
 @router.post("/decisions/{decision_id}/revise")
 async def revise(decision_id: int, body: ReviseIn) -> dict:
-    """แก้: Opus rewrites the plan with your change (takes a while; the page shows a spinner)."""
+    """Edit: Opus rewrites the plan with your change (takes a while; the page shows a spinner)."""
     try:
         a = await ask.revise(decision_id, body.change)
     except ask.DecisionError as exc:
         raise HTTPException(409, str(exc)) from exc
     except llm.LLMError as exc:
         raise HTTPException(502, str(exc)) from exc
-    await decisions.settle_card(decision_id)  # the old plan's card in #คุยกับเลขา (if any) says it was changed
+    await decisions.settle_card(decision_id)  # the old plan's card in #talk-to-secretary (if any) says it was changed
     return {**asdict(a), "footer": a.footer}
 
 
@@ -114,7 +114,7 @@ class ConfirmIn(BaseModel):
 
 @router.post("/orders/{decision_id}")
 async def confirm_order(decision_id: int, body: ConfirmIn) -> dict:
-    """ทำเลย · ไม่เอา for an order that can't be undone (under an answer, or in the bell).
+    """Do it now, or No for an order that can't be undone (under an answer, or in the bell).
 
     409 = answered already (or expired): the page shows what happened instead of the buttons.
     422 = doing it failed: nothing was done, and the buttons stay for another press.
@@ -125,7 +125,7 @@ async def confirm_order(decision_id: int, body: ConfirmIn) -> dict:
         raise HTTPException(422, str(exc)) from exc
     except ask_orders.ConfirmError as exc:
         raise HTTPException(409, str(exc)) from exc
-    await decisions.settle_card(decision_id)  # its buttons in #คุยกับเลขา (if any) say so too
+    await decisions.settle_card(decision_id)  # its buttons in #talk-to-secretary (if any) say so too
     return {"text": said}
 
 

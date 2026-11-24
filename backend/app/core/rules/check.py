@@ -5,7 +5,7 @@ The rule agreed at the B5 plan, checked in this order:
 1. A plan you approved may start, for 3 days after you approved it (that plan only).
 2. When the quota can't be read, every plan asks.
 3. A plan with any high-risk work asks, however much quota is left.
-4. A standing rule of yours for the project ("งานของ finance ทำเองได้") lets it start.
+4. A standing rule of yours for the project ("Finance work can be done without asking") lets it start.
 5. Otherwise it starts by itself only while more than the line (70%) of the week's quota is
    left, and only while you leave that rule switched on. Everything else asks.
 
@@ -24,12 +24,12 @@ from datetime import datetime
 
 from app.core.timefmt import thai_datetime
 
-APPROVAL_DAYS = 3  # how long your "อนุมัติ" covers a plan
+APPROVAL_DAYS = 3  # how long your "approval" covers a plan
 
 
 @dataclass(frozen=True)
 class Verdict:
-    go: bool  # True: it may start by itself · False: it asks you in #อนุมัติ
+    go: bool  # True: it may start by itself, False: it asks you in #approvals
     why: str  # one line for the card and the jobs page
 
 

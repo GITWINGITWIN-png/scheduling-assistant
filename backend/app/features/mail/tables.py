@@ -1,7 +1,7 @@
 """B2's tables (PLAN.md data model d2: people, emails, followups).
 
 Times are UTC (UTCDateTime), like every table in v2. Email bodies are never stored, only
-the summary the secretary wrote ("เก็บสรุป ไม่เก็บเนื้อหาเต็ม").
+the summary the secretary wrote ("store the summary, not the full content").
 """
 
 from datetime import datetime
@@ -41,7 +41,7 @@ class Person(Base):
     level: Mapped[str] = mapped_column(String(12), default="interested")  # a LEVELS key
     level_source: Mapped[str] = mapped_column(String(20), default="first_mail")  # a SOURCES key
     level_until: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
-    note: Mapped[str] = mapped_column(Text, default="")  # your reason (โน้ตเหตุผล); cleared once you decide again
+    note: Mapped[str] = mapped_column(Text, default="")  # your reason note; cleared once you decide again
     demote_reason: Mapped[str] = mapped_column(Text, default="")
     last_mail_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
@@ -58,10 +58,10 @@ class PersonAddress(Base):
 
 
 class Email(Base):
-    """emails · อีเมลที่เลขาเห็นแล้ว: one row per Gmail message, with what was made of it.
+    """emails: the emails the secretary has already seen. One row per Gmail message, with what was made of it.
 
     stage: seen (only the header so far) → read (read in full at once: important person,
-    keyword or a reply you were waiting for) · summarized (in a round) · skimmed (subject only).
+    keyword or a reply you were waiting for); summarized (in a round); skimmed (subject only).
     """
 
     __tablename__ = "emails"
@@ -76,7 +76,7 @@ class Email(Base):
     sent_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
     from_me: Mapped[bool] = mapped_column(Boolean, default=False)
     level: Mapped[str] = mapped_column(String(12), default="")  # the sender's level when it arrived
-    flagged: Mapped[str] = mapped_column(String(100), default="")  # why it was read at once, e.g. "keyword:สอบ"
+    flagged: Mapped[str] = mapped_column(String(100), default="")  # why it was read at once, e.g. "keyword:exam"
     stage: Mapped[str] = mapped_column(String(12), default="seen", index=True)
     summary: Mapped[str] = mapped_column(Text, default="")
     needs_reply: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -84,11 +84,11 @@ class Email(Base):
 
 
 class Followup(Base):
-    """followups · เรื่องค้าง: a thread where someone owes a reply (feature P6).
+    """followups (pending threads): a thread where someone owes a reply (feature P6).
 
     waiting_on "you": they wrote last and it needs your answer. "them": you wrote last.
     While a thread waits on them, that person counts as important for it, so their reply
-    alerts at once ("คนที่คุณรอคำตอบเป็นคนสำคัญอัตโนมัติ").
+    alerts at once ("the person you are waiting on counts as important automatically").
     """
 
     __tablename__ = "followups"

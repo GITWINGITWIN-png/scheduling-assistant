@@ -27,7 +27,7 @@ def from_local(value: str | None) -> datetime | None:
 
 
 def thai_date(dt: datetime, long: bool = False) -> str:
-    """'พ. 5 พ.ย. 2569', or with long=True 'วันพุธ 5 พ.ย. 2569'."""
+    """'Wed 5 Nov 2569', or with long=True 'Wednesday 5 Nov 2569'."""
     d = local(dt)
     day = f"วัน{DAYS[d.weekday()]}" if long else DAYS_SHORT[d.weekday()]
     return f"{day} {d.day} {MONTHS[d.month - 1]} {d.year + 543}"

@@ -1,4 +1,4 @@
-// จดไอเดีย on the web (W6 ① and the top bar's button): the same box as the Super+I popup (K1).
+// Jot down an idea on the web (W6 ① and the top bar's button): the same box as the Super+I popup (K1).
 // As you type, the rules suggest tags (no model). They're picked already, and a click drops one.
 // Enter saves, Shift+Enter starts a new line, and the line below says which group the idea joins
 // at the next round.
@@ -17,7 +17,7 @@ export function IdeaCapture({ onSaved, autoFocus = false, onEscape }: {
   const [text, setText] = useState("");
   const [suggested, setSuggested] = useState<string[]>([]);
   const [off, setOff] = useState<string[]>([]); // suggestions you clicked away
-  const [extra, setExtra] = useState<string[]>([]); // tags you typed after "+ แท็ก"
+  const [extra, setExtra] = useState<string[]>([]); // tags you typed after "+ tag"
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; bad?: boolean } | null>(null);

@@ -2,16 +2,16 @@
 
 Two kinds, best first (potential, then urgency):
 
-- นิ่งนาน: PROGRESS.md still has unchecked steps, but nothing moved for STALE_DAYS. It says
+- Stalled for long: PROGRESS.md still has unchecked steps, but nothing moved for STALE_DAYS. It says
   the next step, and the due date when the project has an open task with one.
-- ได้เวลาน้อยกว่าที่ควร: a project that matters (potential S–A or urgency 4–5) got less time
+- Less time than it should get: a project that matters (potential S to A, or urgency 4 to 5) got less time
   in this week's schedule than its target (WEEKLY_TARGET; S = 10 hours as in the W3 mockup).
   The time is the blocks the planner booked for the project's tasks (planned or pinned), as
   said at the B5 plan. Once ActivityWatch records (B6), the week's past part is what you really
   did on the project instead, plus the blocks still ahead this week. No commit in 14 days is
   added to the line as a hint, not counted.
 
-"จองเวลา" turns a piece of advice into a task (2 hours by default), so the planner books a
+"Book time" turns a piece of advice into a task (2 hours by default), so the planner books a
 block for it; like any task you add, it is recorded and can be undone.
 """
 
@@ -123,8 +123,8 @@ def advice(at: datetime | None = None) -> list[Advice]:
 
 
 def book(project_id: int, minutes: int = 120, *, via: tuple[str, str] = ("หน้าโปรเจค", "")) -> tuple[int, int]:
-    """จองเวลา: a task for the project's next step, no due date, so the planner books the first
-    free time ("จองบล็อก 2 ชม. พรุ่งนี้เช้า" in the mockup). -> (task id, action id: ย้อนกลับ drops it)."""
+    """Book time: a task for the project's next step, no due date, so the planner books the first
+    free time ("Book a 2 hr block tomorrow morning" in the mockup). -> (task id, action id: Undo drops it)."""
     from app.features.schedule import tasks
 
     with session() as s:

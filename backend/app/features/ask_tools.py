@@ -1,9 +1,9 @@
-"""ถามเลขาได้ทุกส่วน (P10, B7): read-only tools over every part of the store, for the chat's model.
+"""Ask the secretary about anything (P10, B7): read-only tools over every part of the store, for the chat's model.
 
 B1's four tools (ask.py) read the action log, waiting decisions, model usage and the clock. These
 read the rest: people and their mail (summaries and a Gmail link, never bodies: bodies aren't
 kept), what's waiting for a reply, the schedule and tasks, projects with their news, background
-jobs and time, ideas, time use with window titles (allowed at the B7 plan, "4.ข": they're the
+jobs and time, ideas, time use with window titles (allowed at the B7 plan, "4.B": they're the
 titles left after the privacy filter), Classroom, and the rule book.
 
 Each answer lists the tools it used as its sources (ask.SOURCE_NAMES), and the tools hand back

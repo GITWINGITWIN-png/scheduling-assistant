@@ -34,7 +34,7 @@ from app.features.time.tables import HIDDEN, KINDS, Activity, PrivacyRule
 PAUSES_KEY = "activity.pauses"  # [[start, end], ...] (ISO): nothing in these is kept
 SEEDED_KEY = "state.privacy_seeded"
 
-# The defaults agreed at the B6 plan ("3. ตามนั้นเลย"): password managers, banks and payments,
+# The defaults agreed at the B6 plan ("3. go with that"): password managers, banks and payments,
 # LINE / Messenger / WhatsApp, private browsing windows, and four words that hide a title.
 DEFAULTS: list[tuple[str, str, str]] = [
     *(("app", v, "ตัวจัดการรหัสผ่าน") for v in ("keepassxc", "keepass", "bitwarden", "1password", "enpass", "seahorse",
@@ -106,7 +106,7 @@ def rules() -> Rules:
     return Rules(pick("app"), pick("title"), pick("word"))
 
 
-# ------------------------------------------------------------------ pauses (หยุดบันทึก)
+# ------------------------------------------------------------------ pauses (stop recording)
 def pauses() -> list[tuple[datetime, datetime]]:
     return [(datetime.fromisoformat(a), datetime.fromisoformat(b)) for a, b in settings.get(PAUSES_KEY, [])]
 

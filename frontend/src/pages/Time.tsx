@@ -1,6 +1,6 @@
-// W7 การใช้เวลา (B6), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w7): time per day by
+// W7 Time use (B6), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w7): time per day by
 // category (①), by project against the plan (②), what the rules noticed (③), and the privacy card
-// (④ ⑤): the recording switch, หยุดบันทึก, and the blocklist. Everything comes from ActivityWatch on
+// (④ ⑤): the recording switch, Stop recording, and the blocklist. Everything comes from ActivityWatch on
 // this computer, through the secretary's filter; nothing here uses a model.
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -122,7 +122,7 @@ function Behaviours({ items, days }: { items: Behaviour[]; days: number }) {
   );
 }
 
-/** อื่นๆ: what the rules couldn't sort, for you to sort (it becomes a rule of yours). */
+/** Other: what the rules couldn't sort, for you to sort (it becomes a rule of yours). */
 function Unsorted({ page, say, fail }: { page: TimePage; say: Say; fail: (e: unknown) => void }) {
   if (page.unsorted.length === 0) return null;
   return (

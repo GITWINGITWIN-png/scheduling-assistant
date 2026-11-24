@@ -6,8 +6,8 @@
   then counts as important (watch.py flags it "awaiting") and alerts at once.
 
 Both close by themselves when the other side writes in the thread. After FOLLOWUP_DAYS
-(setting "mail.followup_days", default 3) the 12:00 round sends a reminder to #ด่วน;
-"เตือนพรุ่งนี้" waits a day, "ตอบแล้ว" closes it.
+(setting "mail.followup_days", default 3) the 12:00 round sends a reminder to #urgent;
+"remind tomorrow" waits a day, "replied" closes it.
 """
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ def due(at: datetime | None = None) -> list[Followup]:
 
 
 async def remind() -> int:
-    """Called by the 12:00 round: one #ด่วน card per follow-up that's due. -> how many."""
+    """Called by the 12:00 round: one #urgent card per follow-up that's due. -> how many."""
     count = 0
     for f in due():
         with session() as s:
@@ -91,7 +91,7 @@ async def remind() -> int:
 
 
 def close(followup_id: int) -> Followup | None:
-    """ตอบแล้ว / ไม่ต้องตามแล้ว."""
+    """replied / no need to follow up anymore."""
     with session() as s:
         f = s.get(Followup, followup_id)
         if f and f.closed_at is None:
@@ -100,7 +100,7 @@ def close(followup_id: int) -> Followup | None:
 
 
 def done(followup_id: int, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> int:
-    """ตอบแล้ว, recorded so ย้อนกลับ opens it again (the page's button and an order in the
+    """Replied, recorded so undo reopens it (the page's button and an order in the
     chat, B9). -> action id. Raises ValueError when it's gone or already closed."""
     with session() as s:
         f = s.get(Followup, followup_id)

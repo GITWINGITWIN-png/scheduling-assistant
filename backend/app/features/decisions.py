@@ -1,12 +1,12 @@
-"""เรื่องที่รอคุณตัดสิน in one place (B4): every request waiting for your yes or no (plans B1,
+"""Decisions waiting for you in one place (B4): every request waiting for your yes or no (plans B1,
 appointments B2, Classroom courses B3) lives in `decisions`, and the bell, the today page and
-#อนุมัติ all answer it through the same functions, so the result is the same wherever you
+#approvals all answer it through the same functions, so the result is the same wherever you
 press. This module keeps the two places looking the same too: a request answered on the web
-gets its #อนุมัติ card edited to say so, without its buttons, instead of looking open.
+gets its #approvals card edited to say so, without its buttons, instead of looking open.
 
 It also tells whether an appointment that waits for you clashes with another one (W1:
-"ไม่ชนนัดอื่น"), so you can answer without opening the calendar, and whether it goes against a
-rule in your rule book (B5: "คุณมักไม่รับนัดวันเสาร์").
+"Doesn't clash with another appointment"), so you can answer without opening the calendar, and whether it goes against a
+rule in your rule book (B5: "You usually don't accept Saturday appointments").
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ class Answered(ValueError):
 
 
 def answered(d: Decision | None, what: str) -> Answered:
-    """The refusal for pressing a request that no longer waits. what: "นัด", "วิชา"..."""
+    """The refusal for pressing a request that no longer waits. what: "appointment", "course"..."""
     if d is None:
         return Answered(f"ไม่พบ{what}นี้แล้ว")
     said = SETTLED.get((d.kind, d.status, d.answer)) or SETTLED.get((d.kind, d.status)) or d.status
@@ -51,7 +51,7 @@ def answered(d: Decision | None, what: str) -> Answered:
 
 
 # B9: a plan or an order from the chat has its buttons on the chat's answer card, which can hold
-# other buttons too (ย้อนกลับ N for what the order did): replacing the whole card would take those
+# other buttons too (undo N for what the order did): replacing the whole card would take those
 # away. features/ask_discord.py registers how to edit just their part: {kind: fn(decision_id, where)}.
 CARD_SETTLERS: dict[str, Callable[[int, str], Awaitable[None]]] = {}
 

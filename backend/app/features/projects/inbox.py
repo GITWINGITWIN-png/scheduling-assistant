@@ -6,8 +6,8 @@ row and moves to `read/`; a file it can't read moves to `bad/` and says so in th
 Three kinds: report (news), schedule (a task with a due date, so the planner books time),
 status (how an automatic run went). No model.
 
-A failure or a question (failed / needs_you) from a project that matters, potential S–A or
-urgency 4–5, goes to #ด่วน at once (URGENT hooks, cards.py); everything else waits for the
+A failure or a question (failed / needs_you) from a project that matters, potential S to A or
+urgency 4 to 5, goes to #urgent at once (URGENT hooks, cards.py); everything else waits for the
 morning brief and the pages (the agreed rule, stage 1).
 """
 
@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 KINDS = ("report", "schedule", "status")
 MAX_BYTES = 256 * 1024  # a news file, not a dataset
 
-# Called with the news id when something urgent arrives (cards.py posts it to #ด่วน).
+# Called with the news id when something urgent arrives (cards.py posts it to #urgent).
 URGENT: list[Callable[[int], Awaitable[None]]] = []
 
 

@@ -1,9 +1,9 @@
-// W5 ตาราง (B3), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w5): the week on the
-// left (schedule/Week.tsx) with its colour key under it; on the right ⑤ ทำตามแผนได้ and ⑥ ข้อสังเกต
-// (both B6) and ⑦ นัดที่รอคุณรับ. Below, two cards that aren't in the mockup but B3 needs: the task
+// W5 Schedule (B3), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w5): the week on the
+// left (schedule/Week.tsx) with its colour key under it; on the right ⑤ Followed the plan and ⑥ Observations
+// (both B6) and ⑦ Appointments waiting for you to accept. Below, two cards that aren't in the mockup but B3 needs: the task
 // list the planner works from, and Classroom courses. The planner's rules are on the settings page.
 // Adding and changing things works like Google Calendar: click or drag on the calendar (or press
-// สร้าง) for a card with two tabs, กิจกรรม and งาน (schedule/EditCard.tsx); click anything on
+// Create) for a card with two tabs, Activity and Task (schedule/EditCard.tsx); click anything on
 // the calendar to see what it is (schedule/DetailCard.tsx).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type CourseRow, type Decision, type Followed, type ScheduleRules, type TaskRow } from "../api";
@@ -70,7 +70,7 @@ function Tasks({ items, onAdd, onEdit, onFinish }: {
 }
 
 // ------------------------------------------------------------------ the right column (W5 ⑤ ⑥ ⑦)
-/** ⑤ ทำตามแผนได้ (B6): this week's checked blocks you followed, against your target, per day. */
+/** ⑤ Followed the plan (B6): this week's checked blocks you followed, against your target, per day. */
 function FollowedCard({ f, onTarget }: { f: Followed | null; onTarget: (t: number) => void }) {
   const [editing, setEditing] = useState(false);
   if (!f) return <Card title="ทำตามแผนได้"><Spinner /></Card>;
@@ -111,7 +111,7 @@ function FollowedCard({ f, onTarget }: { f: Followed | null; onTarget: (t: numbe
   );
 }
 
-/** ⑥ ข้อสังเกต (B6): a part of a weekday where blocks keep being missed; B7: one press makes it a
+/** ⑥ Observations (B6): a part of a weekday where blocks keep being missed; B7: one press makes it a
  *  rule (the planner keeps those hours free every week), kept in the rule book. */
 function NotesCard({ f, onAvoid }: { f: Followed | null; onAvoid: (weekday: number, part: string, title: string) => void }) {
   return (
@@ -131,7 +131,7 @@ function NotesCard({ f, onAvoid }: { f: Followed | null; onAvoid: (weekday: numb
   );
 }
 
-/** ⑦ Appointments from people you're interested in wait here (and in #อนุมัติ) for รับ / ไม่ไป. */
+/** ⑦ Appointments from people you're interested in wait here (and in #approval) for Accept / Don't go. */
 function Pending({ reloadKey, onChange }: { reloadKey: number; onChange: () => void }) {
   const [items, setItems] = useState<Decision[] | null>(null);
   useEffect(() => { api.decisions().then((r) => setItems(r.items.filter((d) => d.kind === "appointment")), () => setItems([])); }, [reloadKey]);
@@ -194,7 +194,7 @@ function Courses({ reloadKey }: { reloadKey: number }) {
 }
 
 // ------------------------------------------------------------------ the page
-/** The next half hour from now, for "+ สร้าง" with no slot picked. */
+/** The next half hour from now, for "+ Create" with no slot picked. */
 function nextHalfHour(): Date {
   const d = new Date();
   d.setSeconds(0, 0);
@@ -232,7 +232,7 @@ export function Schedule() {
     try {
       await api.undo(actionId);
       // Put the blocks right now if the secretary is placing them by itself; otherwise
-      // they follow on the next วางตารางใหม่.
+      // they follow on the next Re-plan schedule.
       if (!roundOff) await api.replan().catch(() => {});
       say("เลิกทำแล้ว");
     } catch (e) { say((e as Error).message); }

@@ -9,7 +9,7 @@
   --ok: #16A34A; --ok-soft: #DCFCE7; --warn: #D97706; --warn-soft: #FEF3C7; --bad: #DC2626; --bad-soft: #FEE2E2;
 }
 
-/* อิฐนุ่ม (C เดิม) */
+/* Soft brick (original C) */
 [data-theme="c"] {
   --bg: #FAF5EE; --panel: #FFFDFA; --panel-2: #F5EDE3; --side-bg: #F6EEE4; --top-bg: #FFFDFA;
   --ink: #2C221A; --ink-2: #5D5045; --muted: #8B7D70; --line: #EBE0D3; --line-2: #DCCDBC;
@@ -17,31 +17,31 @@
   --ok: #2F8C73; --ok-soft: #DEF1EA; --warn: #B7791F; --warn-soft: #FBEFD9; --bad: #C8463D; --bad-soft: #FBE4E1;
   --shadow: 0 1px 2px rgba(60, 40, 20, 0.05), 0 4px 16px rgba(60, 40, 20, 0.06);
 }
-/* ส้มสด (ค่าเริ่ม) */
+/* Bright orange (default) */
 :root, [data-theme="cs"] {
   --bg: #F5F5F3; --panel: #FFFFFF; --panel-2: #F0EFEC; --side-bg: #FFFFFF; --top-bg: #FFFFFF;
   --ink: #17120E; --ink-2: #4A433D; --muted: #7A736C; --line: #E7E4E0; --line-2: #D4CFC9;
   --accent: #F25F0C; --accent-ink: #FFFFFF; --accent-soft: #FFE9DB; --accent-strong: #C2410C;
 }
-/* ฟ้า */
+/* Sky blue */
 [data-theme="cb"] {
   --bg: #F3F6FA; --panel: #FFFFFF; --panel-2: #EDF1F7; --side-bg: #FFFFFF; --top-bg: #FFFFFF;
   --ink: #0F172A; --ink-2: #475569; --muted: #64748B; --line: #E2E8F0; --line-2: #CBD5E1;
   --accent: #2563EB; --accent-ink: #FFFFFF; --accent-soft: #DBEAFE; --accent-strong: #1D4ED8;
 }
-/* เขียว */
+/* Green */
 [data-theme="cg"] {
   --bg: #F2F7F4; --panel: #FFFFFF; --panel-2: #EAF2EE; --side-bg: #FFFFFF; --top-bg: #FFFFFF;
   --ink: #0C1F17; --ink-2: #3F5249; --muted: #66796F; --line: #DFE8E3; --line-2: #C7D5CD;
   --accent: #059669; --accent-ink: #FFFFFF; --accent-soft: #D1FAE5; --accent-strong: #047857;
 }
-/* ม่วง */
+/* Purple */
 [data-theme="cp"] {
   --bg: #F6F4FB; --panel: #FFFFFF; --panel-2: #F0EDF8; --side-bg: #FFFFFF; --top-bg: #FFFFFF;
   --ink: #1B1530; --ink-2: #4C4467; --muted: #766F8F; --line: #E6E1F0; --line-2: #D2CBE3;
   --accent: #7C3AED; --accent-ink: #FFFFFF; --accent-soft: #EDE9FE; --accent-strong: #6D28D9;
 }
-/* มืด */
+/* Dark */
 [data-theme="cd"] {
   color-scheme: dark;
   --bg: #111113; --panel: #1B1B1F; --panel-2: #25252B; --side-bg: #151518; --top-bg: #18181B;

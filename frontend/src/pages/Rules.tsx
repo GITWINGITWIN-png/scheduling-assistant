@@ -1,8 +1,8 @@
-// W8 สมุดกติกา (B5), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w8): your rules (the
+// W8 Rule book (B5), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w8): your rules (the
 // ones that live in your settings first, then the ones you added), what the secretary learned from
 // your answers (not used until you accept it), and the high-risk work that always asks first.
 // A rule can be typed as a sentence: the secretary turns it into a rule and you check it before
-// it's saved (W8 ⑤). Every change shows a toast with เลิกทำ, and is in สิ่งที่เลขาทำ.
+// it's saved (W8 ⑤). Every change shows a toast with Undo, and is in What the secretary did.
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link } from "react-router";
 import { api, type Part, type Proposal, type RiskRow, type RuleRow, type RulesPage, type SystemRule } from "../api";
@@ -19,7 +19,7 @@ type Ctx = { parts: (p: Part[]) => string; done: Done; fail: Fail };
 
 const NOTE_PARTS: { key: Part; label: string }[] = [{ key: "ask", label: "ถามเลขา" }, { key: "jobs", label: "ตัวคุมงานเบื้องหลัง" }];
 
-/** One rule as the mockup draws it: a switch, the rule, who uses it, and แก้ on the right. */
+/** One rule as the mockup draws it: a switch, the rule, who uses it, and Edit on the right. */
 function Line({ toggle, text, sub, side, children, title }: {
   toggle: ReactNode; text: ReactNode; sub: ReactNode; side?: ReactNode; children?: ReactNode; title?: string;
 }) {

@@ -1,13 +1,13 @@
-"""B9 · สั่งงานผ่านแชท: the tools Opus uses to carry out an order, and the ยืนยัน step.
+"""B9, giving orders through chat: the tools Opus uses to carry out an order, and the confirm step.
 
 Every tool calls the same function as a button on the page, so an order does exactly what the
-button does: the same result, the same record in สิ่งที่เลขาทำ, the same ย้อนกลับ. Tools are
+button does: the same result, the same record in the secretary's action log, the same Undo. Tools are
 made for each call (toolset()), so each one knows where the order came from (`via`, for the
-log's "ที่มา") and writes what it did into that call's `Taken`. The answer shows that list, with
-a ย้อนกลับ button for each.
+log's "Source") and writes what it did into that call's `Taken`. The answer shows that list, with
+an Undo button for each.
 
-What can be undone is done at once (answer 1.ก at the plan). What can't waits: the tool saves
-it as a decision of kind "order", and the answer shows ทำเลย · ไม่เอา. Only a press of that
+What can be undone is done at once (answer 1.A at the plan). What can't waits: the tool saves
+it as a decision of kind "order", and the answer shows Do it now / Decline. Only a press of that
 button carries it out. Opus can't confirm its own request (answer_waiting refuses kind "order"),
 and an unanswered one expires after a day. What waits this way:
 - replanning the whole schedule;
@@ -17,7 +17,7 @@ and an unanswered one expires after a day. What waits this way:
 - approving a plan (the secretary then carries it out).
 
 Not given to the chat (agreed at the plan): anything outward (Gmail stays read-only), deleting,
-settings (rounds, models, theme, recording), and switching on ให้เลขาทำต่อได้ for a project.
+settings (rounds, models, theme, recording), and switching on let the secretary continue working on a project.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 
 Via = tuple[str, str]
 MAX_ACTIONS = 25  # in one order (Discord's 25 buttons): more is a sign something went wrong, so the tools stop
-ORDER_LIFE = timedelta(days=1)  # a request for ยืนยัน left this long expires
+ORDER_LIFE = timedelta(days=1)  # a request for confirm left this long expires
 
 LEVEL_WORDS = {"important": "สำคัญ", "interested": "สนใจ", "ignored": "ไม่สนใจ"}
 KIND_NAMES = {"appointment": "นัดจากอีเมล", "course": "วิชาใน Classroom", "plan": "แผนจากแชท",
@@ -61,7 +61,7 @@ class Taken:
     """What one Opus call did, for the answer under it."""
 
     done: list[int] = field(default_factory=list)  # action ids, in the order they happened
-    confirm: list[int] = field(default_factory=list)  # "order" decisions waiting for ยืนยัน
+    confirm: list[int] = field(default_factory=list)  # "order" decisions waiting for confirm
     plan: int | None = None  # a plan it proposed instead of acting (a decision id)
     tokens: int = 0  # what models called by the tools used (reading a rule, planning a background job)
     notes: list[str] = field(default_factory=list)  # what a tool couldn't do, in words
@@ -72,12 +72,12 @@ class Taken:
 
 
 class ConfirmError(ValueError):
-    """ทำเลย / ไม่เอา can't be answered any more (gone, answered, expired): nothing is left to press,
+    """Do it now / Decline can't be answered any more (gone, answered, expired): nothing is left to press,
     and the message says what happened, for the page and Discord to show in place of the buttons."""
 
 
 class ConfirmFailed(ConfirmError):
-    """ทำเลย was pressed but doing it failed: nothing was done, and it waits for another press."""
+    """Do it now was pressed but doing it failed: nothing was done, and it waits for another press."""
 
 
 def answered(d: Decision) -> str:
@@ -138,7 +138,7 @@ def waiting_view(d: Decision) -> dict:
             "ตอบได้": answers or "ผู้ใช้ต้องตอบที่ปุ่มของมันเอง"}
 
 
-# ------------------------------------------------------------------ the ยืนยัน step
+# ------------------------------------------------------------------ the confirm step
 async def _settle(decision_id: int, via: Via) -> None:
     from app.features import decisions
 
@@ -211,7 +211,7 @@ def expire_old(at: datetime | None = None) -> int:
 
 
 def ask_first(do: str, args: dict, words: str, via: Via, taken: Taken) -> str:
-    """Save what can't be undone as a request for ยืนยัน, instead of doing it."""
+    """Save what can't be undone as a request for confirmation, instead of doing it."""
     expire_old()
     with session() as s:
         d = Decision(kind="order", title=words[:200], detail={"do": do, "args": args, "via": list(via)})
@@ -222,7 +222,7 @@ def ask_first(do: str, args: dict, words: str, via: Via, taken: Taken) -> str:
 
 
 async def confirm(decision_id: int, yes: bool, *, via: Via) -> str:
-    """ทำเลย / ไม่เอา, pressed by you. -> what happened, in words. Raises ConfirmError."""
+    """Do it now / Decline, pressed by you. -> what happened, in words. Raises ConfirmError."""
     with session() as s:
         d = s.get(Decision, decision_id)
         if d is None or d.kind != "order":
@@ -258,7 +258,7 @@ def toolset(via: Via, taken: Taken, *, request: str = "", planning: bool = True,
     from app.features.schedule import sync
 
     made: list[SdkMcpTool] = []
-    # At the limit Opus stops and says what is left. In the chat, "ทำต่อ" then carries on: the next
+    # At the limit Opus stops and says what is left. In the chat, "continue" then carries on: the next
     # message brings this answer along (ask._prompt). A plan's run has no chat turn to carry on from.
     full = (f"ทำครบ {limit} อย่างในคำสั่งเดียวแล้ว · หยุดตรงนี้ บอกผู้ใช้ว่ายังเหลืออะไร (บอกชื่อให้ครบ) "
             + ("และพิมพ์ “ทำต่อ” ให้ทำที่เหลือได้" if planning else "ให้สั่งต่อในแชท"))
@@ -442,7 +442,7 @@ def toolset(via: Via, taken: Taken, *, request: str = "", planning: bool = True,
         taken.done.append(action_id)
         try:
             verdict = await plans.make(job_id, via=via)
-        except Exception as exc:  # the job waits in the queue for วางแผนเลย, as on the page
+        except Exception as exc:  # the job waits in the queue for plan now, as on the page
             return {"ทำแล้ว": "ใส่คิวแล้ว", "แผน": f"วางแผนไม่สำเร็จ: {exc}"}
         return {"ทำแล้ว": "ใส่คิวและวางแผนแล้ว", "แผน": verdict.why, "ทำเองได้": verdict.go}
 
@@ -506,7 +506,7 @@ def toolset(via: Via, taken: Taken, *, request: str = "", planning: bool = True,
 
 
 async def _answer(decision_id: int | None, answer: str, args: dict, via: Via, taken: Taken):
-    """answer_waiting: the same answer as the item's own buttons, or a request for ยืนยัน."""
+    """answer_waiting: the same answer as the item's own buttons, or a request for confirmation."""
     with session() as s:
         d = s.get(Decision, decision_id) if decision_id else None
         if d is None:

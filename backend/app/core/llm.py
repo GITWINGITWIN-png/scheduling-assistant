@@ -60,7 +60,7 @@ DEFAULT_TASKS: dict[str, dict[str, str]] = {
     "plan": {"model": "opus", "effort": "high", "label": "วางแผน · สั่งงาน"},
     "mail": {"model": "opus", "effort": "medium", "label": "อ่านอีเมลทุกระดับ"},  # B2: you asked for no weak model on mail
     "rule": {"model": "sonnet", "effort": "low", "label": "แปลงประโยคเป็นกติกา"},  # B5: only when you add a rule
-    "job_plan": {"model": "opus", "effort": "high", "label": "วางแผนงานเบื้องหลัง"},  # B5: "Opus วางแผน" (3.2)
+    "job_plan": {"model": "opus", "effort": "high", "label": "วางแผนงานเบื้องหลัง"},  # B5: "Opus plans" (3.2)
 }
 
 TOOL_SERVER = "secretary"  # tools appear to the model as mcp__secretary__<name>

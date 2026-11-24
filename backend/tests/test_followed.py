@@ -177,7 +177,7 @@ def test_the_evening_review_says_how_the_plan_went(monkeypatch):
     assert fields["หลุดแผน"] == ("Finance: backtest 11:00 · คุณทำ my_secretary แทน · เลขาหาเวลาใหม่: คืนนี้ 19:00\n"
                                  "datacom report 12:00 · ช่วงนั้นเป็นเว็บและโซเชียล · เลขาหาเวลาใหม่: พรุ่งนี้ 09:00")
     assert fields["เวลาจริงวันนี้"] == "โค้ด 1.8 ชม. · เว็บ 1"
-    assert evening.to_move(m(540)) == [(t.id, "Finance: backtest")]  # offered: ย้ายไปพรุ่งนี้
+    assert evening.to_move(m(540)) == [(t.id, "Finance: backtest")]  # offered: move to tomorrow
     assert later and done
 
 

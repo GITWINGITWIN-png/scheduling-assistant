@@ -1,9 +1,9 @@
-// ถามเลขา: the ask box in the top bar of every page (P10), and the panel the answer streams into.
+// Ask the secretary: the ask box in the top bar of every page (P10), and the panel the answer streams into.
 // Same flow as the Discord chat: Sonnet answers with its sources; an order or a plan request goes
-// to Opus, which does it (B9: listed with ย้อนกลับ, and ทำเลย for what can't be undone) or plans it;
-// "ให้ Opus คิดต่อ" asks Opus the same question.
+// to Opus, which does it (B9: listed with undo, and do it now for what can't be undone) or plans it;
+// "let Opus think it through" asks Opus the same question.
 // Claude remembers what this box shows (the last few questions and answers), like the Discord chat
-// reads its channel, so "ทำต่อ" carries on the order before it. ล้าง empties the box and its memory.
+// reads its channel, so "continue" carries on the order before it. Clear empties the box and its memory.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { askStream, type Answer, type Said } from "../api";
 import { Icon } from "../icons";
@@ -59,7 +59,7 @@ export function AskBox() {
   const update = (id: number, patch: (t: Turn) => Partial<Turn>) =>
     setTurns((all) => all.map((t) => (t.id === id ? { ...t, ...patch(t) } : t)));
 
-  // before: how many turns came before the question (all of them for a new one; for "ให้ Opus คิดต่อ",
+  // before: how many turns came before the question (all of them for a new one; for "let Opus think it through",
   // the ones before the question it asks again, as on Discord)
   const ask = (question: string, deep = false, before = turns.length) => {
     const id = nextId++;

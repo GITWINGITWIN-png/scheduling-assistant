@@ -26,13 +26,13 @@ class QuotaReading(Base):
 
 
 class Job(Base):
-    """jobs · คิวงานเบื้องหลัง (2.2, 3.2, B5): one piece of work the secretary does in a project
-    while you're away: the next step in the project's PROGRESS.md, or what you asked with ทำต่อ.
+    """jobs: the background work queue (2.2, 3.2, B5): one piece of work the secretary does in a project
+    while you're away: the next step in the project's PROGRESS.md, or what you asked with Continue.
 
-    status: queued (waiting for its plan) · asking (the plan waits for you in #อนุมัติ) · ready
-      (may start: the rules allow it, or you approved it) · running · done · stopped (over budget,
-      going round in circles, or you stopped it) · failed · rejected (you said ไม่เอา) · dropped
-      (you took it out of the queue) · paused (the project was switched off or hidden; it comes
+    status: queued (waiting for its plan); asking (the plan waits for you in #approvals); ready
+      (may start: the rules allow it, or you approved it); running; done; stopped (over budget,
+      going round in circles, or you stopped it); failed; rejected (you said No); dropped
+      (you took it out of the queue); paused (the project was switched off or hidden; it comes
       back with the project)
     """
 
@@ -42,8 +42,8 @@ class Job(Base):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
     project: Mapped[str] = mapped_column(String(200))
     source: Mapped[str] = mapped_column(String(10), default="progress")  # progress · you
-    stuck_at: Mapped[str] = mapped_column(Text, default="")  # ค้างที่: the step in PROGRESS.md
-    note: Mapped[str] = mapped_column(Text, default="")  # what you added with ทำต่อ, or asked to change
+    stuck_at: Mapped[str] = mapped_column(Text, default="")  # Paused at: the step in PROGRESS.md
+    note: Mapped[str] = mapped_column(Text, default="")  # what you added with continue, or asked to change
     status: Mapped[str] = mapped_column(String(10), default="queued", index=True)
     # the plan (B5.6)
     title: Mapped[str] = mapped_column(Text, default="")

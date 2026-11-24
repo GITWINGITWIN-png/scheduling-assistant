@@ -3,12 +3,12 @@ suggest, the group an idea would join, and the outbox the popup writes when the 
 running.
 
 Tags without a model (the user's choice at the B6 plan, until OmniRoute is connected):
-1. the #tags you type: "#backtest ข้ามตลาด" -> backtest;
+1. the #tags you type: "#backtest across markets" -> backtest;
 2. the projects it names, as registered on the projects page: "feed research-lab" -> research-lab;
-3. the tags you already use that appear in it: once "เสียง" is a tag, "...เป็นเสียงตอนเปิดคอม" gets it.
+3. the tags you already use that appear in it: once "sound" is a tag, "...is the sound when the computer turns on" gets it.
 
 Thai is written without spaces between words, so (2) and (3) look for the word anywhere in the
-text. A latin word must stand on its own, so "art" isn't found inside "start". Case, "-", "_" and
+text. A Latin word must stand on its own, so "art" isn't found inside "start". Case, "-", "_" and
 spaces don't matter: "My_Secretary", "my-secretary" and "my secretary" are the same project.
 """
 
@@ -136,7 +136,7 @@ def group_preview(tags: list[str], *, joining: bool = True) -> dict | None:
 # ------------------------------------------------------------------ adding, changing, removing
 def add(text: str, *, source: str, source_ref: str = "", tags: list[str] | None = None,
         at: datetime | None = None) -> dict:
-    """Keep one idea. tags=None (a #ไอเดีย message: there was nothing to choose from): the #tags
+    """Keep one idea. tags=None (a #Ideas message: there was nothing to choose from): the #tags
     you typed, and the next round adds what the rules find after them. A list (the popup, the
     page: you saw the suggestions) is final: what you kept, plus what you typed.
     -> {"id", "tags", "group"} (the group it will join at the next round)."""

@@ -1,4 +1,4 @@
-// W10 ตั้งค่า: models and effort per task, the secretary's clock, notification sounds, channels.
+// W10 Settings: models and effort per task, the secretary's clock, notification sounds, channels.
 // Parts that arrive in later phases are shown greyed with their phase, as agreed in stage 2.
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
@@ -36,7 +36,7 @@ function Row({ icon, title, sub, side, dim = false }: { icon: IconName; title: s
 export function Settings() {
   const [s, setS] = useState<S | null>(null);
   const [note, setNote] = useState("");
-  const rules = useScheduleRules(); // shared by กติกาตาราง and เตือนก่อนถึงกำหนด
+  const rules = useScheduleRules(); // shared by Schedule rules and Remind before due
   const load = useCallback(() => { api.settings().then(setS, (e) => setNote((e as Error).message)); }, []);
   useEffect(load, [load]);
   // /settings#rules and #mail (links from the schedule and people pages) scroll to their card

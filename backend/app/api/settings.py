@@ -65,7 +65,7 @@ def get_settings() -> dict:
         # on each (the mail settings card that listed them moved here, W10)
         "google": [{**g, "address": watch.address_of(g["id"])} for g in google.status()],
         "services": services(),
-        # B5: the rule "งานเบื้องหลังทำเองได้เมื่อโควตาเหลือเกิน 70%" (W10's อนุมัติเอง; changed in the rule book)
+        # B5: the rule "background tasks may run by themselves when the quota is above 70% left" (W10's self-approval; changed in the rule book)
         "jobs_rule": {"auto": rules_book.auto(), "line": rules_book.line(), "approval_days": APPROVAL_DAYS},
     }
 
@@ -117,9 +117,9 @@ def status() -> dict:
     whether the backend code on disk is newer than the running one (restart banner), and the
     side menu's counts (the plan's W screens: the red number next to a page).
 
-    counts.people: today's เรื่องสำคัญ (mail from important people, or matching a keyword), the
+    counts.people: today's important matters (mail from important people, or matching a keyword), the
     same count as the today page and the morning brief (briefs/day.py); the user's reading of
-    the plan's "คนและอีเมล 2", 2026-11-06. counts.decisions: what waits for you (วันนี้ 3)."""
+    the plan's "People and email 2", 2026-11-06. counts.decisions: what waits for you (today 3)."""
     ask_orders.expire_old()  # yesterday's unanswered orders don't count (B9)
     with session() as s:
         pending = s.scalar(select(func.count()).select_from(Decision).where(Decision.status == "pending")) or 0
@@ -135,8 +135,8 @@ def status() -> dict:
 
 
 def work_counts() -> dict:
-    """counts.jobs: background plans waiting for you (red, W4) · counts.projects: projects on the go
-    (grey, W3: กำลังทำ and รันอัตโนมัติ, not hidden)."""
+    """counts.jobs: background plans waiting for you (red, W4). counts.projects: projects on the go
+    (grey, W3: In progress and Runs automatically, not hidden)."""
     from app.features.jobs.tables import Job
     from app.features.projects.tables import Project
 
@@ -150,7 +150,7 @@ def work_counts() -> dict:
 @router.get("/decisions")
 def decisions(status: str = "pending") -> dict:
     """What waits for you (the bell and the today page): plans (B1), appointments from email (B2),
-    Classroom courses (B3), orders that wait for ทำเลย (B9). An appointment says what else is at
+    Classroom courses (B3), orders that wait for Do it now (B9). An appointment says what else is at
     that time (clash: "" = nothing)."""
     ask_orders.expire_old()
     with session() as s:

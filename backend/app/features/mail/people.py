@@ -1,11 +1,11 @@
 """The people registry (feature 1.2): who someone is and which of the 3 levels they're at.
 
 Rules agreed in stage 1:
-- someone writing for the first time starts as interested (สนใจ)
-- you make someone important (สำคัญ), usually for a while ("3 months for project A"),
+- someone writing for the first time starts as interested (interested)
+- you make someone important (important), usually for a while ("3 months for project A"),
   even before they ever write; when the time is up you decide again (W2 now, the
   weekly review from B7)
-- a level change is always recorded in the action log with ย้อนกลับ
+- a level change is always recorded in the action log with undo
 """
 
 from datetime import datetime, timedelta
@@ -59,7 +59,7 @@ def set_level(person_id: int, level: str, *, days: int | None = None, note: str 
 
     days: how long an important level lasts (None = no end date). note: your reason for
     making them important. reason: why they were demoted (kept for the weekly review).
-    Deciding again clears the old note, as agreed ("ตัดสินแล้วลบ").
+    Deciding again clears the old note, as agreed ("decided, so delete").
     """
     if level not in LEVELS:
         raise ValueError(f"unknown level {level!r}")

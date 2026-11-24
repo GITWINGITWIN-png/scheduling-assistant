@@ -1,4 +1,4 @@
-"""B6's ideas store: the tag rules (no model), the doors (popup, page, #ไอเดีย) and the popup's outbox."""
+"""B6's ideas store: the tag rules (no model), the doors (popup, page, #ideas) and the popup's outbox."""
 
 import asyncio
 import json
@@ -28,7 +28,7 @@ def _empty():
 
 # ------------------------------------------------------------------ the tag rules
 def test_hashtags_keep_thai_vowels_and_skip_urls_and_code_names():
-    # Thai vowel and tone marks aren't \w in Python: a plain \w+ would cut #เสียง to #เส
+    # Thai vowel and tone marks aren't \w in Python: a plain \w+ would cut #sound to #s
     assert store.hashtags("ให้เลขาอ่านเป็น #เสียง และ #เลขา ด้วย") == ["เสียง", "เลขา"]
     assert store.hashtags("#Backtest ข้ามตลาด #backtest.") == ["backtest"]
     assert store.hashtags("ดู https://x.com/page#part และ app/#/route หรือ C# ก็ได้") == []
@@ -174,7 +174,7 @@ def test_a_grown_group_is_asked_once_and_not_yet_asks_again_after_two_more(proje
     store.add("หนึ่ง #podcast", source="web")
     assert "กลุ่มที่โตพอ" not in (_round() or "")
     store.add("สอง #podcast", source="web")
-    assert "กลุ่มที่โตพอ 1" in _round()  # grown by AGAIN_AFTER since "ยังก่อน"
+    assert "กลุ่มที่โตพอ 1" in _round()  # grown by AGAIN_AFTER since "not yet"
 
 
 def test_make_it_a_task_and_undo(projects):

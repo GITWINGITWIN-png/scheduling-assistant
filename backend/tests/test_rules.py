@@ -50,7 +50,7 @@ def test_a_standing_rule_lets_a_low_risk_plan_start_below_the_line():
 
 def test_the_70_percent_line():
     assert check(risks=[], week_left=71, at=AT).go
-    assert not check(risks=[], week_left=70, at=AT).go  # "เกิน 70%": exactly 70 asks
+    assert not check(risks=[], week_left=70, at=AT).go  # "over 70%": exactly 70 asks
     assert check(risks=[], week_left=50, at=AT).why == "โควตาเหลือ 50% ไม่เกินเส้น 70%"
     assert not check(risks=[], week_left=75, at=AT, line=80).go
     off = check(risks=[], week_left=95, at=AT, auto=False)

@@ -15,8 +15,8 @@ PONYTAIL_DEFAULT_MODE=full). No MCP servers, no subagents. The model and effort 
 
 The guard (guard.py) answers every permission question. The run stops by itself (interrupt)
 past its budget, when the same call repeats (going round in circles), at the end of the night
-window (06:00) or MAX_MINUTES, or when you press หยุด. Whatever it stopped at, its changes are
-committed on the branch ("งานค้าง") so nothing is lost.
+window (06:00) or MAX_MINUTES, or when you press Stop. Whatever it stopped at, its changes are
+committed on the branch ("Unfinished work") so nothing is lost.
 
 Before a job starts it is checked again: the project still open to the secretary, the step in
 PROGRESS.md where the job starts the same (else it's planned again), the rules
@@ -25,8 +25,8 @@ the 5-hour window not nearly spent (FIVE_HOUR_FLOOR), and the secretary's branch
 your folder. One job at a time. Its tokens are counted as Claude writes them (the stream's own
 events); a job that still ends a little over says so.
 
-The "jobs" round (01:00–06:00, every 15 minutes, starts switched off): start the first ready
-job, or else plan the first queued one. ทำเลย starts a ready job at any time.
+The "jobs" round (01:00-06:00, every 15 minutes, starts switched off): start the first ready
+job, or else plan the first queued one. Run now starts a ready job at any time.
 
 (Claude Code's own bash sandbox would add a layer, but on this machine it switches itself off,
 socat missing, and then runs unsandboxed: checked 2026-11-06. So it isn't used.)
@@ -224,7 +224,7 @@ async def start(job_id: int, *, night: bool = False, via: tuple[str, str] = ("�
 
 
 def stop(job_id: int) -> None:
-    """หยุด: the run stops at its next look (within seconds), and keeps what it did."""
+    """Stop: the run stops at its next look (within seconds), and keeps what it did."""
     run = RUNNING.get(job_id)
     if run is None:
         raise RunError("งานนี้ไม่ได้กำลังทำ")

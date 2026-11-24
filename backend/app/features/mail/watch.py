@@ -6,9 +6,9 @@ Each run, per connected account:
    interested, except when their first email sits in Gmail's Promotions, Social or Forums
    tab: those start as ignored (subjects skimmed at 00:00), so newsletters don't use the
    rounds' tokens. You can raise anyone on the people page.
-3. flag what can't wait: someone important · a reply on a thread where you were waiting
-   for them · a watched keyword in the subject or the first lines (not from someone
-   ignored: "ด่วน! ลดราคา" from a shop shouldn't reach #ด่วน)
+3. flag what can't wait: someone important; a reply on a thread where you were waiting
+   for them; a watched keyword in the subject or the first lines (not from someone
+   ignored: "Urgent! Price drop" from a shop shouldn't reach #urgent)
 4. read the flagged ones in full right away with the model; everything else waits for
    the 00:00 / 12:00 rounds (rounds.py), which is what keeps the token use low
 
@@ -18,7 +18,7 @@ follow-ups start with something. Mail from the last 15 minutes (FRESH) is the ex
 it is handled like any new mail, because the first run happens up to 5 minutes after you
 switch the watch on or connect an account, and what arrives in between is new to you.
 
-Features hook into AFTER_READ (appointments and tasks from the email, the #ด่วน card),
+Features hook into AFTER_READ (appointments and tasks from the email, the #urgent card),
 so this file only decides *what* to read.
 """
 

@@ -1,11 +1,11 @@
-"""The ย้อนกลับ button in Discord, for anything in the action log that can be undone (D7, item 7).
+"""The Undo button in Discord, for anything in the action log that can be undone (D7, item 7).
 
-Any feature that tells you "เลขาทำเองแล้ว" attaches `UndoButton(action_id)`.
+Any feature that tells you "the secretary has already done it" attaches `UndoButton(action_id)`.
 Pressing it calls core.actions.undo(), the same undo as the log page's button.
 
 A feature can also say what the message should show after an undo with
 `after_undo[kind] = fn`. For example, a plan reopened by undo shows its
-ใช้แผนนี้ · แก้ · ไม่เอา buttons again.
+Use this plan, Edit or No thanks buttons again.
 """
 
 from collections.abc import Awaitable, Callable

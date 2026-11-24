@@ -1,8 +1,8 @@
-"""เชื่อมโปรเจคกับเลขา (B10, feature 2.5): a note in each project that tells Claude Code working
+"""Connect projects to the secretary (B10, feature 2.5): a note in each project that tells Claude Code working
 there to send its progress to the secretary, with the `secretary-news` command
 (desktop/secretary_news.py, which writes docs/CONNECT.md's JSON into the inbox).
 
-Where the note goes, and why (the user's answer: "ให้ไปเขียนในโปรเจคอื่นๆ"):
+Where the note goes, and why (the user's answer: "Write it in the other projects"):
 - The project's CLAUDE.local.md. Claude Code reads it in the folder it starts in and in every folder
   above, so a session started in a subfolder (job-search/ai-job-search) reads it too.
 - CLAUDE.local.md is for personal notes that aren't committed, which this one is: the inbox exists
@@ -171,7 +171,7 @@ def _record(kind: str, summary: str, target: str, via: Via, undo: dict) -> int:
 
 
 def connect_all(via: Via = ("หน้าโปรเจค", ""), root: Path | None = None) -> tuple[list[str], list[str], int | None]:
-    """เชื่อมทุกโปรเจค: the note in every project under ~/Projects that can have one (rewritten where
+    """Connect all projects: the note in every project under ~/Projects that can have one (rewritten where
     it changed). A folder that can't be written to is skipped and said, and the rest still goes ahead.
     -> (the projects written to, "name: why" for the ones skipped, the action id or None)."""
     root = (root or get_config().projects_dir).resolve()

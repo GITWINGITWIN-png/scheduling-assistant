@@ -2,9 +2,9 @@
 
 A job comes from one of two places (the user's answers at the B5 plan):
 
-- the next unchecked step in the PROGRESS.md of a project you switched to "ให้เลขาทำต่อได้"
+- the next unchecked step in the PROGRESS.md of a project you switched to "let the secretary continue"
   (where a project is stuck comes from its PROGRESS.md only);
-- ทำต่อ, which you press for such a project, with a note on what to do if you like.
+- Continue, which you press for such a project, with a note on what to do if you like.
 
 One open job per project at a time. The queue is in the order the projects matter: potential
 S first, then urgency 5 first, then the oldest. The next step is read where the next job starts
@@ -12,8 +12,8 @@ S first, then urgency 5 first, then the oldest. The next step is read where the 
 did there isn't the next step anymore.
 
 A step is taken up by itself once: when its job ended (done but not merged yet, stopped,
-failed) or you said no (ไม่เอา, or took it out of the queue), the queue doesn't bring the same
-step back every night; ทำต่อ always can. A project that leaves the gate (switched off, hidden,
+failed) or you said no (No, or took it out of the queue), the queue doesn't bring the same
+step back every night; Continue always can. A project that leaves the gate (switched off, hidden,
 gone, finished) pauses its waiting job, and the job comes back when the project does.
 """
 
@@ -100,7 +100,7 @@ def refresh(at: datetime | None = None) -> list[int]:
 
 
 def add(project_id: int, note: str = "", *, via: Via = ("หน้างานเบื้องหลัง", "")) -> tuple[int, int]:
-    """ทำต่อ: a job for this project now (its next step, and your note). -> (job id, action id)."""
+    """Continue: a job for this project now (its next step, and your note). -> (job id, action id)."""
     with session() as s:
         p = s.get(Project, project_id)
         if why := blocked(p):

@@ -12,7 +12,7 @@ last one ended and replaces that stretch. Reading twice never counts anything tw
 fails (ActivityWatch off, paused, not installed) changes nothing, and the next one catches up,
 up to BACKFILL back.
 
-A read leaves no line in สิ่งที่เลขาทำ (it runs 96 times a day). The time page shows when it last
+A read leaves no line in the secretary's action log (it runs 96 times a day). The time page shows when it last
 read, and why it couldn't.
 """
 

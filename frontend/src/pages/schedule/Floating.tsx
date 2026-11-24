@@ -1,7 +1,7 @@
 // Floating, modelled on Google Calendar: a card that opens next to where you clicked (the
 // quick-create card and the event card), in the middle of the screen when there is no click to
 // sit next to, and as a sheet along the bottom on a phone. A click outside it or Esc closes it.
-// (The "บันทึกแล้ว · เลิกทำ" bar is components/Toast.tsx, shared with the other pages.)
+// (The "Saved, Undo" bar is components/Toast.tsx, shared with the other pages.)
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useDismiss } from "../../components/popover";
 
@@ -18,7 +18,7 @@ export function Floating({ anchor, onClose, children, width = 400 }: {
   useDismiss(ref, true, onClose);
 
   // Place it beside the click (right of it, or left when there's no room), kept inside the
-  // window. It is measured again whenever its height changes (switching กิจกรรม/งาน).
+  // window. It is measured again whenever its height changes (switching event/task).
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;

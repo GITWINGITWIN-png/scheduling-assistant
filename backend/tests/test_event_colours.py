@@ -1,5 +1,5 @@
 """Event colours: a colour you give an event in Google Calendar shows on the today and schedule
-pages (instead of the red of นัด), and recolouring many events is one action whose undo gives each
+pages (instead of the red of appointments), and recolouring many events is one action whose undo gives each
 one its old colour back. Google is faked: nothing here reaches it."""
 
 import asyncio

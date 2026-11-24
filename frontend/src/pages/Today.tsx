@@ -1,7 +1,7 @@
-// W1 วันนี้ (B4), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w1): the morning's
-// numbers (the same line as the brief in #สรุป, with the brief in full behind a link), the day as
-// rows (แผน · ทำจริง · เลขา, with the background work in purple), what waits for you, the background
-// work, today's important mail and the projects' news. The ทำจริง row is ActivityWatch's (B6), through the filter.
+// W1 Today (B4), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w1): the morning's
+// numbers (the same line as the brief in #summary, with the brief in full behind a link), the day as
+// rows (Plan / Actual / Secretary, with the background work in purple), what waits for you, the background
+// work, today's important mail and the projects' news. The Actual row is ActivityWatch's (B6), through the filter.
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Link } from "react-router";
 import { api, type BriefView, type Decision, type DayItem, type RoundMark, type TodayPage } from "../api";
@@ -118,7 +118,7 @@ function DayRows({ plan, secretary, runs, hours, actual, recording }: {
   );
 }
 
-// ------------------------------------------------------------------ งานเบื้องหลัง · ข่าวโปรเจค (W1 ⑥ ⑦, B5)
+// ------------------------------------------------------------------ Background work / Project news (W1 ⑥ ⑦, B5)
 const QUEUE_WORDS: Record<string, string> = { queued: "รอวางแผน", asking: "รอคุณอนุมัติ", ready: "รอคิว" };
 
 function Background({ jobs }: { jobs: TodayPage["jobs"] }) {

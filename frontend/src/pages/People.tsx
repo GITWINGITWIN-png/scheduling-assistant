@@ -1,4 +1,4 @@
-// W2 คนและอีเมล: the people registry by level, what each person sent (one line each, and what the
+// W2 People and email: the people registry by level, what each person sent (one line each, and what the
 // secretary did about it), follow-ups, and setting someone important ahead of time. The mail
 // settings (keywords, interests, reminder days) are on the settings page.
 import { useCallback, useEffect, useState } from "react";
@@ -105,7 +105,7 @@ export function People() {
   );
 }
 
-/** ข้อเสนอปรับระดับรายสัปดาห์ (1.4, B7): renew or let end an important person, raise an ignored
+/** Weekly level-change proposals (1.4, B7): renew or let end an important person, raise an ignored
  *  sender whose subjects match your interests. Interested → ignored is never proposed (you do it here). */
 function ProposalsCard({ onChange }: { onChange: () => void }) {
   const [data, setData] = useState<Proposals | null>(null);

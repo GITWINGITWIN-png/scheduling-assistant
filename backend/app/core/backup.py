@@ -5,7 +5,7 @@ latest changes may still sit in secretary.db-wal, and the bot or the web page
 may be writing at that moment. `Connection.backup()` reads a consistent
 snapshot through SQLite itself. A plain file copy can capture half a write.
 
-Restoring: docs/setup/always-on.md ("กู้คืนจากไฟล์สำรอง").
+Restoring: docs/setup/always-on.md ("Restoring from a backup").
 """
 
 import asyncio

@@ -1,5 +1,5 @@
 """B6's time page (W7): what you did on this computer, from ActivityWatch through the privacy filter,
-and the privacy card (W7 ④ ⑤): the recording switch, หยุดบันทึก, and the blocklist."""
+and the privacy card (W7 ④ ⑤): the recording switch, Stop recording, and the blocklist."""
 
 import asyncio
 
@@ -22,7 +22,7 @@ def privacy_card() -> dict:
 
 
 @router.get("/time")
-def time_page(range: str = "week") -> dict:  # noqa: A002  (the page's word: วันนี้ · สัปดาห์นี้ · เดือนนี้)
+def time_page(range: str = "week") -> dict:  # noqa: A002  (the page's word: today, this week, this month)
     if range not in ("today", "week", "month"):
         raise HTTPException(422, "range ต้องเป็น today, week หรือ month")
     return {"privacy": privacy_card(), **insights.page(range, now()), "rules": categorize.yours()}
@@ -37,7 +37,7 @@ class CategoryIn(Strict):
 
 @router.post("/time/categories")
 def add_category(body: CategoryIn) -> dict:
-    """จัดหมวด from อื่นๆ: a rule of yours, and everything kept is sorted again."""
+    """Categorise from Other: a rule of yours, and everything kept is sorted again."""
     try:
         return {"action_id": categorize.add_rule(body.field, body.match, body.category, body.project)}
     except ValueError as exc:

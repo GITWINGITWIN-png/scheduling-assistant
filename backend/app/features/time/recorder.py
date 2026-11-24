@@ -5,11 +5,11 @@ The time page's switch and pause button drive it from here:
 - on: write awatcher's config from the blocklist, then `systemctl --user enable --now awatcher`,
   and switch the secretary's "activity" round on (it reads ActivityWatch every 15 minutes);
 - off: the round off, and `disable --now`, so nothing is recorded, also after a restart;
-- pause (หยุดบันทึก 1 ชั่วโมง): stop awatcher now, and let a one-off systemd timer start it again
+- pause (stop recording for 1 hour): stop awatcher now, and let a one-off systemd timer start it again
   when the pause ends. The timer still fires if the secretary isn't running. The pause is also
   written down, so whatever was recorded during it is never kept (privacy.cut_pauses).
 
-Every switch is in สิ่งที่เลขาทำ. Recording starts off: you switch it on (the rule for every
+Every switch is in the secretary's action log. Recording starts off: you switch it on (the rule for every
 new round).
 """
 
@@ -98,7 +98,7 @@ def _cancel_resume() -> None:
 
 
 def set_on(on: bool, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> int:
-    """The time page's บันทึกกิจกรรม switch. -> action id."""
+    """The time page's record activity switch. -> action id."""
     if on and not installed():
         raise RecorderError("ยังไม่ได้ติดตั้ง ActivityWatch · ดู docs/setup/ideas-and-time.md")
     was = {"recorder": enabled() if installed() else False, "round": clock.enabled("activity")}
@@ -146,7 +146,7 @@ def pause(minutes: int = 60, *, via: tuple[str, str] = ("หน้าเว็�
 
 
 def resume(*, via: tuple[str, str] = ("หน้าเว็บ", "")) -> int:
-    """บันทึกต่อเลย: end the pause now."""
+    """Resume recording now: end the pause now."""
     privacy.end_pause(now())
     _cancel_resume()
     if installed() and enabled() and not running():

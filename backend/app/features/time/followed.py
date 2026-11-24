@@ -1,4 +1,4 @@
-"""เทียบแผนกับที่ทำจริง (3.1 with 4.1, B6): did you work in the blocks the planner set aside?
+"""Compare the plan with what you actually did (3.1 with 4.1, B6): did you work in the blocks the planner set aside?
 
 After every read of ActivityWatch, each block that has ended (and wasn't checked yet) gets one of:
 - done: at least HALF of the block on its task;
@@ -10,14 +10,14 @@ After every read of ActivityWatch, each block that has ended (and wasn't checked
   Nothing is decided, and it counts as done as before B6.
 
 What counts as "on its task", by rules:
-- a task of a project (B5's จองเวลา, an idea group made a task, the projects' inbox): time on that project;
-- a Classroom task: time sorted as เรียน; an email task: time on mail;
+- a task of a project (B5's time booking, an idea group made a task, the projects' inbox): time on that project;
+- a Classroom task: time sorted as Study; an email task: time on mail;
 - any task: a window whose title has a word of the task's title (latin words of 3+ letters
   standing alone, Thai words of 3+ characters).
 
 What it changes: the planner counts a missed block as only the minutes you worked on it, so the
 rest of the task's time goes back to it and the next plan books it again (schedule/sync.py).
-The evening review tells the missed ones, and offers ย้ายไปพรุ่งนี้ (Task.not_before).
+The evening review tells the missed ones, and offers Move to tomorrow (Task.not_before).
 """
 
 from __future__ import annotations
@@ -150,7 +150,7 @@ def counted_minutes(b: Block) -> int:
 
 
 def mark_done(block_id: int, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> int:
-    """นับว่าทำแล้ว: you did it away from what the rules could see. -> action id."""
+    """Count as done: you did it away from what the rules could see. -> action id."""
     with session() as s:
         b = s.get(Block, block_id)
         if b is None:
@@ -171,7 +171,7 @@ def tomorrow_start(at: datetime) -> datetime:
 
 
 def move_to_tomorrow(task_id: int, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> int:
-    """ย้ายไปพรุ่งนี้: the task's time is booked from tomorrow on. -> action id."""
+    """Move to tomorrow: the task's time is booked from tomorrow on. -> action id."""
     with session() as s:
         t = s.get(Task, task_id)
         if t is None or t.status != "open":
@@ -231,7 +231,7 @@ def part_of(hour: int) -> str:
 
 
 def patterns(at: datetime, weeks: int = 4) -> list[dict]:
-    """ข้อสังเกต (W5 ⑥): a part of a weekday where blocks were missed in 2 or more of the last weeks.
+    """Observation (W5 ⑥): a part of a weekday where blocks were missed in 2 or more of the last weeks.
     -> [{weekday, part, weeks, title, sub, avoided}] (avoided: a rule of yours already keeps it free)."""
     from app.core.rules import book
     from app.core.timefmt import local
@@ -256,7 +256,7 @@ def patterns(at: datetime, weeks: int = 4) -> list[dict]:
 
 
 def avoid_rule(weekday: int, part: str, *, via: tuple[str, str] = ("หน้าตาราง", "")) -> tuple[int, int]:
-    """"ไม่วางบล็อกงานบ่ายวันอังคาร": a rule of yours the planner follows (book.block_avoid).
+    """"No task blocks on Tuesday afternoon": a rule of yours the planner follows (book.block_avoid).
     -> (rule id, action id)."""
     from app.core.rules import book
 
@@ -270,7 +270,7 @@ def avoid_rule(weekday: int, part: str, *, via: tuple[str, str] = ("หน้า
 
 
 def focus_rule(start: str, end: str, *, via: tuple[str, str] = ("หน้าตาราง", "")) -> tuple[int, int]:
-    """"วางบล็อกงานช่วงโฟกัส 09:00–11:30 ก่อน": the planner fills these hours first each day.
+    """"Place focus-time task blocks 09:00 to 11:30 first": the planner fills these hours first each day.
     -> (rule id, action id). An older focus rule stays in the book; the newest one is used."""
     from datetime import time as _time
 

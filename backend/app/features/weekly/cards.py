@@ -1,8 +1,8 @@
-"""The weekly review in #สรุป (D4): the overview with "รับทุกเรื่องตามที่เสนอ", then one message per
+"""The weekly review in #summary (D4): the overview with "Accept everything as proposed", then one message per
 topic with its own buttons, and the idea groups waiting for you with theirs (B6's).
 
-A topic's message says why, จะทำอะไร, ทำยังไง and แค่ไหน (D4 ④). The people topic has a menu to change
-one person's choice before รับ (D4 ③). Answering a topic edits its message to say what was done; the
+A topic's message says why, what it will do, how, and how far (D4 ④). The people topic has a menu to change
+one person's choice before Accept (D4 ③). Answering a topic edits its message to say what was done; the
 same topics wait in the bell and on the today page, and an answer in either place settles the card.
 """
 
@@ -92,7 +92,7 @@ def _owner(interaction: discord.Interaction) -> bool:
 
 
 class AllButton(discord.ui.DynamicItem[discord.ui.Button], template=r"weekly:all:(?P<id>\d+)"):
-    """รับทุกเรื่องตามที่เสนอ (D4 ②)."""
+    """Accept everything as proposed (D4 ②)."""
 
     def __init__(self, brief_id: int) -> None:
         self.brief_id = brief_id
@@ -143,7 +143,7 @@ class WeeklyButton(discord.ui.DynamicItem[discord.ui.Button], template=r"weekly:
 
 
 class PeopleMenu(discord.ui.DynamicItem[discord.ui.Select], template=r"weeklyppl:(?P<id>\d+)"):
-    """D4 ③: change one person's choice ("ต่ออายุ อ.ธนา 1 เดือน") before รับ."""
+    """D4 ③: change one person's choice ("renew Ajarn Thana 1 month") before Accept."""
 
     def __init__(self, decision_id: int, items: list[dict] | None = None) -> None:
         self.decision_id = decision_id

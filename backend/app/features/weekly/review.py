@@ -1,15 +1,15 @@
-"""ทบทวนรายสัปดาห์ (D4, P3, B7): Sunday 19:00 in #สรุป, made with templates (no model, no tokens).
+"""Weekly review (D4, P3, B7): Sunday 19:00 in #summary, made with templates (no model, no tokens).
 
 1. The overview: the week in numbers (how much of the plan you followed against your target,
-   where your time went against last week) and "รับทุกเรื่องตามที่เสนอ".
+   where your time went against last week) and "Accept everything as proposed".
 2. One message per topic (topics.py), each a decision of kind "weekly" with its own buttons, so it
    also waits in the bell and on the today page. Idea groups waiting for you (B6) follow with
    their own buttons.
 
 Answering (`answer`) does what the topic says, through the parts that own it, so every change is
-in สิ่งที่เลขาทำ and can be undone there: a level change, a rule in the rule book, a task the
+in the secretary's action log and can be undone there: a level change, a rule in the rule book, a task the
 planner books. A topic nobody answers changes nothing; at the next review it's closed as expired.
-"รับทุกเรื่องตามที่เสนอ" answers every waiting topic of that review with its default, leaving
+"Accept everything as proposed" answers every waiting topic of that review with its default, leaving
 the idea groups (you choose) and anything that would spend tokens.
 
 The round runs on Sunday from 19:00; when the machine was off then, the clock's catch-up still
@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 TARGET_KEY = "schedule.follow_target"  # the schedule page's target (api/schedule.py), default 80
 SHORT_CAT = {"code": "โค้ด", "study": "เรียน", "meeting": "ประชุม", "chat": "อีเมลและแชท", "web": "เว็บและโซเชียล", "other": "อื่นๆ"}
 
-# Called with the brief id once a review is made: cards.py posts it to #สรุป.
+# Called with the brief id once a review is made: cards.py posts it to #summary.
 MADE: list[Callable[[int], Awaitable[None]]] = []
 
 Via = tuple[str, str]
@@ -108,7 +108,7 @@ def expire_old() -> list[int]:
 
 def make(at: datetime | None = None, *, again: bool = False) -> int | None:
     """Build this week's review: the brief and a decision per topic. -> the brief id, or None when
-    this week has one already. again=True (ส่งตอนนี้): the week's review is made again in place,
+    this week has one already. again=True (send now): the week's review is made again in place,
     the same brief with fresh topics; the old ones still waiting expire."""
     at = at or now()
     day = sunday(at - timedelta(days=1)) if local(at).weekday() == 0 and local(at).time() < time(12, 0) else sunday(at)
@@ -261,8 +261,8 @@ async def answer(decision_id: int, act: str, *, via: Via = ("หน้าเว�
 
 
 async def _summary_job(proposal: dict, via: Via) -> str:
-    """รับทั้งสองอย่าง: a background job that summarises where the project is stuck (B5's queue and
-    rules: planned by Opus now, so a plan that has to ask you is in #อนุมัติ at once)."""
+    """Accept both: a background job that summarises where the project is stuck (B5's queue and
+    rules: planned by Opus now, so a plan that has to ask you is in #approval at once)."""
     from app.features.jobs import plan as plans
     from app.features.jobs import queue
 
@@ -278,7 +278,7 @@ async def _summary_job(proposal: dict, via: Via) -> str:
 
 
 async def accept_all(brief_id: int, *, via: Via = ("#สรุป", "")) -> list[str]:
-    """รับทุกเรื่องตามที่เสนอ: every waiting topic of this review, with its default."""
+    """Accept everything as proposed: every waiting topic of this review, with its default."""
     out = []
     for d in of_brief(brief_id):
         default = d.detail.get("default")
@@ -291,7 +291,7 @@ async def accept_all(brief_id: int, *, via: Via = ("#สรุป", "")) -> list
 
 
 def choose_person(decision_id: int, person_id: int, choice: str) -> dict:
-    """The people topic's menu: change one person's choice before you press รับ. -> the topic's detail."""
+    """The people topic's menu: change one person's choice before you press Accept. -> the topic's detail."""
     d = _waiting(decision_id)
     items = d.detail["proposal"]["items"]
     for item in items:

@@ -1,19 +1,19 @@
 """Turn a time as people write it into a real date and time (no model, no tokens).
 
-    parse("พรุ่งนี้ 10 โมง", ref)        -> tomorrow 10:00
-    parse("บ่ายสอง วันศุกร์หน้า", ref)    -> Friday of next week, 14:00
-    parse("7 พ.ย. 2569 14.00 น.", ref)  -> 2026-11-07 14:00
+    parse("tomorrow 10 am", ref)        -> tomorrow 10:00
+    parse("2 pm next Friday", ref)      -> Friday of next week, 14:00
+    parse("7 Nov 2569 14.00 hrs", ref)  -> 2026-11-07 14:00
     parse("Nov 7 at 3pm", ref)          -> the next 7 November, 15:00
     parse("2026-11-07", ref)            -> that day, no time (an all-day entry)
 
 `ref` is when the email was sent: "tomorrow" means the day after the email, not
 the day the secretary reads it. Times are in your time zone.
 
-If no date can be worked out (only "สัปดาห์หน้า", say), it returns None instead of
+If no date can be worked out (only "next week", say), it returns None instead of
 guessing. A missing appointment is better than a wrong one in your calendar.
 
-Thai clock words follow everyday use: "10 โมง" = 10:00, "บ่าย 2" = 14:00,
-"4 โมงเย็น" = 16:00, "2 ทุ่ม" = 20:00, "ตี 2" = 02:00, "เที่ยงครึ่ง" = 12:30.
+Thai clock words follow everyday use: "10 in the morning" = 10:00, "afternoon 2" = 14:00,
+"4 in the evening" = 16:00, "8 at night" = 20:00, "2 am" = 02:00, "half past noon" = 12:30.
 Thai years (2569, or 69) are Buddhist Era and are converted (-543).
 """
 
@@ -33,7 +33,7 @@ class When:
 
 
 THAI_DIGITS = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
-THAI_NUMBERS = {  # longest first, so "สิบสอง" isn't read as "สิบ" + "สอง"
+THAI_NUMBERS = {  # longest first, so "twelve" isn't read as "ten" + "two"
     "สิบสอง": 12, "สิบเอ็ด": 11, "สิบ": 10, "เก้า": 9, "แปด": 8, "เจ็ด": 7, "หก": 6,
     "ห้า": 5, "สี่": 4, "สาม": 3, "สอง": 2, "หนึ่ง": 1,
 }
@@ -69,7 +69,7 @@ def _month_day(year: int | None, month: int, day: int, ref: date) -> date | None
 
 def _find_date(text: str, ref: date) -> tuple[date | None, str, bool]:
     """-> (the date, the text with the date removed so its numbers aren't read as a time,
-    whether a date was written at all: "31 ก.พ." is written but doesn't exist)."""
+    whether a date was written at all: "31 Feb" is written but doesn't exist)."""
     def cut(m: re.Match) -> str:
         return text[:m.start()] + " " + text[m.end():]
 
@@ -92,7 +92,7 @@ def _find_date(text: str, ref: date) -> tuple[date | None, str, bool]:
         for i, name in enumerate(names):
             if re.search(rf"(?<![a-z]){name}" if names is EN_DAYS else name, text):
                 ahead = (i - ref.weekday()) % 7
-                if nxt:  # "ศุกร์หน้า" / "next Friday": that day in the coming calendar week
+                if nxt:  # "next Friday" (in Thai) / "next Friday": that day in the coming calendar week
                     return ref + timedelta(days=7 - ref.weekday() + i), text, True
                 return ref + timedelta(days=ahead), text, True
     for words, days in ((("มะรืน", "day after tomorrow"), 2), (("พรุ่งนี้", "tomorrow"), 1),
@@ -122,7 +122,7 @@ def _find_time(text: str) -> time | None:
     if "เที่ยง" in text:
         return time(12, half)
     if m := re.search(r"บ่าย\s*(\d{1,2})?\s*(?:โมง)?", text):
-        n = int(m.group(1)) if m.group(1) else 1  # "บ่ายโมง" = 13:00
+        n = int(m.group(1)) if m.group(1) else 1  # "one in the afternoon" = 13:00
         return time(12 + n if n < 12 else n, half)
     if m := re.search(r"(\d{1,2})\s*โมงเย็น", text):
         n = int(m.group(1))
@@ -133,9 +133,9 @@ def _find_time(text: str) -> time | None:
         return time(int(m.group(1)) % 24, half)
     if m := re.search(r"(\d{1,2})\s*โมง(เช้า)?", text):
         n = int(m.group(1))
-        if m.group(2):  # "8 โมงเช้า" = 8:00; old style "สี่โมงเช้า" = 10:00
+        if m.group(2):  # "8 in the morning" = 8:00; old style "four in the morning" = 10:00
             return time(n if n >= 6 else n + 6, half)
-        return time(n if 7 <= n <= 12 else (n + 12) % 24, half)  # "10 โมง" = 10:00, "4 โมง" = 16:00
+        return time(n if 7 <= n <= 12 else (n + 12) % 24, half)  # "10 o'clock" = 10:00, "4 o'clock" = 16:00
     return None
 
 

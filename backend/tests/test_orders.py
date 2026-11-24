@@ -1,5 +1,5 @@
 """B9's orders in the chat: what each order does, that it can be undone, and what has to wait for
-ยืนยัน (no model here: the tools are called directly, and Opus is faked where it's needed)."""
+confirmation (no model here: the tools are called directly, and Opus is faked where it's needed)."""
 
 import asyncio
 
@@ -282,7 +282,7 @@ def test_one_order_stops_after_its_limit():
     call(ts, "add_idea", text="od-ไอเดีย 1")
     call(ts, "add_idea", text="od-ไอเดีย 2")
     stop = call(ts, "add_idea", text="od-ไอเดีย 3")
-    assert stop.startswith("ทำครบ 2 อย่าง") and "“ทำต่อ”" in stop  # in the chat, "ทำต่อ" carries on
+    assert stop.startswith("ทำครบ 2 อย่าง") and "“ทำต่อ”" in stop  # in the chat, "continue" carries on
     with session() as s:
         assert s.scalar(select(Idea).where(Idea.text == "od-ไอเดีย 3")) is None
         s.execute(delete(Idea).where(Idea.text.like("od-%")))
@@ -458,7 +458,7 @@ def test_a_long_list_keeps_to_discords_25_buttons_and_says_where_the_rest_are():
 def test_plans_keep_their_buttons_and_an_answer_from_opus_has_no_think_more_button():
     _, view = ask_discord.answer_card(_answer(kind="plan", decision_id=5, title="แผน"))
     assert [b.item.custom_id for b in view.children] == ["plan:5:approve", "plan:5:edit", "plan:5:reject"]
-    assert ask_discord.answer_card(_answer(kind="answer"))[1] is None  # Opus asked back: no "ให้ Opus คิดต่อ"
+    assert ask_discord.answer_card(_answer(kind="answer"))[1] is None  # Opus asked back: no "let Opus think it through"
     sonnet = ask.Answer("answer", "มี 2 นัด", "Sonnet", "low", 2.0, 900)
     assert [b.item.custom_id for b in ask_discord.answer_card(sonnet)[1].children] == ["ask:deep"]
     result = ask_discord.answer_card(_answer(decision_id=5, title="เตรียมสอบ"))[0]
@@ -633,7 +633,7 @@ def _buttons(view):
 
 @pytest.fixture
 def discord_up(monkeypatch):
-    """Discord connected, with #คุยกับเลขา giving back the cards posted in it: {discord id: card}."""
+    """Discord connected, with #talk-to-secretary giving back the cards posted in it: {discord id: card}."""
     cards: dict[int, FakeCard] = {}
 
     async def fetch_message(discord_id):
@@ -649,7 +649,7 @@ def discord_up(monkeypatch):
 
 
 def _posted(cards, card, answer):
-    """As if the bot had posted `answer` as `card` in #คุยกับเลขา."""
+    """As if the bot had posted `answer` as `card` in #talk-to-secretary."""
     with session() as s:
         row = Message(channel="chat", discord_id=900 + len(cards), kind=answer.kind, ref="", content=answer.text)
         s.add(row)
@@ -694,7 +694,7 @@ def test_a_discord_button_pressed_after_an_answer_elsewhere_says_what_happened(d
     assert _buttons(card.edits[-1]["view"]) == [("oundo:41", "ย้อนกลับ 1", False)]  # what was done stays undoable
 
     order = _replan_order(monkeypatch)
-    asyncio.run(orders.confirm(order, False, via=VIA))  # ไม่เอา on the web
+    asyncio.run(orders.confirm(order, False, via=VIA))  # "don't want" on the web
     card = FakeCard((f"order:{order}:yes", "ทำเลย A"), (f"order:{order}:no", "ไม่เอา A"))
     press = FakePress(card)
     asyncio.run(ask_discord.ConfirmButton(order, "yes").callback(press))

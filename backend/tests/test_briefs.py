@@ -221,7 +221,7 @@ def test_a_waiting_appointment_says_what_else_is_at_that_time():
         ids = (a.id, b.id)
     shown = {d["id"]: d for d in settings_api.decisions()["items"]}
     assert shown[ids[0]]["clash"] == "เรียน DSP"
-    assert shown[ids[1]]["clash"] == ""  # nothing else then: "ไม่ชนนัดอื่น"
+    assert shown[ids[1]]["clash"] == ""  # nothing else then: "no clash with other appointments"
 
 
 def test_answering_on_the_web_without_discord_leaves_the_card_alone():

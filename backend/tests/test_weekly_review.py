@@ -1,5 +1,5 @@
 """B7's weekly review (D4) and doing what was decided (agreed at the plan): which topics a week
-brings, what each answer changes, what "รับทุกเรื่อง" leaves alone, and that unanswered topics
+brings, what each answer changes, what "accept everything" leaves alone, and that unanswered topics
 change nothing."""
 
 import asyncio
@@ -112,7 +112,7 @@ def test_the_review_is_stored_once_a_week_and_an_old_topic_expires_unchanged(wee
         assert "เวลา: โค้ด" in b.headline
     waiting = review.of_brief(brief_id)
     assert waiting and all(d.status == "pending" for d in waiting)
-    again = review.make(SUNDAY, again=True)  # ส่งตอนนี้ again: the same review, fresh topics; the old ones expire
+    again = review.make(SUNDAY, again=True)  # send now again: the same review, fresh topics; the old ones expire
     assert again == brief_id
     fresh = review.of_brief(brief_id)
     assert fresh and not {d.id for d in fresh} & {d.id for d in waiting}
@@ -142,7 +142,7 @@ def test_each_answer_does_what_its_topic_says(week):
     assert (lab_task.est_minutes, lab_task.block_minutes) == (360, 120)
     asyncio.run(review.answer(topics["people"].id, "reject"))
     with session() as s:
-        assert s.get(Person, ids["person"]).level == "important"  # ไม่เอา: nothing changed
+        assert s.get(Person, ids["person"]).level == "important"  # don't want: nothing changed
         assert s.get(Decision, topics["people"].id).status == "rejected"
     assert T.projects(SUNDAY) == [] or all(p["proposal"]["name"] != "wr-lab" for p in T.projects(SUNDAY))  # booked: not again
 

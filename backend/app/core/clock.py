@@ -1,4 +1,4 @@
-"""The secretary's clock (นาฬิกาเลขา): scheduled rounds, and catching up on missed ones.
+"""The secretary's clock: scheduled rounds, and catching up on missed ones.
 
 A *round* is one recurring job, such as "read the mail at 00:00" or "back up the
 database every night". The full list agreed in stage 1 is ROUNDS below. Each
@@ -36,8 +36,8 @@ from app.core.tables import Setting
 
 log = logging.getLogger(__name__)
 
-# The work a round does. It returns a short result for the log ("37 ฉบับ"), or None when
-# there is nothing to tell: then the run leaves no row in สิ่งที่เลขาทำ (the 5-minute rounds
+# The work a round does. It returns a short result for the log ("37 items"), or None when
+# there is nothing to tell: then the run leaves no row in what the secretary did (the 5-minute rounds
 # would otherwise write ~290 empty rows a day). Its last-run time is still saved and shown.
 Handler = Callable[[], Awaitable[str | None]]
 

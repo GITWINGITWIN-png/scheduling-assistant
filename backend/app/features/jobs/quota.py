@@ -45,7 +45,7 @@ def parse(raw: dict) -> dict | None:
 
 def observe(raw: dict) -> None:
     """core/llm.py hook: every RateLimitEvent the CLI sends. A new row when the numbers change;
-    the same numbers only move the newest row's time forward, so "อ่านเมื่อ" is the last time the
+    the same numbers only move the newest row's time forward, so "Read at" is the last time the
     CLI said so (it reports the week in whole percent: a few jobs can leave it where it was)."""
     numbers = parse(raw)
     if numbers is None:

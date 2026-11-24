@@ -1,6 +1,6 @@
 """Course materials → the course folder (U1, B3 step 7). Runs inside the Classroom round.
 
-For each followed course, the files attached to its material posts ("เนื้อหา"), its
+For each followed course, the files attached to its material posts ("เนื้อหา" (content)), its
 assignments and its announcements are downloaded into the course folder chosen when
 you followed it (e.g. ~/Projects/datacom/สื่อ). Google Docs/Slides/Sheets become PDFs.
 Links, YouTube videos and forms are kept as links on the item (the schedule page and,
@@ -8,7 +8,7 @@ from B4, the morning summary list them).
 
 A file is downloaded once: its Drive id is remembered on the item, so a re-run, a rename
 in Classroom or an undo never fetches it again. Each round's downloads are one line in
-สิ่งที่เลขาทำ, and its ย้อนกลับ deletes those files (the record that they were fetched
+สิ่งที่เลขาทำ (what the secretary did), and its ย้อนกลับ (undo) deletes those files (the record that they were fetched
 stays, so they don't come back).
 """
 

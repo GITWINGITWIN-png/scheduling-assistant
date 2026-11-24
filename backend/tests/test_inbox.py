@@ -1,5 +1,5 @@
 """B5's gate for other projects: JSON files in ~/.secretary/inbox become news, tasks and statuses;
-failures and questions from projects that matter go to #ด่วน at once."""
+failures and questions from projects that matter go to #urgent at once."""
 
 import asyncio
 import json

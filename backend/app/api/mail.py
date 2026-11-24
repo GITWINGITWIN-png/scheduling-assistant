@@ -71,7 +71,7 @@ class LevelIn(BaseModel):
 
 @router.post("/people/{person_id}/level")
 def set_level(person_id: int, body: LevelIn) -> dict:
-    """ต่ออายุ · ลด · ยกระดับ (recorded, undoable)."""
+    """Renew, Lower, Escalate (recorded, undoable)."""
     try:
         action_id = people.set_level(person_id, body.level, days=body.days, note=body.note, reason=body.reason)
     except ValueError as exc:
@@ -85,7 +85,7 @@ class NoteIn(BaseModel):
 
 @router.put("/people/{person_id}/note")
 def set_note(person_id: int, body: NoteIn) -> dict:
-    """แก้โน้ต: your reason for keeping them important. Only you read it; the secretary doesn't decide on it."""
+    """Edit note: your reason for keeping them important. Only you read it; the secretary doesn't decide on it."""
     with session() as s:
         p = s.get(Person, person_id)
         if p is None:
@@ -103,7 +103,7 @@ class NewPersonIn(BaseModel):
 
 @router.post("/people")
 def add_person(body: NewPersonIn) -> dict:
-    """Make someone important before they write ("อีเมลนี้สำคัญ รอเลย 3 เดือน")."""
+    """Make someone important before they write ("This email is important, wait 3 months")."""
     if "@" not in body.address:
         raise HTTPException(400, "ใส่อีเมลให้ถูกต้อง")
     person_id, action_id = people.add(body.address, body.name, days=body.days or None, note=body.note)
@@ -132,7 +132,7 @@ class FollowupIn(BaseModel):
 def answer_followup(followup_id: int, body: FollowupIn) -> dict:
     if body.act == "done":
         try:
-            followups.done(followup_id, via=("หน้าเว็บ", ""))  # recorded: ย้อนกลับ opens it again
+            followups.done(followup_id, via=("หน้าเว็บ", ""))  # recorded: undo opens it again
         except ValueError:
             pass  # already closed, or gone: nothing left to do
     elif body.act == "later":
@@ -149,10 +149,10 @@ class AppointmentIn(BaseModel):
 
 @router.post("/appointments/{decision_id}")
 async def answer_appointment(decision_id: int, body: AppointmentIn) -> dict:
-    """รับนัด (into the calendar, undoable) or ไม่ไป, for an appointment waiting in the bell / #อนุมัติ."""
+    """Accept (into the calendar, undoable) or Don't go, for an appointment waiting in the bell / #approve."""
     try:
         d, action_id = await extract.decide(decision_id, body.accept, via=("หน้าเว็บ", ""))
-        await decisions.settle_card(decision_id)  # its #อนุมัติ card says so too
+        await decisions.settle_card(decision_id)  # its #approvals card says so too
     except decisions.Answered as exc:  # answered already: the page shows how, in place of the buttons
         raise HTTPException(409, str(exc))
     except ValueError as exc:  # couldn't put it in the calendar: it still waits, press again
@@ -189,7 +189,7 @@ def put_mail_settings(body: MailSettingsIn) -> dict:
     return mail_settings()
 
 
-# ------------------------------------------------------------------ ข้อเสนอปรับระดับรายสัปดาห์ (1.4, B7)
+# ------------------------------------------------------------------ weekly level adjustment proposals (1.4, B7)
 # (not under /people/...: that would be read as /people/{person_id})
 @router.get("/proposals/people")
 def people_proposals() -> dict:

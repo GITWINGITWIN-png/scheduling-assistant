@@ -1,16 +1,16 @@
-"""Ask the secretary in #คุยกับเลขา on your Discord server (D7).
+"""Ask the secretary in #talk-with-secretary on your Discord server (D7).
 
 (Planned as a DM; moved into the server on 2026-11-05 so everything is in one place.)
 
-- You write in #คุยกับเลขา, and the answer comes back as a *reply* to your message,
+- You write in #talk-with-secretary, and the answer comes back as a *reply* to your message,
   with the model, effort, time and sources underneath.
-- "ให้ Opus คิดต่อ" under a quick answer: Opus answers the same question.
+- "Let Opus think it through" under a quick answer: Opus answers the same question.
   The button finds the question through the reply link, so it still works
   days later or after a restart.
-- A plan from Opus comes with ใช้แผนนี้ · แก้ · ไม่เอา. "แก้" opens a box
+- A plan from Opus comes with Use this plan / Edit / Decline. "Edit" opens a box
   where you type the change, and Opus rewrites the plan.
-- B9: an order Opus carried out lists what it did, with "ย้อนกลับ N" for each thing
-  (pressing one keeps the others), and "ทำเลย · ไม่เอา" for what can't be undone.
+- B9: an order Opus carried out lists what it did, with "Undo N" for each thing
+  (pressing one keeps the others), and "Do it now / Decline" for what can't be undone.
   A plan you approve is carried out, and its result is posted as a reply under the plan.
 - A plan or an order answered on the web edits its buttons here too, and a button
   pressed after it was answered elsewhere says what happened and stops looking live.
@@ -49,7 +49,7 @@ async def _history(message: discord.Message, limit: int = 6) -> list[tuple[str, 
 
 def _said(m: discord.Message) -> str:
     """What one of the secretary's messages says: its text and its card, with the card's lists
-    (เลขาทำแล้ว, รอคุณกดยืนยัน), which is where an order's answer says what it did."""
+    (Done by secretary, Waiting for you to confirm), which is where an order's answer says what it did."""
     card = m.embeds[0] if m.embeds else None
     parts = [m.content if not m.content.startswith("✨") else ""]  # ✨ is only the hand-off note
     if card is not None:
@@ -73,7 +73,7 @@ def answer_card(a: ask.Answer, deep_button: bool = True) -> tuple[discord.Embed,
 
 
 def _order_parts(card: discord.Embed, items: list[discord.ui.Item], a: ask.Answer) -> None:
-    """B9: what an order did (numbered, with ย้อนกลับ N) and what waits for ยืนยัน (A, B, ...)."""
+    """B9: what an order did (numbered, with Undo N) and what waits for confirmation (A, B, ...)."""
     if a.confirms:
         card.add_field(name="รอคุณกดยืนยัน (ย้อนกลับไม่ได้)", inline=False,
                        value="\n".join(f"{_letter(i)}. {c['title']}" for i, c in enumerate(a.confirms))[:1024])
@@ -115,7 +115,7 @@ def _rebuilt(message: discord.Message, pressed: dict[str, str]) -> discord.ui.Vi
 
 
 def _rest(message: discord.Message | None) -> discord.ui.View:
-    """The card's B9 buttons (ย้อนกลับ N, ทำเลย) without a plan's: for a plan that's answered."""
+    """The card's B9 buttons (Undo N, Do it now), without a plan's: for a plan that's answered."""
     return _rebuilt(message, {}) if message is not None else discord.ui.View(timeout=None)
 
 
@@ -163,7 +163,7 @@ async def _card(decision_id: int) -> discord.Message | None:
 
 
 async def _settle_order_card(decision_id: int, where: str) -> None:
-    """decisions.CARD_SETTLERS: ทำเลย / ไม่เอา answered on the web greys out the same buttons here."""
+    """decisions.CARD_SETTLERS: Do it now / Decline answered on the web greys out the same buttons here."""
     if (message := await _card(decision_id)) is not None and (pressed := _order_pressed(decision_id)):
         await message.edit(view=_rebuilt(message, pressed))
 
@@ -185,7 +185,7 @@ async def _settle_plan_card(decision_id: int, where: str) -> None:
 async def on_chat(message: discord.Message) -> None:
     if not message.content.strip():
         return
-    async with message.channel.typing():  # "เลขากำลังพิมพ์…" while Sonnet/Opus works
+    async with message.channel.typing():  # "secretary is typing…" while Sonnet/Opus works
         a = await ask.ask(message.content, await _history(message), via=_via(message))
     card, view = answer_card(a)
     handed = a.kind in ("plan", "done") or a.model == "Opus"
@@ -203,7 +203,7 @@ async def _owner_only(interaction: discord.Interaction) -> bool:
 
 
 class DeepButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ask:deep"):
-    """ให้ Opus คิดต่อ."""
+    """Let Opus think it through."""
 
     def __init__(self) -> None:
         super().__init__(discord.ui.Button(label="ให้ Opus คิดต่อ", style=discord.ButtonStyle.secondary, custom_id="ask:deep"))
@@ -257,7 +257,7 @@ class PlanButton(discord.ui.DynamicItem[discord.ui.Button], template=r"plan:(?P<
         except ask.DecisionError as exc:  # answered already (on the web, say): the card says how, without its buttons
             await interaction.response.edit_message(content=str(exc), view=_rest(interaction.message))
             return
-        if self.act == "approve":  # B9: it is being carried out; each thing it does comes with its own ย้อนกลับ
+        if self.act == "approve":  # B9: it is being carried out; each thing it does comes with its own undo
             await interaction.response.edit_message(content="✅ ใช้แผนนี้แล้ว · เลขากำลังลงมือทำตามแผน ผลจะตอบใต้แผนนี้",
                                                     view=_rest(interaction.message))
             return
@@ -291,7 +291,7 @@ class EditPlanModal(discord.ui.Modal, title="แก้แผน"):
 
 
 class OrderUndoButton(discord.ui.DynamicItem[discord.ui.Button], template=r"oundo:(?P<id>\d+)"):
-    """ย้อนกลับ N under what an order did: undoes that one thing, and the other buttons stay."""
+    """Undo N under what an order did: undoes that one thing, and the other buttons stay."""
 
     def __init__(self, action_id: int, label: str = "ย้อนกลับ") -> None:
         self.action_id = action_id
@@ -317,7 +317,7 @@ class OrderUndoButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ound
 
 
 class ConfirmButton(discord.ui.DynamicItem[discord.ui.Button], template=r"order:(?P<id>\d+):(?P<yes>yes|no)"):
-    """ทำเลย · ไม่เอา for an order that can't be undone (B9): only this press carries it out."""
+    """Do it now / Decline for an order that can't be undone (B9): only this press carries it out."""
 
     def __init__(self, decision_id: int, yes: str, label: str = "") -> None:
         self.decision_id, self.yes = decision_id, yes
@@ -348,7 +348,7 @@ class ConfirmButton(discord.ui.DynamicItem[discord.ui.Button], template=r"order:
 
 async def post_plan_result(decision_id: int, a: ask.Answer) -> None:
     """ask.CARRIED_OUT hook: the result of a plan you approved, as a reply under the plan (or in
-    #คุยกับเลขา when the plan was made on the web), with ย้อนกลับ for each thing it did."""
+    #talk-with-secretary when the plan was made on the web), with Undo for each thing it did."""
     if not dc.configured() or not dc.bot.ready_event.is_set() or dc.bot.is_closed():
         return
     with session() as s:
@@ -368,7 +368,7 @@ async def post_plan_result(decision_id: int, a: ask.Answer) -> None:
 
 
 def _via(message: discord.Message | None) -> ask.Via:
-    """"ที่มา" for the action log: a link straight back to the Discord message."""
+    """"Source" for the action log: a link straight back to the Discord message."""
     return ("#คุยกับเลขา", message.jump_url if message else "")
 
 

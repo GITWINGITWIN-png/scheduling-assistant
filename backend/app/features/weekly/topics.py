@@ -4,7 +4,7 @@ as decisions and answers them.
 
 A topic says, as the mockup asks for (D4 ④): why (`why`), what the secretary would do (`what`),
 how (`how`), and how far it goes (`extent`: time, tokens, what it won't touch). Its buttons are
-`acts`; `default` is what "รับทุกเรื่องตามที่เสนอ" does with it (None: you choose yourself).
+`acts`; `default` is what "รับทุกเรื่องตามที่เสนอ" (accept everything as proposed) does with it (None: you choose yourself).
 
 - people: the weekly people proposals (mail/review.py, 1.4);
 - schedule: your focus hours first, and a weekday's part that keeps being missed kept free (both

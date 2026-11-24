@@ -44,7 +44,7 @@ def show(text: str, ref: datetime = REF) -> str | None:
     ("มะรืนนี้ 10 โมงครึ่ง", "2026-11-07 10:30"),
     ("คืนนี้ 2 ทุ่ม", "2026-11-05 20:00"),
     ("ตี 2 พรุ่งนี้", "2026-11-06 02:00"),
-    # weekdays: this week's, or next week's with หน้า / next
+    # weekdays: this week's, or next week's with the Thai word for next / next
     ("วันจันทร์ 9:00", "2026-11-09 09:00"),
     ("วันศุกร์ 10 โมง", "2026-11-06 10:00"),
     ("บ่ายสอง วันศุกร์หน้า", "2026-11-13 14:00"),
@@ -56,7 +56,7 @@ def show(text: str, ref: datetime = REF) -> str | None:
     ("พรุ่งนี้ เที่ยงครึ่ง", "2026-11-06 12:30"),
     ("พรุ่งนี้ เที่ยงคืน", "2026-11-06 00:00"),
     ("พรุ่งนี้ สิบโมง", "2026-11-06 10:00"),
-    ("พรุ่งนี้ 4 โมง", "2026-11-06 16:00"),  # everyday speech: สี่โมง = 4 pm
+    ("พรุ่งนี้ 4 โมง", "2026-11-06 16:00"),  # everyday speech: colloquial "four o'clock" = 4 pm
     ("พรุ่งนี้ 1 ทุ่มครึ่ง", "2026-11-06 19:30"),
     # English
     ("Nov 7 at 3pm", "2026-11-07 15:00"),
@@ -82,7 +82,7 @@ def test_parse(text: str, expected: str | None) -> None:
 
 
 def test_counts_from_the_email_not_from_today() -> None:
-    """ "พรุ่งนี้" in an email sent on 1 Nov means 2 Nov, whenever the secretary reads it."""
+    """ "tomorrow" in an email sent on 1 Nov means 2 Nov, whenever the secretary reads it."""
     assert show("พรุ่งนี้ 10 โมง", datetime(2026, 11, 1, 9, 0, tzinfo=BKK)) == "2026-11-02 10:00"
 
 

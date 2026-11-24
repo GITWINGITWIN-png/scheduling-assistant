@@ -3,12 +3,12 @@
 const DAYS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"]; // Date.getDay(): 0 = Sunday
 export const MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
-/** "พุธ 5 พ.ย. 2569" (Buddhist-era year, as in the mockups). */
+/** "Wed 5 Nov 2569" (Buddhist-era year, as in the mockups). */
 export function thaiDate(d: Date = new Date()): string {
   return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
-/** "14:05", or "5 พ.ย. 14:05" when it isn't today. */
+/** "14:05", or "5 Nov 14:05" when it isn't today. */
 export function when(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -16,7 +16,7 @@ export function when(iso: string | null): string {
   return d.toDateString() === new Date().toDateString() ? hm : `${d.getDate()} ${MONTHS[d.getMonth()]} ${hm}`;
 }
 
-/** 90 -> "1 ชม. 30 นาที", 45 -> "45 นาที". */
+/** 90 -> "1 hr 30 min", 45 -> "45 min". */
 export function duration(min: number): string {
   if (min < 60) return `${min} นาที`;
   const h = Math.floor(min / 60), m = min % 60;
@@ -27,7 +27,7 @@ export const DAYS_SHORT = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.",
 export const MONTHS_LONG = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
   "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
-/** "พฤ. 12 พ.ย." */
+/** "Thu 12 Nov" */
 export function shortDay(d: Date): string {
   return `${DAYS_SHORT[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
@@ -56,7 +56,7 @@ export function kTokens(n: number | null | undefined): string {
   return n >= 10_000 ? `${Math.round(n / 1000)}k` : tokens(n);
 }
 
-/** "วันนี้ 06:10", "เมื่อวาน", "9 วันก่อน": how long ago, as the projects page says it. */
+/** "Today 06:10", "Yesterday", "9 days ago": how long ago, as the projects page says it. */
 export function ago(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);

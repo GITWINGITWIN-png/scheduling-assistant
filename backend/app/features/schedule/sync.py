@@ -1,13 +1,13 @@
-"""Keep the schedule and Google Calendar in step (ซิงก์ตาราง, B3 step 4). The round "schedule", every 15 minutes.
+"""Keep the schedule and Google Calendar in step (sync the schedule, B3 step 4). The round "schedule", every 15 minutes.
 
 Each run:
 
 1. **Read the calendar** (refresh_calendar). Your primary calendar is copied into the
    events table (source "calendar"), so busy time and reminders come from one place; an
-   event deleted there is marked removed. In the "เลขา" calendar, a block you **moved**
+   event deleted there is marked removed. In the "Secretary" calendar, a block you **moved**
    becomes pinned (the planner keeps it where you put it); a block you **deleted** is
    marked deleted and its time counts as busy from then on ("that time isn't free"), so
-   its work goes somewhere else. Anything else you put in the "เลขา" calendar is busy too.
+   its work goes somewhere else. Anything else you put in the "Secretary" calendar is busy too.
 2. **Re-plan only if something changed.** The inputs (open tasks, busy times, pinned
    blocks, rules, today's date) are boiled down to a fingerprint; the same fingerprint as
    last time means nothing to do, so blocks don't shuffle every 15 minutes.
@@ -17,7 +17,7 @@ Each run:
    you really worked on it, so the rest goes back to the task and gets new time
    (features/time/followed.py). Only future blocks that changed are deleted and added.
 
-Nothing here uses a model. Writes go to the "เลขา" calendar only; your own calendar is
+Nothing here uses a model. Writes go to the "Secretary" calendar only; your own calendar is
 only read.
 """
 
@@ -50,7 +50,7 @@ DEFAULT_ESTIMATES = {"classroom": 120, "email": 30, "you": 60, "project": 60}  #
 STATE_KEY = "state.schedule"  # {"fingerprint", "planned_at", "short": {task id: minutes}}
 FREEZE = timedelta(hours=1)  # blocks starting sooner than this are left alone
 
-lock = asyncio.Lock()  # the round and the "วางตารางใหม่" button never plan at the same time
+lock = asyncio.Lock()  # the round and the "reschedule" button never plan at the same time
 
 
 # ------------------------------------------------------------------ rules and estimates
@@ -119,7 +119,7 @@ def refresh_calendar(start: datetime, end: datetime) -> list[tuple[datetime, dat
     cal_id = gcal.blocks_calendar(create=False)
     with session() as s:
         live = s.scalars(select(Block).where(Block.status.in_(("planned", "pinned")), Block.gcal_id != "")).all()
-        if cal_id is None:  # the "เลขา" calendar is gone, and with it every block
+        if cal_id is None:  # the "secretary" calendar is gone, and with it every block
             for b in live:
                 b.status = "removed"
             return busy
@@ -173,7 +173,7 @@ def _inputs(at: datetime, busy: list[tuple[datetime, datetime]]) -> tuple[list[W
 
 # ------------------------------------------------------------------ 3. write the difference
 def block_text(task: Task) -> str:
-    """What a block in the "เลขา" calendar says under its title: your รายละเอียดงาน (what to do,
+    """What a block in the "Secretary" calendar says under its title: your task details (what to do,
     where to hand it in), when it's due and where it came from, so the calendar on your
     phone is enough to start working."""
     due = " · ".join(x for x in (f"ส่ง {thai_datetime(task.due_at)}" if task.due_at else "",
@@ -253,7 +253,7 @@ def _plan_now(force: bool) -> str | None:
 
 
 async def run(force: bool = False) -> str | None:
-    """The "schedule" round (and the วางตารางใหม่ button with force=True)."""
+    """The "schedule" round (and the Replan button with force=True)."""
     async with lock:
         try:
             return await asyncio.to_thread(_plan_now, force)
@@ -262,7 +262,7 @@ async def run(force: bool = False) -> str | None:
 
 
 async def replan_now(via: tuple[str, str] = ("หน้าเว็บ", "")) -> str:
-    """You pressed วางตารางใหม่: plan from scratch even if nothing changed, and record it."""
+    """You pressed Replan: plan from scratch even if nothing changed, and record it."""
     line = await run(force=True) or "ตารางเดิมยังดีอยู่ ไม่มีอะไรต้องย้าย"
     actions.record("schedule.plan", "วางตารางใหม่", line, source_label=via[0], source_url=via[1])
     return line
@@ -271,7 +271,7 @@ async def replan_now(via: tuple[str, str] = ("หน้าเว็บ", "")) ->
 async def replan_if_on(via: tuple[str, str] = ("หน้าตาราง", "")) -> str | None:
     """A task or an event just changed (on a page, or by an order in the chat): if the schedule
     round is switched on, plan now rather than in up to 15 minutes. If it's off, the calendar is
-    left alone (วางตารางใหม่ still works)."""
+    left alone (Replan still works)."""
     from app.core import clock  # here, as in setup(): the clock module is wired up after this one
 
     if not clock.enabled("schedule"):

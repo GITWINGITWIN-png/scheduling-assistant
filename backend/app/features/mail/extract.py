@@ -1,18 +1,18 @@
 """Appointments and tasks from email (features 1.3 and P4): the AFTER_READ hook.
 
-For each "นัด" line the model wrote, core/when.py works out the real time (no tokens), then:
+For each "appointment" line the model wrote, core/when.py works out the real time (no tokens), then:
 
 - from someone important, or a reply you were waiting for: straight into your calendar,
-  recorded with ย้อนกลับ ("คนสำคัญลงปฏิทินเลยแล้วแจ้ง")
-- from anyone else: a proposal waiting in #อนุมัติ, because you may not want to go
-  ("ร่างไว้ให้คุณกดรับก่อน")
+  recorded with undo ("important people go straight into your calendar, then you are notified")
+- from anyone else: a proposal waiting in #approval, because you may not want to go
+  ("drafted for you to accept first")
 
 If the calendar can't be reached (the main account isn't connected, or its sign-in expired),
-an appointment that would have gone in directly waits in #อนุมัติ instead, with the reason,
-so nothing is lost; รับนัด then places it once the calendar works again.
+an appointment that would have gone in directly waits in #approval instead, with the reason,
+so nothing is lost; accept appointment then places it once the calendar works again.
 
 Every calendar entry links back to the original email. A line whose time can't be worked
-out is skipped and logged, rather than guessed. "งาน" lines become tasks (P4), with a
+out is skipped and logged, rather than guessed. "task" lines become tasks (P4), with a
 due date when one is given. The same email read twice never adds anything twice.
 """
 
@@ -40,11 +40,11 @@ log = logging.getLogger(__name__)
 PLACED: list = []  # hooks: async fn(event_id, action_id, email) after an event goes in the calendar
 PROPOSED: list = []  # hooks: async fn(event_id, decision_id, email) after a proposal is made
 
-# What was done for each email, for the #ด่วน card's "เลขาทำให้แล้ว" and its ย้อนกลับ:
+# What was done for each email, for the #urgent card's "done by secretary" and its undo:
 # {email id: [(in your words, action id), ...]}. The card takes (pops) its email's entry.
 DONE: dict[str, list[tuple[str, int]]] = {}
-# Appointments from an email that are waiting in #อนุมัติ: {email id: why, in your words}.
-# The #ด่วน card takes (pops) it for its "รอคุณรับ" field.
+# Appointments from an email that are waiting in #approvals: {email id: why, in your words}.
+# The #urgent card takes (pops) it for its "waiting for you to accept" field.
 ASKED: dict[str, str] = {}
 
 _deciding = asyncio.Lock()  # one answer at a time, so a double click can't place an event twice
@@ -58,7 +58,7 @@ def gmail_link(e: Email) -> str:
 
 def done_for(s, email_ids: list[str]) -> dict[str, list[str]]:
     """What the secretary did with each of these emails, in the words the people page and the
-    briefs use: ลงปฏิทินแล้ว · นัดรอคุณรับ · เพิ่มเป็นงานแล้ว."""
+    briefs use: Added to calendar; appointment waiting for you to accept; added as a task."""
     placed = set(s.scalars(select(Event.source_ref).where(Event.source_ref.in_(email_ids), Event.status == "placed")))
     proposed = set(s.scalars(select(Event.source_ref).where(Event.source_ref.in_(email_ids), Event.status == "proposed")))
     tasked = set(s.scalars(select(Task.source_ref).where(Task.source_ref.in_(email_ids), Task.status == "open")))
@@ -108,7 +108,7 @@ def _when_words(start, has_time: bool) -> str:
 
 
 def _ask(event_id: int, e: Email, why: str = "") -> int:
-    """Make the proposal that waits for รับนัด / ไม่ไป. -> decision id."""
+    """Make the proposal that waits for accept appointment / don't go. -> decision id."""
     with session() as s:
         ev = s.get(Event, event_id)
         d = Decision(kind="appointment", title=ev.title,
@@ -168,10 +168,10 @@ async def on_read(r: ReadEmail) -> None:
 
 
 async def decide(decision_id: int, accept: bool, *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> tuple[Decision, int | None]:
-    """You answered a proposed appointment: รับ puts it in the calendar, ไม่ไป declines it.
+    """You answered a proposed appointment: accept puts it in the calendar, don't go declines it.
     -> (the decision, the calendar action id if placed).
 
-    รับ is only recorded once the event is really in the calendar: if Google can't be
+    accept is only recorded once the event is really in the calendar: if Google can't be
     reached, you get the reason (ValueError) and the appointment keeps waiting."""
     async with _deciding:
         with session() as s:
@@ -195,7 +195,7 @@ async def decide(decision_id: int, accept: bool, *, via: tuple[str, str] = ("ห
         if not accept:
             actions.record("calendar.decline", f"ไม่ไปนัด: {title}", when_words, source_label=via[0], source_url=via[1])
         try:
-            learn.refresh()  # B5: a pattern in your answers ("คุณมักไม่รับนัดวันเสาร์") waits in the rule book
+            learn.refresh()  # B5: a pattern in your answers ("you usually don't accept Saturday appointments") waits in the rule book
         except Exception:
             log.exception("couldn't look for patterns after an appointment answer")
         with session() as s:

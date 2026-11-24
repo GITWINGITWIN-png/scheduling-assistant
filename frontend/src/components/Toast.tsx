@@ -1,4 +1,4 @@
-// The "บันทึกแล้ว · เลิกทำ" bar at the bottom after a change (first made for the schedule page,
+// The "Saved / Undo" bar at the bottom after a change (first made for the schedule page,
 // now used by every page that changes something): it says what was done and offers to undo it.
 import { useEffect, useState } from "react";
 

@@ -5,13 +5,13 @@ Everything the watch left for later (stage "seen") is read by level:
 - important: one email at a time, in full (usually the watch already did this; the
   round catches what arrived while the watch was off)
 - interested: grouped by person. *One* model call reads every interested person's
-  mail for the round and writes one summary per person ("สรุปรายคน ไม่ใช่รายเมล").
+  mail for the round and writes one summary per person ("summary per person, not per email").
   One call instead of one per person is what keeps a busy day cheap.
 - ignored (big round only, once a day): the script lists the subjects per sender; one
   model call looks for anything matching your keywords or current interests.
 
 Appointments and tasks found go through the same AFTER_READ hooks as the watch. When
-a round finishes, ROUND_DONE hooks get the result (the #สรุป card, step 7).
+a round finishes, ROUND_DONE hooks get the result (the #summary card, step 7).
 """
 
 from __future__ import annotations
@@ -156,7 +156,7 @@ async def _skim_ignored(result: RoundResult) -> None:
     by_sender: dict[str, list[Email]] = {}
     for e in emails:
         by_sender.setdefault(e.sender, []).append(e)
-    for sender, group in by_sender.items():  # "B ส่งมา 5 เมล": the script groups them per sender
+    for sender, group in by_sender.items():  # "B sent 5 emails": the script groups them per sender
         lines.append(f"ผู้ส่ง: {group[0].sender_name or sender} <{sender}>")
         for e in group:
             index.append(e)
@@ -191,7 +191,7 @@ async def run_round(big: bool) -> str:
         await _read_interested(result)
         if big:
             await _skim_ignored(result)
-        else:  # reminders at noon, so #ด่วน doesn't buzz at midnight
+        else:  # reminders at noon, so #urgent doesn't buzz at midnight
             from app.features.mail import followups
             result.reminded = await followups.remind()
     for hook in ROUND_DONE:

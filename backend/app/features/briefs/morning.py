@@ -1,8 +1,8 @@
-"""สรุปเช้า (D2): one message in #สรุป at 07:00, built from what the secretary already read.
+"""Morning summary (D2): one message in #summary at 07:00, built from what the secretary already read.
 
-What it says, as the plan's mockup: a line with the day's numbers, เรื่องสำคัญ (with what the
-secretary did), ใครส่งอะไรมา by the three levels, today's appointments and blocks, new
-Classroom files, what waits for you (the requests themselves stay in #อนุมัติ), and in the
+What it says, as the plan's mockup: a line with the day's numbers, important matters (with what the
+secretary did), who sent what by the three levels, today's appointments and blocks, new
+Classroom files, what waits for you (the requests themselves stay in #approvals), and in the
 footer how much mail was read and what that reading cost. No model call: the mail rounds
 already wrote every summary (the user's choice, 2026-11-06). B5 adds project news and the night's
 background work.
@@ -42,7 +42,7 @@ def open_now(at: datetime) -> bool:
 
 
 def day_name(at: datetime) -> str:
-    """"พุธ 4 พ.ย."""
+    """"Wed 4 Nov."""
     d = local(at)
     return f"{DAYS[d.weekday()]} {d.day} {MONTHS[d.month - 1]}"
 
@@ -118,7 +118,7 @@ async def run() -> str | None:
 
 
 async def remember_night(r: rounds.RoundResult) -> None:
-    """ROUND_DONE hook: keep what the 00:00 round picked out of the ignored mail (its #สรุป card,
+    """ROUND_DONE hook: keep what the 00:00 round picked out of the ignored mail (its #summary card,
     which said it, isn't sent any more: the morning brief carries the night, the user's choice)."""
     if r.big:
         settings.put(day.NIGHT_KEY, {"at": now().isoformat(), "noteworthy": [list(x) for x in r.noteworthy],

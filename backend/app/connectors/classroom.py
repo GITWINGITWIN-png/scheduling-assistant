@@ -63,7 +63,7 @@ def submissions(course_id: str) -> dict[str, str]:
 
 
 def materials(course_id: str, limit: int | None = None) -> list[dict]:
-    """Course materials (the "เนื้อหา" posts), newest change first."""
+    """Course materials (the "เนื้อหา" (content) posts), newest change first."""
     svc = _classroom(google.CLASSROOM_MATERIALS)
     return _paged(lambda t: svc.courses().courseWorkMaterials().list(courseId=course_id, orderBy="updateTime desc",
                                                                      pageSize=limit or 100, pageToken=t),

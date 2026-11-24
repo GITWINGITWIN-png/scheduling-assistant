@@ -1,4 +1,4 @@
-"""The shared tables every part of the secretary uses (PLAN.md, "ระบบ · ใช้ร่วมกันทุกส่วน").
+"""The shared tables every part of the secretary uses (PLAN.md, "System: shared by every part").
 
 Each feature's own tables (people, emails, projects...) live with that feature
 and arrive in its phase. Here are the ones several phases share: the five from
@@ -35,7 +35,7 @@ class Setting(Base):
 
 
 class Action(Base):
-    """action_log · สิ่งที่เลขาทำ: one row per thing the secretary did (feature P9).
+    """action_log: the secretary's actions. One row per thing the secretary did (feature P9).
 
     Written by core/actions.py and nothing else. `undo` holds what is needed to
     reverse the action, and stays empty for actions that cannot be undone.
@@ -46,9 +46,9 @@ class Action(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     at: Mapped[datetime] = mapped_column(UTCDateTime, default=now, index=True)
     kind: Mapped[str] = mapped_column(String(50), index=True)  # e.g. "round.backup", "ask", "plan.approve"
-    summary: Mapped[str] = mapped_column(Text)  # ทำอะไร, in your words: "สำรองฐานข้อมูล"
-    target: Mapped[str] = mapped_column(Text, default="")  # กับอะไร: "secretary-2026-11-05.db"
-    source_label: Mapped[str] = mapped_column(Text, default="")  # ที่มา, shown as a link's text
+    summary: Mapped[str] = mapped_column(Text)  # what it does, in your words: "back up the database"
+    target: Mapped[str] = mapped_column(Text, default="")  # on what: "secretary-2026-11-05.db"
+    source_label: Mapped[str] = mapped_column(Text, default="")  # source, shown as a link's text
     source_url: Mapped[str] = mapped_column(Text, default="")
     undo: Mapped[dict | None] = mapped_column(JSON, default=None)  # how to reverse it; None = can't
     undone_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
@@ -56,7 +56,7 @@ class Action(Base):
 
 
 class LLMUsage(Base):
-    """llm_usage · การใช้โมเดล: one row per model call (core/llm.py writes it).
+    """llm_usage: model usage. One row per model call (core/llm.py writes it).
 
     The token counts behind the quota line, and the evidence for "which task
     costs what" when you tune models and effort in settings.
@@ -76,7 +76,7 @@ class LLMUsage(Base):
 
 
 class Message(Base):
-    """messages · ข้อความที่บอทส่ง: every message the bot posted on Discord.
+    """messages: the messages the bot sent. Every message the bot posted on Discord.
 
     It lets a button pressed days later find what it belongs to, and keeps a
     short copy of the text so the chat has some memory.
@@ -94,7 +94,7 @@ class Message(Base):
 
 
 class Decision(Base):
-    """decisions · เรื่องที่รอคุณตัดสิน: anything waiting for your yes or no.
+    """decisions: things waiting for you to decide. Anything waiting for your yes or no.
 
     In B1 these are plans from Opus. Later phases add appointments, project
     levels, people changes and ideas.
@@ -114,13 +114,13 @@ class Decision(Base):
 
 
 class Event(Base):
-    """events · นัด: an appointment the secretary knows about (features 1.3, 3.1).
+    """events: appointments. An appointment the secretary knows about (features 1.3, 3.1).
 
     B2 creates them from email (source "email"). B3 also copies in what is on your own
     calendar (source "calendar", source_ref = the Google event id), so busy time and
     reminders work from one table.
-    status: placed (in Google Calendar, `gcal_id` set) · proposed (waiting in #อนุมัติ)
-    · declined (you said no) · removed (undone, or deleted from the calendar).
+    status: placed (in Google Calendar, `gcal_id` set), proposed (waiting in #approve),
+    declined (you said no), removed (undone, or deleted from the calendar).
     """
 
     __tablename__ = "events"
@@ -131,11 +131,11 @@ class Event(Base):
     ends_at: Mapped[datetime] = mapped_column(UTCDateTime)
     all_day: Mapped[bool] = mapped_column(Boolean, default=False)
     location: Mapped[str] = mapped_column(Text, default="")
-    # รายละเอียด: what you typed when adding it, or the event's description in Google Calendar
-    # (as plain text, without the secretary's own "ลงโดยเลขา" line). Shown when you click it.
+    # details: what you typed when adding it, or the event's description in Google Calendar
+    # (as plain text, without the secretary's own "added by secretary" line). Shown when you click it.
     description: Mapped[str] = mapped_column(Text, default="", server_default="")
-    # สี: the colour you gave it in Google Calendar (#rrggbb, gcal.COLORS), "" for the calendar's
-    # own. The today and schedule pages draw it in that colour instead of the red of นัด.
+    # colour: the colour you gave it in Google Calendar (#rrggbb, gcal.COLORS), "" for the calendar's
+    # own. The today and schedule pages draw it in that colour instead of the red of appointments.
     color: Mapped[str] = mapped_column(String(16), default="", server_default="")
     source: Mapped[str] = mapped_column(String(20))  # email · calendar · you · project
     source_ref: Mapped[str] = mapped_column(String(64), default="")  # e.g. the Gmail message id
@@ -147,7 +147,7 @@ class Event(Base):
 
 
 class Task(Base):
-    """tasks · งานและเดดไลน์: something you have to do (features P4, 3.1, U1).
+    """tasks: work and deadlines. Something you have to do (features P4, 3.1, U1).
 
     B2 adds work people ask for by email; B3 adds Classroom deadlines; B5 project work.
     """
@@ -168,10 +168,10 @@ class Task(Base):
     # trying B3): the longest block, and the most time it may take in one day. None: the rules'.
     block_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     daily_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # รายละเอียดงาน: what to do, where, where to hand it in; free text, links allowed. A
+    # task details: what to do, where, where to hand it in; free text, links allowed. A
     # Classroom task starts with the teacher's instructions and the link to hand it in.
     details: Mapped[str] = mapped_column(Text, default="", server_default="")
-    # Not before this time (B6: "ย้ายไปพรุ่งนี้" in the evening review): the planner places its
+    # Not before this time (B6: "move to tomorrow" in the evening review): the planner places its
     # blocks only after it. None: as soon as there's free time.
     not_before: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(10), default="open", index=True)  # open · done · dropped
@@ -179,15 +179,15 @@ class Task(Base):
 
 
 class Block(Base):
-    """blocks · บล็อกในตาราง: time set aside for a task, in the "เลขา" calendar (3.1, B3; B6 adds what really happened).
+    """blocks: time blocks in the table. Time set aside for a task, in the "Secretary" calendar (3.1, B3; B6 adds what really happened).
 
-    status: planned (the planner may move it) · pinned (you moved it in Google Calendar,
-    so it stays where you put it) · deleted (you deleted it there: its time counts as
-    busy) · removed (a re-plan took it back, or the "เลขา" calendar was deleted).
+    status: planned (the planner may move it), pinned (you moved it in Google Calendar,
+    so it stays where you put it), deleted (you deleted it there: its time counts as
+    busy), removed (a re-plan took it back, or the "Secretary" calendar was deleted).
     B6 checks a block once it has ended, against what ActivityWatch saw (features/time/followed.py):
-    outcome done (you worked on it at least half the time) · missed (you were at the computer, on
-    something else) · away (you weren't at the computer: it may have been done offline, so it
-    still counts as done) · unknown (nothing was recorded then) · "" not checked yet. A missed
+    outcome done (you worked on it at least half the time), missed (you were at the computer, on
+    something else), away (you weren't at the computer: it may have been done offline, so it
+    still counts as done), unknown (nothing was recorded then), "" not checked yet. A missed
     block counts only the minutes you really worked on it, so the rest goes back to its task and
     the planner finds new time for it.
     """
@@ -208,7 +208,7 @@ class Block(Base):
 
 
 class Reminder(Base):
-    """reminders · เตือน: one "1 day before" / "1 hour before" message, sent once (P5, B3).
+    """reminders: the alerts. One "1 day before" / "1 hour before" message, sent once (P5, B3).
 
     `due_at` is the time being reminded about, so an appointment moved to a new time
     gets reminded again for the new time.
@@ -227,16 +227,16 @@ class Reminder(Base):
 
 
 class Rule(Base):
-    """rules · สมุดกติกา (P8, B5): what you told the secretary, what it learned from your answers,
+    """rules: the rule book (P8, B5): what you told the secretary, what it learned from your answers,
     and the high-risk work it always asks about first (W8).
 
-    kind: yours · learned · high_risk
-    status: active · pending (learned: not used until you press "ใช้เป็นกติกา") · dismissed
-      ("ไม่ใช่": kept so the same pattern isn't suggested again)
+    kind: yours, learned, high_risk
+    status: active, pending (learned: not used until you press "Use as a rule"), dismissed
+      ("Not this": kept so the same pattern isn't suggested again)
     used_by: the parts that read it (core/rules/book.py PARTS)
     effect: for a rule the code follows itself, what it does ({"type": "appointment_days",
       "weekdays": [5]}, {"type": "job_auto", "project": "finance"}); None: a note that the parts
-      with a model read (ถามเลขา, the background planner)
+      with a model read (Ask the secretary, the background planner)
     key: a stable name for the rules the secretary makes itself (the agreed high-risk kinds, a
       learned pattern), so it never makes one twice
     fixed: one of the 7 agreed high-risk kinds: it can't be deleted or switched off
@@ -252,7 +252,7 @@ class Rule(Base):
     status: Mapped[str] = mapped_column(String(10), default="active", index=True)
     effect: Mapped[dict | None] = mapped_column(JSON, default=None)
     key: Mapped[str | None] = mapped_column(String(80), unique=True, default=None)
-    evidence: Mapped[str] = mapped_column(Text, default="")  # learned: "ปฏิเสธ 3 ครั้งใน 4 สัปดาห์"
+    evidence: Mapped[str] = mapped_column(Text, default="")  # learned: "rejected 3 times in 4 weeks"
     fixed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now, onupdate=now)

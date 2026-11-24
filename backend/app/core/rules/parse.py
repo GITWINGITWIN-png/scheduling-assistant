@@ -1,18 +1,18 @@
-"""A rule typed as a sentence (W8 ⑤: "พิมพ์เป็นประโยค เลขาแปลงเป็นกติกาแล้วให้คุณตรวจก่อนใช้").
+"""A rule typed as a sentence (W8 item 5: "Type it as a sentence. The secretary turns it into a rule, which you check before using it.").
 
 One small call (task "rule": Sonnet, effort low, no tools) reads the sentence and names what
 kind of rule it is. The answer is checked here (`proposal`, no model, so the tests can try it)
 and comes back to the page as a proposal: what the rule will say, who uses it, and what will
-change. Nothing is saved until you press "ใช้กติกานี้" (api/rules.py applies it).
+change. Nothing is saved until you press "Apply this rule" (api/rules.py applies it).
 
 The kinds, from the most concrete:
-- appointment_days: "ไม่รับนัดวันอาทิตย์" -> such requests say so on their card
-- schedule_hours: "ไม่วางงานก่อน 9 โมง" -> the planner's hours (the same setting as the
+- appointment_days: "Don't accept Sunday appointments" -> such requests say so on their card
+- schedule_hours: "Don't schedule work before 9 am" -> the planner's hours (the same setting as the
   schedule rules in settings)
-- mail_keywords: "อีเมลที่มีคำว่าทุน แจ้งทันที" -> the mail watch's keywords
-- high_risk: "แก้ไฟล์ .env ต้องถามก่อน" -> a high-risk kind of your own
-- job_auto: "งานของ finance ทำเองได้เลย" -> its low-risk plans start without asking
-- note: anything else a model can follow, for ถามเลขา and/or the background planner
+- mail_keywords: "Email containing the word funding, notify immediately" -> the mail watch's keywords
+- high_risk: "Editing the .env file must ask first" -> a high-risk kind of your own
+- job_auto: "Finance work can be done by itself, straight away" -> its low-risk plans start without asking
+- note: anything else a model can follow, for Ask the Secretary and/or the background planner
 - unsupported: what the secretary can't do (it says why instead of pretending)
 """
 
@@ -42,7 +42,7 @@ type ที่ใช้ได้:
 @dataclass(frozen=True)
 class Context:
     """What the check needs to know about now (api/rules.py reads it)."""
-    projects: dict[str, bool] = field(default_factory=dict)  # name -> "ให้เลขาทำต่อได้" is on
+    projects: dict[str, bool] = field(default_factory=dict)  # name -> "let the secretary continue" is on
     day_start: str = "09:00"
     day_end: str = "22:00"
     keywords: tuple[str, ...] = ()

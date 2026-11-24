@@ -1,4 +1,4 @@
-"""briefs · สรุปที่ส่งแล้ว (stage 3's data model): every morning brief and evening review the
+"""briefs: sent summaries (stage 3's data model): every morning brief and evening review the
 secretary made, one per kind per day. The today page opens the morning one in full, and a
 brief that exists for today is never made again, so a restart or a round caught up at 08:00
 can't post a second one."""

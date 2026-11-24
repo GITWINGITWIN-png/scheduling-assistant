@@ -1,9 +1,9 @@
-// W3 โปรเจค (B5), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w3): a banner for new
+// W3 Projects (B5), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w3): a banner for new
 // folders waiting for their levels, the registry (status, potential, urgency, when it last moved,
-// its latest news), the secretary's advice from each PROGRESS.md (จองเวลา), and the guide for other
-// projects (CONNECT.md). A row opens the project's card: its levels and status, "ให้เลขาทำต่อได้"
-// (the gate for background work, off until you switch it on), ทำต่อ, จองเวลา, hide.
-// B10: "ส่งข่าวให้เลขา" connects a project: a note in its CLAUDE.local.md has Claude Code there send
+// its latest news), the secretary's advice from each PROGRESS.md (Book time), and the guide for other
+// projects (CONNECT.md). A row opens the project's card: its levels and status, "Let the secretary continue"
+// (the gate for background work, off until you switch it on), Continue, Book time, hide.
+// B10: "Send news to the secretary" connects a project: a note in its CLAUDE.local.md has Claude Code there send
 // its progress with secretary-news. The guide's card connects them all at once.
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { Link } from "react-router";

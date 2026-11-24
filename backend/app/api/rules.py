@@ -1,7 +1,7 @@
 """B5's web API for the rule book (W8): every rule in one place, a rule typed as a sentence,
 and your answers to what the secretary learned.
 
-The page's "กติกาของคุณ" starts with the rules the secretary already follows from your
+The page's "Your rules" starts with the rules the secretary already follows from your
 settings (`system`): their values stay where they're set, the page only shows them and links
 there. Then the rules you added and the learned ones you accepted (rows of `rules`).
 """
@@ -78,7 +78,7 @@ class RuleIn(Strict):
 
 @router.post("/rules")
 def add_rule(body: RuleIn) -> dict:
-    """ใช้กติกานี้: save what the page shows, checked again the same way as the model's answer."""
+    """Use this rule: save what the page shows, checked again the same way as the model's answer."""
     raw = {**(body.effect or {}), **(body.change or {}), "type": body.kind, "text": body.text, "used_by": body.used_by}
     p = parse.proposal(body.text, raw, sentences.context())
     try:

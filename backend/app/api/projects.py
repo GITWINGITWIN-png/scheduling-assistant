@@ -1,5 +1,5 @@
 """B5's web API for the projects page (W3): the registry, setting a project's levels and
-switches, scanning now, and answering "ตั้งระดับโปรเจคใหม่". B10: connecting projects to the
+switches, scanning now, and answering "Set a new project level". B10: connecting projects to the
 secretary (a note in each one that has Claude Code there send its progress with secretary-news)."""
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ class ProjectEdit(Strict):
 
 @router.patch("/projects/{project_id}")
 def edit_project(project_id: int, body: ProjectEdit) -> dict:
-    """Change what you see on a project's row (recorded, ย้อนกลับ in สิ่งที่เลขาทำ)."""
+    """Change what you see on a project's row (recorded, Undo in What the secretary did)."""
     try:
         action_id = edit.edit(project_id, {k: getattr(body, k) for k in body.model_fields_set})
     except edit.EditError as exc:
@@ -101,7 +101,7 @@ def edit_project(project_id: int, body: ProjectEdit) -> dict:
 
 @router.post("/projects/scan")
 async def scan_now() -> dict:
-    """สแกนตอนนี้: the morning round's work, at once (the first time, or after a new folder)."""
+    """Scan now: the morning round's work, at once (the first time, or after a new folder)."""
     result = await asyncio.to_thread(scan.scan)
     for project_id, decision_id in result.new:
         for hook in scan.ASKED:
@@ -117,7 +117,7 @@ class BookIn(Strict):
 
 @router.post("/projects/{project_id}/book")
 async def book(project_id: int, body: BookIn) -> dict:
-    """จองเวลา for the project's next step (a task the planner books; ย้อนกลับ removes it)."""
+    """Book time for the project's next step (a task the planner books; Undo removes it)."""
     if not 15 <= body.minutes <= 600:
         raise HTTPException(400, "เวลา 15 นาทีถึง 10 ชั่วโมง")
     try:
@@ -145,7 +145,7 @@ async def answer_level(decision_id: int, body: LevelIn) -> dict:
 
 @router.get("/projects/connect")
 def connect_guide() -> dict:
-    """คู่มือเชื่อมต่อ (W3 ⑥): CONNECT.md to read on the page, where the inbox is, and (B10) whether
+    """Connection guide (W3 ⑥): CONNECT.md to read on the page, where the inbox is, and (B10) whether
     the secretary-news command is installed and the round that reads the inbox is on."""
     from pathlib import Path
 
@@ -163,7 +163,7 @@ def connect_guide() -> dict:
 
 @router.post("/projects/connect")
 def connect_all() -> dict:
-    """เชื่อมทุกโปรเจค (B10): the note in every project that can have one (recorded, one ย้อนกลับ)."""
+    """Connect all projects (B10): the note in every project that can have one (recorded, one Undo)."""
     names, failed, action_id = connect.connect_all(("หน้าโปรเจค", ""))
     return {"connected": names, "failed": failed, "action_id": action_id}
 

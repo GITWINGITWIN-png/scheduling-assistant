@@ -1,6 +1,6 @@
-// One request that waits for you, as the plan's W1 "รอคุณตัดสิน" draws it: an avatar, what it is,
+// One request that waits for you, as the plan's W1 "Waiting for your decision" draws it: an avatar, what it is,
 // one line under it, and its buttons. The bell and the today page show the same rows; answering in
-// either place (or in #อนุมัติ) has the same result (B4: เรื่องที่รอคุณตัดสินรวมที่เดียว).
+// either place (or in #approval) has the same result (B4: items waiting for your decision are all in one place).
 import { useState } from "react";
 import { Link } from "react-router";
 import { api, type Decision } from "../api";
@@ -66,7 +66,7 @@ export function DecisionRow({ d, onChange }: { d: Decision; onChange?: () => voi
       </li>
     );
   }
-  if (d.kind === "order") { // an order from the chat that can't be undone (B9): it waits for ทำเลย
+  if (d.kind === "order") { // an order from the chat that can't be undone (B9): it waits for Do it now
     return (
       <li className="py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
         <Avatar name="สั่ง" size="sm" />
@@ -108,7 +108,7 @@ export function DecisionRow({ d, onChange }: { d: Decision; onChange?: () => voi
   );
 }
 
-/** One topic of the weekly review (D4, B7): the same buttons as its #สรุป message. The people topic
+/** One topic of the weekly review (D4, B7): the same buttons as its #summary message. The people topic
  *  is chosen person by person on the people page. */
 function WeeklyRow({ d, onChange }: { d: Decision; onChange?: () => void }) {
   const [busy, setBusy] = useState(false);

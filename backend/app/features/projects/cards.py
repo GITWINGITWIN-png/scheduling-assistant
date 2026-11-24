@@ -1,6 +1,6 @@
-"""Projects in Discord: "ตั้งระดับโปรเจคใหม่" in #อนุมัติ (D5 ⑥), with a menu for potential S–F and
-one for urgency 5–0. The levels are saved once both are picked; until then the project works
-with C · 2. The same question is in the bell and on the projects page.
+"""Projects in Discord: "Set new project level" in #approval (D5 ⑥), with a menu for potential S to F and
+one for urgency 5 to 0. The levels are saved once both are picked; until then the project works
+with C, 2. The same question is in the bell and on the projects page.
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ async def ask_level(project_id: int, decision_id: int) -> None:
 
 
 async def send_urgent(news_id: int) -> None:
-    """inbox.URGENT hook: a failure or a question from a project that matters, in #ด่วน now (2.3)."""
+    """inbox.URGENT hook: a failure or a question from a project that matters, in #urgent now (2.3)."""
     if not _ready():
         return
     with session() as s:

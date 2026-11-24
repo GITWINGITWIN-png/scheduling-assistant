@@ -1,5 +1,5 @@
-// The planner's rules (กติกาตาราง) and the reminder times (W10 ⑤), on the settings page.
-// กติกาตาราง lived on the schedule page until the user agreed (2026-11-06) that settings belong
+// The planner's rules (schedule rules) and the reminder times (W10 ⑤), on the settings page.
+// Schedule rules lived on the schedule page until the user agreed (2026-11-06) that settings belong
 // here, as in the plan's W10. Both cards change the same setting (/api/schedule/rules), so the
 // settings page loads it once and both save through useScheduleRules: each save sends the latest
 // values with only its own part changed, so one card never undoes what the other just saved.
@@ -30,8 +30,8 @@ export function useScheduleRules() {
 
 type Rules = ReturnType<typeof useScheduleRules>;
 
-/** W10 ⑤: how long before an appointment or a due date #ด่วน reminds you. A press saves it
- *  (recorded, ย้อนกลับ in สิ่งที่เลขาทำ). */
+/** W10 ⑤: how long before an appointment or a due date #urgent reminds you. A press saves it
+ *  (recorded, Undo in What the secretary did). */
 export function Reminders({ rules, error, save }: Rules) {
   const [msg, setMsg] = useState("");
   const toggle = async (lead: string) => {

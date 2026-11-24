@@ -81,11 +81,11 @@ def fetch(url: str, name: str, want: str, folder: Path, given: Path | None) -> P
     """The file from --from DIR if it's there, else downloaded; refused unless its SHA-256 matches."""
     path = given / name if given and (given / name).exists() else folder / name
     if not path.exists():
-        print(f"ดาวน์โหลด {url}")
+        print(f"downloading {url}")
         urllib.request.urlretrieve(url, path)
     got = sha256(path)
     if got != want:
-        sys.exit(f"SHA-256 ของ {name} ไม่ตรง ({got}) · ไม่ติดตั้ง")
+        sys.exit(f"SHA-256 of {name} does not match ({got}); not installing")
     return path
 
 
@@ -104,16 +104,16 @@ def install(given: Path | None) -> None:
         BIN.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(out / "awatcher", BIN)
         BIN.chmod(0o755)
-        print(f"ติดตั้ง awatcher แล้ว: {BIN}")
+        print(f"awatcher installed: {BIN}")
         sh("gnome-extensions", "install", "--force", str(ext))
     if EXT_UUID not in (on := enabled_extensions()):  # at your next login; GNOME on Wayland can't load it sooner
         sh("gsettings", "set", "org.gnome.shell", "enabled-extensions", str(on + [EXT_UUID]))
-    print(f"ติดตั้งส่วนเสริม GNOME แล้ว: {EXT_UUID} (เริ่มทำงานหลังล็อกเอาต์แล้วล็อกอินใหม่)")
+    print(f"GNOME extension installed: {EXT_UUID} (it starts after you log out and back in)")
     UNIT.parent.mkdir(parents=True, exist_ok=True)
     UNIT.write_text(UNIT_TEXT)
     sh("systemctl", "--user", "daemon-reload")
-    print(f"เขียน {UNIT} แล้ว (ยังไม่เปิด: เปิดที่หน้าการใช้เวลาของเลขา)")
-    print("\nต่อไป: ล็อกเอาต์แล้วล็อกอินใหม่ 1 ครั้ง แล้วเปิด “บันทึกกิจกรรม” ที่หน้าการใช้เวลา")
+    print(f"wrote {UNIT} (not enabled yet: switch it on from the secretary's time-use page)")
+    print("\nNext: log out and back in once, then switch on “บันทึกกิจกรรม” (record activity) on the time-use page")
 
 
 def uninstall() -> None:
@@ -122,7 +122,7 @@ def uninstall() -> None:
     for path in (UNIT, BIN):
         if path.exists():
             path.unlink()
-            print(f"ลบ {path}")
+            print(f"removed {path}")
     sh("systemctl", "--user", "daemon-reload", check=False)
     on = enabled_extensions()
     if EXT_UUID in on:
@@ -132,15 +132,15 @@ def uninstall() -> None:
         sh("gnome-extensions", "uninstall", EXT_UUID, check=False)
         if EXT_DIR.exists():
             shutil.rmtree(EXT_DIR)
-        print(f"ลบส่วนเสริม {EXT_UUID}")
-    print("ข้อมูลที่ ActivityWatch บันทึกไว้ยังอยู่ใน ~/.local/share/activitywatch (ลบเองได้ถ้าไม่ใช้แล้ว)")
+        print(f"removed the extension {EXT_UUID}")
+    print("The data ActivityWatch recorded is still in ~/.local/share/activitywatch (delete it yourself if you no longer need it)")
 
 
 def show() -> None:
     active = sh("systemctl", "--user", "is-active", "awatcher.service", check=False).stdout.strip()
-    print(f"awatcher: {'มี' if BIN.exists() else 'ไม่มี'} ({BIN})")
-    print(f"systemd unit: {'มี' if UNIT.exists() else 'ไม่มี'} · {active}")
-    print(f"ส่วนเสริม GNOME: {'มี' if EXT_DIR.exists() else 'ไม่มี'} · {'เปิดไว้' if EXT_UUID in enabled_extensions() else 'ปิด'}")
+    print(f"awatcher: {'present' if BIN.exists() else 'missing'} ({BIN})")
+    print(f"systemd unit: {'present' if UNIT.exists() else 'missing'}, {active}")
+    print(f"GNOME extension: {'present' if EXT_DIR.exists() else 'missing'}, {'enabled' if EXT_UUID in enabled_extensions() else 'disabled'}")
 
 
 if __name__ == "__main__":

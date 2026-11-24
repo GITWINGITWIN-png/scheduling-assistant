@@ -1,8 +1,8 @@
-"""ideas · ไอเดีย and idea_groups · กลุ่มไอเดีย (features 4.2 and P11, B6).
+"""ideas (shown as Ideas) and idea_groups (shown as Idea groups) (features 4.2 and P11, B6).
 
 An idea comes in through one of three doors, one message or one popup = one idea:
 - the Super+I popup (source "key"), which posts to the secretary on localhost;
-- a message in #ไอเดีย on Discord ("discord"), typed on the iPad, the phone or here;
+- a message in #Ideas on Discord ("discord"), typed on the iPad, the phone or here;
 - the ideas page ("web").
 
 Tags, and where they came from (`tagged`):
@@ -44,8 +44,8 @@ class IdeaGroup(Base):
     status: Mapped[str] = mapped_column(String(8), default="open", index=True)  # a GROUP_STATUSES key
     asked_size: Mapped[int] = mapped_column(Integer, default=0)  # its size when it was last proposed
     decision_id: Mapped[int | None] = mapped_column(ForeignKey("decisions.id"), default=None)
-    project_id: Mapped[int | None] = mapped_column(Integer, default=None)  # "เปิดโปรเจค": the project made from it
-    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), default=None)  # "ทำเป็นงาน"
+    project_id: Mapped[int | None] = mapped_column(Integer, default=None)  # "open project": the project made from it
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), default=None)  # "make it a task"
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now, onupdate=now)
 

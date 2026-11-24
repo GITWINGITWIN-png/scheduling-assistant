@@ -52,7 +52,7 @@ def _link(s, source: str, ref: str) -> str:
 # ------------------------------------------------------------------ the week
 @router.get("/schedule")
 def week(start: str, end: str) -> dict:
-    """Everything between start and end: appointments (and the ones waiting for you to รับ, drawn
+    """Everything between start and end: appointments (and the ones waiting for you to Accept, drawn
     dashed as in the plan's W5 ④), work blocks, due dates, and the last plan."""
     lo, hi, at = _local(start), _local(end), now()
     with session() as s:
@@ -71,7 +71,7 @@ def week(start: str, end: str) -> dict:
                         "recurring": e.recurring, "link": e.link,
                         "mail": _link(s, "email", e.source_ref) if e.source == "email" else "",
                         "status": e.status, "decision_id": asked[e.id].id if e.id in asked else None,
-                        "color": e.color,  # its colour in Google Calendar, "" for the red of นัด
+                        "color": e.color,  # its colour in Google Calendar, "" for the red of appointments
                         "from": asked[e.id].detail.get("from", "") if e.id in asked else ""} for e in events],
             "blocks": [{"id": b.id, "task_id": b.task_id, "title": title, "start": _iso(b.starts_at), "end": _iso(b.ends_at),
                         "pinned": b.status == "pinned", "past": b.ends_at <= at, "running": b.starts_at <= at < b.ends_at,
@@ -89,7 +89,7 @@ def week(start: str, end: str) -> dict:
     return out
 
 
-# ------------------------------------------------------------------ กิจกรรม (appointments you add)
+# ------------------------------------------------------------------ events (appointments you add)
 class EventIn(Strict):
     title: str
     start: str  # local: "2026-11-12T10:00", or "2026-11-12" for an all-day event
@@ -106,7 +106,7 @@ class ColorIn(Strict):
 
 @router.post("/events/color")
 async def color_events(body: ColorIn) -> dict:
-    """สี: give events a Google Calendar colour, there and on these pages (one ย้อนกลับ for all)."""
+    """Colour: give events a Google Calendar colour, there and on these pages (one Undo for all)."""
     try:
         action_id = await events.recolor(body.event_ids, body.color, via=("หน้าตาราง", ""))
     except ValueError as exc:
@@ -118,7 +118,7 @@ async def color_events(body: ColorIn) -> dict:
 
 @router.post("/events")
 async def add_event(body: EventIn) -> dict:
-    """A กิจกรรม from the schedule page goes straight into your main Google Calendar
+    """An event from the schedule page goes straight into your main Google Calendar
     (features/schedule/events.py says how), then blocks are re-planned around it."""
     try:
         if body.all_day:
@@ -139,7 +139,7 @@ async def add_event(body: EventIn) -> dict:
 
 @router.post("/schedule/replan")
 async def replan() -> dict:
-    """วางตารางใหม่: re-plan now, even if nothing changed."""
+    """Re-plan the schedule: re-plan now, even if nothing changed."""
     return {"line": await sync.replan_now(("หน้าตาราง", ""))}
 
 
@@ -170,11 +170,11 @@ def list_tasks() -> dict:
 class TaskIn(Strict):
     title: str
     due: str | None = None  # local time, "2026-11-10T17:00"
-    est_minutes: int | None = None  # None: the default for tasks you add (กติกาตาราง)
+    est_minutes: int | None = None  # None: the default for tasks you add (schedule rules)
     plan_mode: str = "early"
     block_minutes: int | None = None  # None: the rules' longest block
     daily_minutes: int | None = None  # None: the rules' limit per task per day
-    details: str = ""  # รายละเอียดงาน: what, where, where to hand it in; links allowed
+    details: str = ""  # task details: what, where, where to hand it in; links allowed
 
 
 @router.post("/tasks")
@@ -307,7 +307,7 @@ class CourseAnswer(Strict):
 async def answer_course(decision_id: int, body: CourseAnswer) -> dict:
     try:
         d, action_id = await classroom.decide(decision_id, body.follow, folder=body.folder, via=("หน้าเว็บ", ""))
-        await decisions.settle_card(decision_id)  # its #อนุมัติ card says so too
+        await decisions.settle_card(decision_id)  # its #approvals card says so too
     except decisions.Answered as exc:  # answered already: the page shows how, in place of the buttons
         raise HTTPException(409, str(exc))
     except ValueError as exc:  # couldn't be done: it still waits
@@ -315,7 +315,7 @@ async def answer_course(decision_id: int, body: CourseAnswer) -> dict:
     return {"status": d.status, "action_id": action_id}
 
 
-# ------------------------------------------------------------------ ทำตามแผนได้ · ข้อสังเกต (W5 ⑤ ⑥, B6)
+# ------------------------------------------------------------------ can follow the plan / notes (W5 ⑤ ⑥, B6)
 TARGET_KEY = "schedule.follow_target"  # your target, percent of blocks followed in a week
 
 
@@ -362,12 +362,12 @@ actions.register_undo("schedule.target", _undo_target)
 
 class AvoidIn(Strict):
     weekday: int  # 0 = Monday
-    part: str  # เช้า · บ่าย · เย็น
+    part: str  # morning, afternoon, evening
 
 
 @router.post("/schedule/avoid")
 async def avoid(body: AvoidIn) -> dict:
-    """⑥ ไม่วางบล็อกช่วงนี้ (B7): a rule of yours, then the plan changes at once."""
+    """⑥ Don't place blocks in this period (B7): a rule of yours, then the plan changes at once."""
     try:
         _, action_id = followed.avoid_rule(body.weekday, body.part)
     except ValueError as exc:
@@ -378,7 +378,7 @@ async def avoid(body: AvoidIn) -> dict:
 
 @router.post("/blocks/{block_id}/done")
 def block_done(block_id: int) -> dict:
-    """นับว่าทำแล้ว: a block the rules called missed, that you did where they couldn't see."""
+    """Count as done: a block the rules called missed, that you did where they couldn't see."""
     try:
         return {"action_id": followed.mark_done(block_id, via=("หน้าตาราง", ""))}
     except ValueError as exc:

@@ -1,6 +1,6 @@
 // The card that opens when you click something on the calendar (like Google Calendar's event
 // card): what it is, when, where it came from, and what you can do with it. Appointments are
-// changed in Google Calendar itself; blocks and due dates lead to their task (แก้งาน, ทำเสร็จแล้ว).
+// changed in Google Calendar itself; blocks and due dates lead to their task (edit task, mark done).
 import { useState, type ReactNode } from "react";
 import { api, type BlockItem, type CalItem, type DeadlineItem, type TaskRow } from "../../api";
 import { AppointmentActions } from "../../components/Bell";
@@ -20,7 +20,7 @@ const CAME_FROM: Record<string, string> = {
   email: "เลขาลงให้จากอีเมล", calendar: "อยู่ในปฏิทิน Google ของคุณ", you: "คุณเพิ่มจากหน้านี้",
 };
 
-/** "พฤ. 12 พ.ย. · 10:00–11:30", or "พฤ. 12 พ.ย. – ศ. 13 พ.ย. · ทั้งวัน". */
+/** "Thu 12 Nov, 10:00-11:30", or "Thu 12 Nov - Fri 13 Nov, all day". */
 function span(startIso: string, endIso: string, allDay: boolean): string {
   const s = new Date(startIso), e = new Date(endIso);
   if (allDay) {
@@ -57,7 +57,7 @@ export function DetailCard({ picked, task, anchor, onClose, onEdit, onDone, onCh
   let swatch: string, title: string, time: string;
   let body: ReactNode;
   if (picked.type === "meet" && picked.ev.status === "proposed") {
-    // waiting for you: the same รับ / ไม่ไป as in the bell and #อนุมัติ (W5 ④ ⑦)
+    // waiting for you: the same Accept / Not going as in the bell and #approval (W5 ④ ⑦)
     const e = picked.ev;
     [swatch, title, time] = ["miss", `${e.title}?`, span(e.start, e.end, e.all_day)];
     body = <>

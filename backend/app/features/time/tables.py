@@ -1,4 +1,4 @@
-"""activity · การใช้เวลา and privacy_rules · ตัวกรอง (features 4.1 and P12, B6).
+"""activity (time use) and privacy_rules (filter) (features 4.1 and P12, B6).
 
 activity: what you did on this computer, from ActivityWatch, after the privacy filter. One row is
 one stretch of one window while you were at the computer (not idle), cut at the edges of each
@@ -10,8 +10,8 @@ B6 plan. Three kinds:
 - app: an app (its window class, e.g. "keepassxc"). Never recorded.
 - title: a window title that names a site or a private window ("kasikorn", "Private Browsing").
   Never recorded. Without a browser extension the title is all there is to go by.
-- word: a word in a title ("รหัสผ่าน"). The time is kept under its app, and the title is hidden.
-Case never matters. A latin value must stand on its own, so "scb" isn't found in "scbx". A Thai
+- word: a word in a title ("รหัสผ่าน" (password)). The time is kept under its app, and the title is hidden.
+Case never matters. A Latin-script value must stand on its own, so "scb" isn't found in "scbx". A Thai
 value is found anywhere, because Thai has no spaces between words.
 """
 
@@ -45,5 +45,5 @@ class PrivacyRule(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     kind: Mapped[str] = mapped_column(String(6))  # a KINDS key
     value: Mapped[str] = mapped_column(String(120))
-    note: Mapped[str] = mapped_column(Text, default="")  # what it is, in your words ("ธนาคาร", "Firefox")
+    note: Mapped[str] = mapped_column(Text, default="")  # what it is, in your words ("bank", "Firefox")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)

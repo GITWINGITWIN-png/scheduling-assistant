@@ -1,4 +1,4 @@
-"""Keeping and posting a brief: one per kind per day in `briefs`, then #สรุป once Discord is up.
+"""Keeping and posting a brief: one per kind per day in `briefs`, then #summary once Discord is up.
 
 The clock catches up missed rounds *before* Discord connects (main.start_background), so a
 brief caught up at startup can't wait for the bot inside its round: it is stored first, and a

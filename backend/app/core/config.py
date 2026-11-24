@@ -43,7 +43,7 @@ class Config(BaseSettings):
     discord_guild_id: int = 0  # your private server
     discord_owner_id: int = 0  # your own user id: the only person the bot listens to
 
-    # Where the web page opens, for links the bot posts ("เปิดหน้าวันนี้" under the morning brief).
+    # Where the web page opens, for links the bot posts ("open today's page" under the morning brief).
     web_url: str = "http://localhost:8000"
 
     # Google (B2). The OAuth client file is v1's, already outside git; tokens live in data_dir.

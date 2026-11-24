@@ -62,7 +62,7 @@ class Mail:
 
 
 def _important(s, since: datetime, until: datetime):
-    """เรื่องสำคัญ: from important people, or matching a keyword, or someone you were waiting on."""
+    """Important matters: from important people, or matching a keyword, or someone you were waiting on."""
     return s.scalars(select(Email).where(
         Email.from_me.is_(False), Email.sent_at >= since, Email.sent_at < until, Email.stage != "old",
         (Email.level == "important") | (Email.flagged != "")).order_by(Email.sent_at.desc())).all()
@@ -78,7 +78,7 @@ def important_mail(since: datetime, until: datetime | None = None) -> list[Mail]
 
 
 def important_today(at: datetime | None = None) -> int:
-    """The side menu's red number next to คนและอีเมล, and the today page's เรื่องสำคัญ."""
+    """The side menu's red number next to People and email, and the today page's Important matters."""
     at = at or now()
     with session() as s:
         return len(_important(s, day_start(today(at)), at))
@@ -101,7 +101,7 @@ class WhoSent:
 
 
 def who_sent(since: datetime, until: datetime) -> WhoSent:
-    """ใครส่งอะไรมา ตาม 3 ระดับ (D2 ③): important per person, interested per person with the
+    """Who sent what, by 3 levels (D2 ③): important per person, interested per person with the
     round's summary, ignored only as numbers per sender (the subjects were skimmed by the round)."""
     with session() as s:
         rows = s.scalars(select(Email).where(Email.from_me.is_(False), Email.sent_at >= since, Email.sent_at < until,
@@ -118,7 +118,7 @@ def who_sent(since: datetime, until: datetime) -> WhoSent:
             unread += 1
             continue
         read += 1
-        if e.level == "important" or e.flagged:  # a keyword match is in เรื่องสำคัญ: counted with it
+        if e.level == "important" or e.flagged:  # a keyword match is in important matters: counted with it
             imp[who] = imp.get(who, 0) + 1
         elif e.level == "interested":
             summary, did = interested.get(who, ("", []))
@@ -192,7 +192,7 @@ def appointments(items: list[Item]) -> int:
 
 # ------------------------------------------------------------------ the rest of the day's numbers
 def waiting() -> list[Decision]:
-    """เรื่องที่รอคุณตัดสิน: every pending decision (plans, appointments, courses), newest first."""
+    """Things waiting for your decision: every pending decision (plans, appointments, courses), newest first."""
     with session() as s:
         rows = s.scalars(select(Decision).where(Decision.status == "pending").order_by(Decision.created_at.desc())).all()
         s.expunge_all()
@@ -210,7 +210,7 @@ def waiting_text(rows: list[Decision]) -> str:
 
 
 def project_news(since: datetime, until: datetime, limit: int = 8) -> list[tuple[str, str, bool]]:
-    """ข่าวโปรเจค (2.3, D2 ⑤): what projects dropped in the inbox, the ones that matter most first.
+    """Project news (2.3, D2 ⑤): what projects dropped in the inbox, the ones that matter most first.
     -> [(project, title, urgent)]"""
     from app.features.projects.tables import Project, ProjectNews
 
@@ -224,13 +224,13 @@ def project_news(since: datetime, until: datetime, limit: int = 8) -> list[tuple
 
 
 def job_line(result: str) -> str:
-    """A job's result, first part: "ทำเสร็จ · 2 commit บน secretary/7-finance" (the tokens are on the jobs page)."""
+    """A job's result, first part: "Done, 2 commits on secretary/7-finance" (the tokens are on the jobs page)."""
     first = (result or "").split("\n", 1)[0]
     return first.split(" · ใช้ ", 1)[0]
 
 
 def jobs_finished(since: datetime, until: datetime) -> list[str]:
-    """งานเบื้องหลังที่จบในช่วงนี้ (B5): "finance: ทำ backtest ต่อ · ทำเสร็จ · 2 commit บน secretary/7-finance"."""
+    """Background work that finished in this period (B5): "finance: continue backtest; Done; 2 commits on secretary/7-finance"."""
     from app.features.jobs.tables import Job
 
     with session() as s:
@@ -240,7 +240,7 @@ def jobs_finished(since: datetime, until: datetime) -> list[str]:
 
 
 def jobs_waiting() -> str:
-    """What the background work will do next, in queue order: "ทำ: finance · รอคุณอนุมัติ: datacom · รอวางแผน: research-lab"."""
+    """What the background work will do next, in queue order: "Doing: finance; waiting for your approval: datacom; waiting to be planned: research-lab"."""
     from app.features.jobs import queue
 
     jobs = queue.ordered()
@@ -250,7 +250,7 @@ def jobs_waiting() -> str:
 
 
 def new_materials(since: datetime, until: datetime) -> list[str]:
-    """สื่อการเรียนใหม่ (U1: "บอกในสรุปเช้า"): what Classroom's round downloaded, per course."""
+    """New course materials (U1: "tell in the morning summary"): what Classroom's round downloaded, per course."""
     with session() as s:
         rows = s.scalars(select(Action).where(Action.kind == "classroom.files", Action.at >= since, Action.at < until,
                                               Action.undone_at.is_(None))).all()

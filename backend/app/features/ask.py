@@ -1,4 +1,4 @@
-"""Ask the secretary (ถามเลขา, feature P10): quick answers from Sonnet, plans from Opus.
+"""Ask the secretary (feature P10): quick answers from Sonnet, plans from Opus.
 
 The flow (D7, and your notes on it):
 
@@ -8,7 +8,7 @@ The flow (D7, and your notes on it):
    answer it. It replies with one HANDOFF line instead, and the message goes to
    **Opus, effort high**, which writes the plan. The plan is saved as a
    decision you approve, change or reject.
-3. "ให้ Opus คิดต่อ" sends the same question to **Opus** when the quick answer
+3. "Think it through with Opus" sends the same question to **Opus** when the quick answer
    isn't enough.
 
 Sorting with Sonnet's own reply costs no extra call: one Sonnet call either
@@ -99,7 +99,7 @@ ORDER_SYSTEM = """คุณคือ "เลขา" เลขาส่วนต�
 8. ไม่ต้องบอก id กับผู้ใช้"""
 ORDER_TURNS = 40  # look-ups and actions in one order: room for all 25 actions (llm.run's default is 8)
 
-# B9 (answer 3.ก): a plan you approved is carried out with the same tools.
+# B9 (answer 3.a): a plan you approved is carried out with the same tools.
 RUN_SYSTEM = """คุณคือ "เลขา" ผู้ใช้อนุมัติแผนด้านล่างแล้ว ลงมือทำตามแผนตอนนี้ ตอบภาษาไทย สั้น
 1. ขั้นที่เลขาทำ: ทำด้วยเครื่องมือตอนนี้ · ค้น id ก่อนถ้าต้องใช้
 2. ขั้นที่ผู้ใช้ทำ: เพิ่มเป็นงานในตาราง (add_task) พร้อมกำหนดส่งและเวลาทำตามที่แผนบอก เลขาจะจองเวลาให้
@@ -161,7 +161,7 @@ SOURCE_NAMES.update(ask_tools.SOURCE_NAMES)
 # ------------------------------------------------------------------ answers
 @dataclass
 class Answer:
-    kind: str  # "answer", "plan", or (B9) "done": an order was carried out, or waits for ทำเลย
+    kind: str  # "answer", "plan", or (B9) "done": an order was carried out, or waits for go ahead
     text: str
     model: str  # "Sonnet" / "Opus"
     effort: str
@@ -171,7 +171,7 @@ class Answer:
     decision_id: int | None = None  # for plans
     title: str = ""  # for plans
     done: list[dict] = field(default_factory=list)  # B9, what an order did: {"id", "summary", "target", "can_undo"}
-    confirms: list[dict] = field(default_factory=list)  # B9, what waits for ทำเลย: {"id", "title"}
+    confirms: list[dict] = field(default_factory=list)  # B9, what waits for go ahead: {"id", "title"}
 
     @property
     def footer(self) -> str:
@@ -187,7 +187,7 @@ TextSink = Callable[[str], Awaitable[None]] | None
 
 
 # How much of the conversation goes with a new message. An answer that lists what was done can be long
-# (12 projects with the 8 still to do), and its end says what to type next ("พิมพ์ ทำต่อ"), so a long
+# (12 projects with the 8 still to do), and its end says what to type next ("type continue"), so a long
 # message loses its middle, not its end. The oldest messages are left out first.
 HISTORY_CHARS = 1500  # of one earlier message
 HISTORY_TOTAL = 6000  # of all of them (about 3 questions and answers)
@@ -202,7 +202,7 @@ def _clip(said: str, limit: int = HISTORY_CHARS) -> str:
 
 
 def _prompt(text: str, history: list[tuple[str, str]] = ()) -> str:
-    """The message, with the time and the conversation before it ("ทำต่อ" means nothing on its own)."""
+    """The message, with the time and the conversation before it ("continue" means nothing on its own)."""
     lines = [f"[ตอนนี้: {thai_datetime(now(), long=True)}]"]
     kept: list[str] = []
     total = 0
@@ -214,7 +214,7 @@ def _prompt(text: str, history: list[tuple[str, str]] = ()) -> str:
             break
         total += len(said)
         # a message's own lines are indented under its "who:", so a line inside an answer that
-        # starts with "คุณ:" (quoted from an email, say) can't pass for something you said
+        # starts with "you:" (quoted from an email, say) can't pass for something you said
         kept.append(f"{who}: " + said.replace("\n", "\n  "))
     if kept:
         lines += ["[บทสนทนาก่อนหน้า]", *reversed(kept), "[ข้อความใหม่]"]
@@ -229,7 +229,7 @@ def _sources(reply: llm.Reply) -> list[str]:
 HANDOFF_NOTE = "เป็นคำสั่งหรือการวางแผน · ส่งต่อให้ Opus"
 
 
-# Where a message came from, for the action log's "ที่มา" (the web page, or a link to the Discord message)
+# Where a message came from, for the action log's "source" (the web page, or a link to the Discord message)
 Via = tuple[str, str]
 WEB: Via = ("หน้าเว็บ", "")
 
@@ -252,7 +252,7 @@ async def ask(text: str, history: list[tuple[str, str]] = (), on_text: TextSink 
 
 
 async def deepen(text: str, history: list[tuple[str, str]] = (), on_text: TextSink = None, via: Via = WEB) -> Answer:
-    """"ให้ Opus คิดต่อ": the same question, thought through by Opus."""
+    """"Think it through with Opus": the same question, thought through by Opus."""
     system = ASK_SYSTEM + "\nตอนนี้ผู้ใช้ขอให้คิดละเอียดขึ้นกว่าคำตอบเร็ว: ค้นให้ครบ อธิบายเหตุผล"
     reply = await llm.run("ask_deep", _prompt(text, history), system=system + book.prompt_block("ask"), tools=TOOLS,
                           on_text=on_text)
@@ -263,7 +263,7 @@ async def deepen(text: str, history: list[tuple[str, str]] = (), on_text: TextSi
 
 
 def done_rows(action_ids: list[int]) -> list[dict]:
-    """What an order did, for the ย้อนกลับ buttons under the answer."""
+    """What an order did, for the Undo buttons under the answer."""
     with session() as s:
         rows = [s.get(Action, i) for i in action_ids]
         return [{"id": a.id, "summary": a.summary, "target": a.target, "can_undo": actions.undoable(a)} for a in rows if a]
@@ -286,7 +286,7 @@ async def order(text: str, history: list[tuple[str, str]] = (), on_text: TextSin
     except llm.LLMError as exc:
         if not (taken.done or taken.confirm or taken.plan):
             raise
-        # Claude stopped halfway: what it already did is real, so the answer still lists it (with ย้อนกลับ)
+        # Claude stopped halfway: what it already did is real, so the answer still lists it (with undo)
         reply = llm.Reply(text=f"Claude หยุดกลางทาง ({exc}) · ที่ทำไปแล้วอยู่ด้านล่าง ย้อนกลับได้ทีละอย่าง",
                           model="opus", effort="")
     tokens = before + reply.tokens + taken.tokens
@@ -390,7 +390,7 @@ async def _carry_out_logged(decision_id: int, via: Via) -> None:
 
 async def carry_out(decision_id: int, via: Via = WEB) -> Answer:
     """Do what an approved plan says: the secretary's steps with the chat's tools, your steps as
-    tasks in the schedule (answer 3.ก). Once only. -> the result, also kept in detail["run"]."""
+    tasks in the schedule (answer 3.a). Once only. -> the result, also kept in detail["run"]."""
     with session() as s:
         d = s.get(Decision, decision_id)
         if d is None or d.kind != "plan" or d.status != "approved":
@@ -405,7 +405,7 @@ async def carry_out(decision_id: int, via: Via = WEB) -> Answer:
     try:
         reply = await llm.run("plan", prompt, system=RUN_SYSTEM + book.prompt_block("ask"), tools=tools, max_turns=RUN_TURNS)
         status, text = "done", reply.text
-    except llm.LLMError as exc:  # what it did before stopping is real, and listed with ย้อนกลับ
+    except llm.LLMError as exc:  # what it did before stopping is real, and listed with undo
         reply = llm.Reply(text="", model="opus", effort="")
         status, text = "failed", f"ทำตามแผนไม่จบ ({exc})" + (" · ที่ทำไปแล้วอยู่ด้านล่าง" if taken.done else "")
     tokens = reply.tokens + taken.tokens
@@ -464,7 +464,7 @@ async def revise(decision_id: int, change: str, via: Via = WEB) -> Answer:
             raise DecisionError("ไม่พบแผนนี้")
         if old.status != "pending":
             raise DecisionError(f"แผนนี้ตอบไปแล้ว · {ANSWERED.get(old.status, old.status)}")
-        old.status, old.answer, old.answered_at = "revised", change, now()  # first, so a second แก้ can't start
+        old.status, old.answer, old.answered_at = "revised", change, now()  # first, so a second edit can't start
     try:
         return await plan(old.detail.get("request", old.title), previous=old, change=change, via=via)
     except Exception:

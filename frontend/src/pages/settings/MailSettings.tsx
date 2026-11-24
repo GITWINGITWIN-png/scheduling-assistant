@@ -2,7 +2,7 @@
 // interested in lately (used when reading the subjects of people you ignore), and after how many
 // days a follow-up reminds you. It lived on the people page until the user agreed (2026-11-06)
 // that settings belong on the settings page, as in the plan's W10. The accounts it listed are in
-// ช่องทางและบริการ on the same page now.
+// Channels and services on the same page now.
 import { useEffect, useState } from "react";
 import { api, type MailSettings } from "../../api";
 import { Button, Card, Spinner } from "../../components/ui";

@@ -1,20 +1,20 @@
 """Sorting time into categories and projects by rules (4.1, B6). There's no model until OmniRoute is
-connected (the user's choice at the B6 plan); what the rules can't place is "อื่นๆ", and you can
+connected (the user's choice at the B6 plan); what the rules can't place is "Other", and you can
 place it yourself on the time page, which makes a rule of yours.
 
 The order (the first rule that matches decides):
 1. yours: "app or title has X -> category Y (and project Z)", made on the time page;
 2. a project named in the title, as registered on the projects page: VS Code says
    "file - my_secretary - Visual Studio Code", a terminal "~/Projects/my_secretary", a browser
-   "my_secretary · GitHub". It counts as โค้ด / โปรเจค, or as เรียน when the project holds a
+   "my_secretary | GitHub". It counts as Code / project, or as Study when the project holds a
    Classroom course's folder. The longest name wins, so "datacom-report" beats "datacom";
-3. an editor or a terminal: โค้ด, without a project (before the title words below, so a terminal
+3. an editor or a terminal: Code, without a project (before the title words below, so a terminal
    in ~/.secretary/inbox isn't mail);
 4. a meeting (Meet, Zoom, Teams);
 5. studying (Classroom, a course's name, Moodle, Coursera...);
 6. mail and chat (Gmail, Thunderbird, Discord, Slack...);
-7. a browser: เว็บและโซเชียล;
-8. anything else: อื่นๆ.
+7. a browser: Web and social;
+8. anything else: Other.
 Matching works the same way as the privacy filter: case never matters, latin words stand alone,
 and Thai is found inside words.
 """
@@ -132,7 +132,7 @@ def yours() -> list[dict]:
 
 
 def add_rule(field: str, match: str, category: str, project: str = "", *, via: tuple[str, str] = ("หน้าเว็บ", "")) -> int:
-    """"app or title has X -> category Y" (from the time page's อื่นๆ list). -> action id."""
+    """"app or title has X -> category Y" (from the time page's Other list). -> action id."""
     if field not in ("app", "title") or category not in CATEGORIES:
         raise ValueError("เลือกว่าดูจากแอปหรือชื่อหน้าต่าง และหมวด")
     match = privacy.clean(match)

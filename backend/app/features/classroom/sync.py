@@ -4,9 +4,9 @@ Courses:
 - The first sync records every course as **ended** (the user, 2026-11-05: the semester is
   over and every course then had finished), so nothing old turns into tasks.
 - A course that appears later, or an ended one with new coursework or materials, is put
-  to you in #อนุมัติ: "ติดตามวิชานี้ไหม", with the folder its materials would go to (an
+  to you in #approvals: "Follow this course?", with the folder its materials would go to (an
   existing course folder under ~/Projects when one matches, else a new one, which is
-  only created once you say yes: "วิชาที่ยังไม่มีโฟลเดอร์ถามก่อนสร้าง").
+  only created once you say yes: "Courses without a folder are asked about before one is created").
 - Ignored courses are never asked about again.
 
 For each **followed** course:
@@ -37,7 +37,7 @@ from app.features.classroom.tables import Course, CourseItem
 
 log = logging.getLogger(__name__)
 
-MATERIALS_DIR = "สื่อ"  # the subfolder of a course folder that materials go into (the plan: datacom/สื่อ/)
+MATERIALS_DIR = "สื่อ"  # the subfolder of a course folder that materials go into (the plan: datacom/media/)
 ASKED: list = []  # hooks: async fn(course_id, decision_id) after a course is put to you (cards.py)
 AFTER_FOLLOWED: list = []  # hooks: fn(course_id) -> str|None, run for followed courses in the round (materials.py)
 
@@ -209,7 +209,7 @@ async def run() -> str | None:
 # ------------------------------------------------------------------ your answer
 async def decide(decision_id: int, follow: bool, *, folder: str | None = None,
                  via: tuple[str, str] = ("หน้าเว็บ", "")) -> tuple[Decision, int]:
-    """ติดตาม (deadlines and materials from now on, folder created if needed) or ไม่ติดตาม.
+    """Follow (deadlines and materials from now on, folder created if needed) or Don't follow.
     -> (the decision, the action id). Undo puts the course back to waiting for your answer."""
     with session() as s:
         d = s.get(Decision, decision_id)

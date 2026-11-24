@@ -2,7 +2,7 @@
 
 Accounts and what each may do are in ACCOUNTS:
 
-- gmail (หลัก, your everyday Gmail): read Gmail, read and write Calendar. Appointments
+- gmail (main, your everyday Gmail): read Gmail, read and write Calendar. Appointments
   and work blocks from every account go into its calendars (CALENDAR_ACCOUNT), so you have
   one schedule.
 - ku (KU, the @ku.th address; v1's token.json, which v1 called "personal"): read Gmail,

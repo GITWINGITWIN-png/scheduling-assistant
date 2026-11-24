@@ -46,21 +46,21 @@ def taken_by() -> str | None:
                 return f"{schema} {key}"
     for path in bound():
         if path != PATH and gs("get", f"{SCHEMA}.custom-keybinding:{path}", "binding").strip("'").lower() == BINDING.lower():
-            return f"คีย์ลัดของคุณเอง {gs('get', f'{SCHEMA}.custom-keybinding:{path}', 'name')}"
+            return f"your own shortcut {gs('get', f'{SCHEMA}.custom-keybinding:{path}', 'name')}"
     return None
 
 
 def on() -> None:
     other = taken_by()
     if other:
-        sys.exit(f"Super+I ถูกใช้อยู่แล้วโดย {other} · ไม่ได้เปลี่ยนอะไร")
+        sys.exit(f"Super+I is already taken by {other}; nothing was changed")
     paths = bound()
     if PATH not in paths:
         gs("set", SCHEMA, "custom-keybindings", str(paths + [PATH]))
     gs("set", ONE, "name", "จดไอเดีย (เลขา)")
     gs("set", ONE, "command", COMMAND)
     gs("set", ONE, "binding", BINDING)
-    print(f"ผูก Super+I แล้ว: {COMMAND}\nเอาออก: /usr/bin/python3 {Path(__file__).resolve()} off")
+    print(f"Super+I is bound: {COMMAND}\nTo remove it: /usr/bin/python3 {Path(__file__).resolve()} off")
 
 
 def off() -> None:
@@ -69,14 +69,14 @@ def off() -> None:
         paths.remove(PATH)
         gs("set", SCHEMA, "custom-keybindings", str(paths) if paths else "@as []")
     gs("reset-recursively", ONE)
-    print("เอา Super+I ของเลขาออกแล้ว")
+    print("Removed the secretary's Super+I shortcut")
 
 
 def show() -> None:
     if PATH in bound():
         print(f"Super+I → {gs('get', ONE, 'command')}")
     else:
-        print("ยังไม่ได้ผูก · ผูกด้วย: /usr/bin/python3 " + str(Path(__file__).resolve()) + " on")
+        print("Not bound yet. Bind it with: /usr/bin/python3 " + str(Path(__file__).resolve()) + " on")
 
 
 if __name__ == "__main__":

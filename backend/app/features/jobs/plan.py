@@ -11,12 +11,12 @@ plan has. The plan's own words are checked against the 7 agreed kinds too (book.
 kind the planner left out still asks.
 
 Budget = estimate × 1.2. Changing the effort before you approve scales the estimate
-(EFFORT_COST): the W4 panel's "ลดเป็น medium ≈ 90k · เพิ่มเป็น xhigh ≈ 220k".
+(EFFORT_COST): the W4 panel's "lower to medium ≈ 90k, raise to xhigh ≈ 220k".
 
 `decide()` is the rule check (core/rules/check.py), done after planning and again just before a
-job starts. Go: the job is ready (tonight's window, or ทำเลย). Ask: a "job" decision waits in
-#อนุมัติ (ASKED hooks post the card); อนุมัติ makes this plan good for 3 days, แก้แผน asks
-Opus again with your change, ไม่เอา takes the job out.
+job starts. Go: the job is ready (tonight's window, or "do it now"). Ask: a "job" decision waits in
+#Approval (ASKED hooks post the card); Approve makes this plan good for 3 days, Revise plan asks
+Opus again with your change, Decline takes the job out.
 """
 
 from __future__ import annotations
@@ -147,7 +147,7 @@ def names(keys: list[str]) -> list[str]:
 
 
 async def make(job_id: int, *, change: str = "", via: Via = WEB) -> Verdict:
-    """Plan the job (again, with your change, for แก้แผน), then check it against the rules."""
+    """Plan the job (again, with your change, for Revise plan), then check it against the rules."""
     with session() as s:
         job = s.get(Job, job_id)
         if job is None:
@@ -188,7 +188,7 @@ async def make(job_id: int, *, change: str = "", via: Via = WEB) -> Verdict:
         j.risks = list(dict.fromkeys([*plan.risks, *words]))
         j.plan_tokens += tokens
         j.planned_at, j.result = now(), ""
-        j.approved_until = None  # a new plan needs its own approval ("เฉพาะแผนนั้น")
+        j.approved_until = None  # a new plan needs its own approval ("that plan only")
         if change:
             j.note = (j.note + "\n" if j.note else "") + f"ขอแก้: {change}"
     actions.record("job.plan", "แก้แผนงานเบื้องหลังตามที่ขอ" if change else "วางแผนงานเบื้องหลัง", f"{job.project}: {plan.title}",
@@ -244,7 +244,7 @@ def _pending_job(s, decision_id: int) -> tuple[Decision, Job]:
 
 
 def answer(decision_id: int, approve: bool, *, via: Via = WEB) -> tuple[Job, int]:
-    """อนุมัติ 3 วัน (this plan only) or ไม่เอา. -> (the job, the action id)."""
+    """Approve 3 days (this plan only) or Decline. -> (the job, the action id)."""
     at = now()
     with session() as s:
         d, job = _pending_job(s, decision_id)
@@ -265,7 +265,7 @@ def answer(decision_id: int, approve: bool, *, via: Via = WEB) -> tuple[Job, int
                                d.title, source_label=via[0], source_url=via[1],
                                undo={"decision_id": decision_id, "job_id": job.id, "old": old})
     try:
-        learn.refresh()  # "คุณอนุมัติแผนงานเบื้องหลังของ X ทุกครั้ง" waits in the rule book
+        learn.refresh()  # "You approve X's background plans every time" waits in the rule book
     except Exception:
         log.exception("couldn't look for patterns after a plan answer")
     return job, action_id
@@ -321,7 +321,7 @@ async def set_budget(job_id: int, tokens: int, *, via: Via = WEB) -> Job:
 
 
 async def revise(decision_id: int, change: str, *, via: Via = WEB) -> Verdict:
-    """แก้แผน: Opus plans again with your change; the old request is marked revised."""
+    """Revise plan: Opus plans again with your change; the old request is marked revised."""
     if not change.strip():
         raise PlanError("บอกด้วยว่าจะแก้อะไร")
     with session() as s:

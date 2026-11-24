@@ -1,4 +1,4 @@
-"""The schedule page's API: adding กิจกรรม and tasks with their own block sizes.
+"""The schedule page's API: adding activities and tasks with their own block sizes.
 
 Google Calendar is replaced by a fake that remembers what was written, so nothing here
 reaches your real calendar. The schedule round is treated as off, so nothing re-plans
@@ -58,7 +58,7 @@ def run(coro):
     return asyncio.run(coro)
 
 
-# ------------------------------------------------------------------ กิจกรรม
+# ------------------------------------------------------------------ activity
 def test_an_event_goes_into_the_main_calendar_and_undo_takes_it_out(calendar):
     r = run(api.add_event(api.EventIn(title=" ประชุมแล็บ ", start="2026-11-12T10:00", end="2026-11-12T11:30",
                                       location="ห้อง 204", description="เอาสไลด์ไปด้วย")))
@@ -102,7 +102,7 @@ def test_a_failed_write_leaves_nothing_behind(calendar, monkeypatch):
         assert s.scalar(select(Event).where(Event.title == "ลงไม่ได้")) is None
 
 
-# ------------------------------------------------------------------ งาน
+# ------------------------------------------------------------------ task
 def test_a_task_keeps_its_own_block_sizes_and_null_puts_one_back_to_the_rules(calendar):
     r = run(api.add_task(api.TaskIn(title="รายงาน datacom", due="2026-11-13T17:00", est_minutes=20 * 60,
                                     block_minutes=60, daily_minutes=120)))
@@ -133,7 +133,7 @@ def test_an_edit_cannot_blank_the_title(calendar):
             run(api.edit_task(r["id"], body))
 
 
-# ------------------------------------------------------------------ รายละเอียดงาน
+# ------------------------------------------------------------------ task details
 def test_details_are_kept_cleared_with_null_and_limited(calendar):
     r = run(api.add_task(api.TaskIn(title="แล็บ 3", details="  ทำข้อ 1-4 ส่งเป็น PDF\nhttps://example.com/hand-in  ")))
     with session() as s:

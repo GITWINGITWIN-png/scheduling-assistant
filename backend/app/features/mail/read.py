@@ -2,14 +2,14 @@
 
 The model answers in a fixed line format, and plain Python reads the lines. The format
 is easy for a model to keep, and a half-broken answer still yields whatever lines are
-right; JSON breaks as a whole. Times stay as the model wrote them ("พรุ่งนี้ 10 โมง"
+right; JSON breaks as a whole. Times stay as the model wrote them ("tomorrow 10 am"
 or "2026-11-07 14:00"), and core/when.py turns them into real times (step 5).
 
 Safety: an email is written by someone else, so its text is data, never instructions.
 The model has no tools here at all, and the system prompt says not to follow requests
 inside the email. The worst a crafted email can do is make a wrong summary, or a fake
 appointment line. From someone important that line goes into your calendar, with
-ย้อนกลับ in the #ด่วน card; from anyone else it only becomes a proposal.
+undo in the #urgent card; from anyone else it only becomes a proposal.
 """
 
 from __future__ import annotations

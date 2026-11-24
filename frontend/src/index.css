@@ -68,7 +68,7 @@ body { background: var(--bg); color: var(--ink); }
 }
 .schedule-cal .fc .fc-scrollgrid, .schedule-cal .fc th, .schedule-cal .fc td { border: 0; }
 
-/* the day headers: "พ." over "4", each with its own underline, today in a pill */
+/* the day headers: "Wed" over "4", each with its own underline, today in a pill */
 .schedule-cal .fc .fc-col-header-cell { padding: 0 2px; font-weight: 400; background: var(--panel); }
 .schedule-cal .fc .fc-col-header-cell-cushion { display: block; padding: 0; }
 .schedule-cal .wk-d { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 0 6px;
@@ -100,7 +100,7 @@ body { background: var(--bg); color: var(--ink); }
 .schedule-cal .ev-in span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .schedule-cal .fc-daygrid-event .ev-in span { display: none; } /* month view: the title only */
 .schedule-cal .fc .fc-event.ev.meet { background: var(--bad-soft); color: var(--bad); border-left-color: var(--bad); }
-/* an appointment with its own colour in Google Calendar (--ev, set per event): the same soft look as นัด, in that colour */
+/* an appointment with its own colour in Google Calendar (--ev, set per event): the same soft look as appointments, in that colour */
 .schedule-cal .fc .fc-event.ev.meet.tinted { background: color-mix(in srgb, var(--ev) 18%, var(--panel));
   color: color-mix(in srgb, var(--ev) 65%, var(--ink)); border-left-color: var(--ev); }
 .schedule-cal .fc .fc-event.ev.dead { background: var(--warn-soft); color: var(--warn); border-left-color: var(--warn); }
@@ -136,5 +136,5 @@ body { background: var(--bg); color: var(--ink); }
 .blk.bg { background: var(--panel-2); color: var(--ink-2); border-left-color: var(--muted); }
 .blk.miss { background: transparent; color: var(--muted); border: 1.5px dashed var(--line-2); }
 .blk.job { background: var(--panel-2); color: var(--ink-2); border-left-color: #A855C9; } /* background work (the mockup's purple) */
-.blk.done { background: var(--ok-soft); color: var(--ok); border-left-color: var(--ok); } /* B6 ทำจริง: work */
-.blk.other { background: var(--panel-2); color: var(--muted); border-left-color: var(--c5, var(--muted)); } /* B6 ทำจริง: the rest */
+.blk.done { background: var(--ok-soft); color: var(--ok); border-left-color: var(--ok); } /* B6 Actual: work */
+.blk.other { background: var(--panel-2); color: var(--muted); border-left-color: var(--c5, var(--muted)); } /* B6 Actual: the rest */

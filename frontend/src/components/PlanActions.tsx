@@ -1,5 +1,5 @@
-// ใช้แผนนี้ · แก้ · ไม่เอา under a plan from Opus (D7 on the web). Since B9 an approved plan is
-// carried out at once: this watches it and shows what was done, with ย้อนกลับ for each thing.
+// Use this plan / Edit / No thanks under a plan from Opus (D7 on the web). Since B9 an approved plan is
+// carried out at once: this watches it and shows what was done, with Revert for each thing.
 // The same plan can have buttons in several places (under the answer, the bell, the today page,
 // Discord). Pressing a copy that was answered elsewhere shows what happened instead of an error.
 import { useEffect, useState } from "react";
@@ -35,7 +35,7 @@ export function PlanActions({ decisionId, onRevised }: { decisionId: number; onR
     } finally { setBusy(false); refresh(); }
   };
 
-  // after ใช้แผนนี้: ask every few seconds until the secretary has finished carrying it out
+  // after Use this plan: ask every few seconds until the secretary has finished carrying it out
   useEffect(() => {
     if (state !== "approved" || (run && run.status !== "running" && run.status !== "none")) return;
     const t = setTimeout(() => { api.planRun(decisionId).then(setRun, () => setTries((n) => n + 1)); }, WATCH_MS);

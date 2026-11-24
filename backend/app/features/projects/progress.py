@@ -3,7 +3,7 @@
 The background work takes "where a project is stuck" from here only (the user's choice at the
 B5 plan: not Claude Code's own logs). Checkbox lines are the plan: "- [ ] …" to do, "- [x] …"
 done. The next step is the first unchecked item; when it has unchecked items under it, the
-first of those, so "B5 · โปรเจค › 1. ทะเบียนโปรเจค" rather than the whole phase. An unchecked
+first of those, so "B5 (Projects) › 1. Project registry" rather than the whole phase. An unchecked
 item under one already checked (a check left for later) is not the next step.
 """
 
@@ -25,7 +25,7 @@ def find(folder: Path) -> Path | None:
 
 
 def plain(text: str) -> str:
-    """"**B5 · โปรเจค** (งานใหญ่): …" -> "B5 · โปรเจค (งานใหญ่)" (markdown and the trailing notes dropped)."""
+    """"**B5 (Projects)** (major task): …" -> "B5 (Projects) (major task)" (markdown and the trailing notes dropped)."""
     text = re.sub(r"`([^`]*)`", r"\1", text)
     text = re.sub(r"\*\*([^*]*)\*\*|__([^_]*)__", lambda m: m.group(1) or m.group(2), text)
     text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)

@@ -1,9 +1,9 @@
-"""projects · ทะเบียนโปรเจค (stage 3's data model): every folder under ~/Projects.
+"""projects: project register (stage 3's data model): every folder under ~/Projects.
 
-status: idea · active · paused · auto · done (ไอเดีย / กำลังทำ / พัก / รันอัตโนมัติ / จบแล้ว).
-potential S–F and urgency 0–5, **5 the most urgent** (the user's choice at the B5 plan,
+status: idea, active, paused, auto, done.
+potential S-F and urgency 0-5, **5 the most urgent** (the user's choice at the B5 plan,
 2026-11-06, matching the approved mockups); both order the background-work queue and the
-advice, and decide which project news is urgent. A project starts at C · 2 until you set it.
+advice, and decide which project news is urgent. A project starts at C, 2 until you set it.
 """
 
 from datetime import datetime
@@ -29,7 +29,7 @@ class Project(Base):
     urgency: Mapped[int] = mapped_column(Integer, default=DEFAULT_URGENCY)  # 5 = most urgent
     level_set: Mapped[bool] = mapped_column(Boolean, default=False)  # you set potential and urgency
     hidden: Mapped[bool] = mapped_column(Boolean, default=False)  # not a project (a backup, a copy): you hid it
-    allow_jobs: Mapped[bool] = mapped_column(Boolean, default=False)  # ให้เลขาทำต่อได้ (off for every project at first)
+    allow_jobs: Mapped[bool] = mapped_column(Boolean, default=False)  # lets the secretary continue (off for every project at first)
     is_git: Mapped[bool] = mapped_column(Boolean, default=False)
     last_activity: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)  # last commit, or the folder's change
     commits_14d: Mapped[int] = mapped_column(Integer, default=0)
@@ -40,9 +40,9 @@ class Project(Base):
 
 
 class ProjectNews(Base):
-    """project_news · ข่าวโปรเจค (2.3): what projects drop in ~/.secretary/inbox (inbox.py), one row
-    per file. urgent: a failure or a question in a project that matters (potential S–A or urgency
-    4–5): sent to #ด่วน at once; the rest waits for the morning brief."""
+    """project_news: project news (2.3): what projects drop in ~/.secretary/inbox (inbox.py), one row
+    per file. urgent: a failure or a question in a project that matters (potential S-A or urgency
+    4-5): sent to #urgent at once; the rest waits for the morning brief."""
 
     __tablename__ = "project_news"
 
@@ -57,6 +57,6 @@ class ProjectNews(Base):
     failed: Mapped[bool] = mapped_column(Boolean, default=False)
     needs_you: Mapped[bool] = mapped_column(Boolean, default=False)
     urgent: Mapped[bool] = mapped_column(Boolean, default=False)
-    message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the #ด่วน card, when sent
+    message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the #urgent card, when sent
     file: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)

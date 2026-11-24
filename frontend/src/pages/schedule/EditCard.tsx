@@ -1,8 +1,8 @@
-// The card for adding a กิจกรรม or a งาน, and for changing a งาน: Google Calendar's quick-create
+// The card for adding an event or a task, and for changing a task: Google Calendar's quick-create
 // card with two tabs.
-// - กิจกรรม: something at a fixed time (a meeting, a trip). It goes into your main Google
+// - Event: something at a fixed time (a meeting, a trip). It goes into your main Google
 //   Calendar; the secretary reminds you of it and keeps work blocks away from it.
-// - งาน: work with a due date that the secretary finds time for, as blocks in the "เลขา"
+// - Task: work with a due date that the secretary finds time for, as blocks in the "Secretary"
 //   calendar. Its box at the bottom says in words what the secretary will do with what you
 //   typed, so no field has to be guessed at.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -41,7 +41,7 @@ function at(date: string, time: string): Date {
   return new Date(`${date}T${time}`);
 }
 
-/** What the calendar shows while the card is open: Google Calendar's "(ไม่มีชื่อ)" draft. */
+/** What the calendar shows while the card is open: Google Calendar's "(No title)" draft. */
 export type Ghost = { start: Date; end: Date; allDay: boolean; title: string; kind: "event" | "task"; sub?: string };
 
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
@@ -62,7 +62,7 @@ export function TimeSelect({ value, onChange, label, from, disabled }: {
   );
 }
 
-/** The rules' defaults (กติกาตาราง), or the built-in ones while they load. */
+/** The defaults of the schedule rules, or the built-in ones while they load. */
 function defaults(rules: ScheduleRules | null) {
   return {
     est: rules?.estimates.you ?? 60, block: rules?.rules.max_block ?? 120, daily: rules?.rules.per_task_per_day ?? 180,
@@ -138,7 +138,7 @@ export function EditCard({ draft, anchor, rules, onClose, onDone, onPreview }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // กิจกรรม: a click gives one slot (half an hour); like Google Calendar, make it an hour.
+  // Event: a click gives one slot (half an hour); like Google Calendar, make it an hour.
   const s0 = fresh?.start ?? new Date();
   let e0 = fresh?.end ?? new Date();
   if (fresh && !fresh.allDay && e0.getTime() - s0.getTime() <= 30 * 60_000) e0 = new Date(s0.getTime() + 60 * 60_000);
@@ -151,7 +151,7 @@ export function EditCard({ draft, anchor, rules, onClose, onDone, onPreview }: {
   const [location, setLocation] = useState("");
   const [note, setNote] = useState("");
 
-  // งาน: the clicked time is the due time (as with Google Calendar's tasks); from a button, tomorrow 17:00.
+  // Task: the clicked time is the due time (as with Google Calendar's tasks); from a button, tomorrow 17:00.
   const due0 = editing ? (editing.due ? new Date(editing.due) : null)
     : fresh?.slot ? (fresh.allDay ? at(ymd(lastDay), "23:59") : s0) : at(ymd(addDays(new Date(), 1)), "17:00");
   const estDefault = editing ? editing.est_default : d.est;

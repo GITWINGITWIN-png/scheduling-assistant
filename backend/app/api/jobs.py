@@ -1,6 +1,6 @@
 """B5's web API for the background work (W4): the quota and the line, what's running, the queue
 and its plans (with the model and effort to change before you approve), what was done, and
-the buttons: ทำต่อ, วางแผนเลย, อนุมัติ · แก้แผน · ไม่เอา, ทำเลย, หยุด. The rule book (W8) has its
+the buttons: Continue, Plan now, Approve, Edit plan, No, Do it now, Stop. The rule book (W8) has its
 own, api/rules.py."""
 
 from __future__ import annotations
@@ -44,14 +44,14 @@ def get_quota() -> dict:
 
 @router.post("/quota/read")
 async def read_quota() -> dict:
-    """อ่านตอนนี้: a tiny call to hear the current numbers."""
+    """Read now: a tiny call to hear the current numbers."""
     return {"quota": quota_view(await quota.probe()), "line": book.line()}
 
 
-# ------------------------------------------------------------------ ทำเลย · หยุด (B5.7)
+# ------------------------------------------------------------------ go ahead / stop (B5.7)
 @router.post("/jobs/{job_id}/run")
 async def run_now(job_id: int) -> dict:
-    """ทำเลย: start a ready job now, outside the night window too (it is checked again first)."""
+    """Do it now: start a ready job now, outside the night window too (it is checked again first)."""
     try:
         return {"line": await runner.start(job_id, night=False)}
     except runner.RunError as exc:
@@ -60,7 +60,7 @@ async def run_now(job_id: int) -> dict:
 
 @router.post("/jobs/{job_id}/stop")
 def stop_job(job_id: int) -> dict:
-    """หยุด: the run stops within seconds and keeps what it did, committed on its branch."""
+    """Stop: the run stops within seconds and keeps what it did, committed on its branch."""
     try:
         runner.stop(job_id)
     except runner.RunError as exc:
@@ -144,22 +144,22 @@ class NewJob(Strict):
 
 @router.post("/jobs")
 async def add_job(body: NewJob) -> dict:
-    """ทำต่อ: a job for this project, planned at once (you asked for it, so it doesn't wait for the
-    night): then the rule check, so a plan that asks is in #อนุมัติ straight away."""
+    """Continue: a job for this project, planned at once (you asked for it, so it doesn't wait for the
+    night): then the rule check, so a plan that asks is in #approve straight away."""
     try:
         job_id, action_id = queue.add(body.project_id, body.note)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     try:
         verdict = await plans.make(job_id)
-    except Exception as exc:  # a PlanError, or Claude unreachable: the job waits in the queue for วางแผนเลย
+    except Exception as exc:  # a PlanError, or Claude unreachable: the job waits in the queue for plan now
         return {"id": job_id, "action_id": action_id, "go": None, "why": f"ใส่คิวแล้ว แต่วางแผนไม่สำเร็จ: {exc}"}
     return {"id": job_id, "action_id": action_id, "go": verdict.go, "why": verdict.why}
 
 
 @router.post("/jobs/{job_id}/plan")
 async def plan_now(job_id: int) -> dict:
-    """วางแผนเลย: Opus plans it now (instead of waiting for the night), then the rule check."""
+    """Plan now: Opus plans it now (instead of waiting for the night), then the rule check."""
     try:
         verdict = await plans.make(job_id)
     except plans.PlanError as exc:
@@ -186,7 +186,7 @@ class BudgetIn(Strict):
 
 @router.put("/jobs/{job_id}/budget")
 async def set_budget(job_id: int, body: BudgetIn) -> dict:
-    """ตั้งงบเอง before it starts (e.g. a low one, to see the runner stop by itself)."""
+    """Set the budget yourself before it starts (e.g. a low one, to see the runner stop by itself)."""
     try:
         return job_view(await plans.set_budget(job_id, body.budget))
     except plans.PlanError as exc:
@@ -199,7 +199,7 @@ class AnswerIn(Strict):
 
 @router.post("/jobs/decisions/{decision_id}")
 async def answer(decision_id: int, body: AnswerIn) -> dict:
-    """อนุมัติ 3 วัน or ไม่เอา, from the web; the #อนุมัติ card says so too."""
+    """Approve 3 days or No, from the web; the #approve card says so too."""
     try:
         job, action_id = plans.answer(decision_id, body.approve)
     except plans.PlanError as exc:
@@ -214,7 +214,7 @@ class ReviseIn(Strict):
 
 @router.post("/jobs/decisions/{decision_id}/revise")
 async def revise(decision_id: int, body: ReviseIn) -> dict:
-    """แก้แผน: Opus plans again with your change."""
+    """Edit plan: Opus plans again with your change."""
     try:
         verdict = await plans.revise(decision_id, body.change)
     except plans.PlanError as exc:

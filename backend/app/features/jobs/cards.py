@@ -1,5 +1,5 @@
-"""Background plans in Discord: the D5 card in #อนุมัติ ("แผนงานเบื้องหลัง · ต้องถามคุณ") with
-อนุมัติ 3 วัน · แก้แผน · ไม่เอา, and a menu to change the model and effort before you approve
+"""Background plans in Discord: the D5 card in #Approval ("Background plan, needs your answer") with
+the buttons Approve 3 days, Revise plan and Decline, and a menu to change the model and effort before you approve
 (the budget follows the effort). The same plan waits in the bell and on the jobs page (W4):
 answering in any of them has the same result.
 """

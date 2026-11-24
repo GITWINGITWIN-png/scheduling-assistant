@@ -8,9 +8,9 @@ import { DecisionRow } from "./Decisions";
 import { useDismiss } from "./popover";
 import { Button, Spinner } from "./ui";
 
-// รับ · ไม่ไป for an appointment from someone who isn't important (B2), with ย้อนกลับ after รับ.
+// accept, don't go for an appointment from someone who isn't important (B2), with undo after accept.
 // onChange: the page around it re-reads what it shows (the schedule redraws the calendar).
-// Answered elsewhere (#อนุมัติ, the chat, another copy of these buttons): a press shows how instead.
+// Answered elsewhere (#approvals, the chat, another copy of these buttons): a press shows how instead.
 export function AppointmentActions({ decisionId, onChange }: { decisionId: number; onChange?: () => void }) {
   const { refresh } = useStatus();
   const [state, setState] = useState<"open" | "placed" | "declined" | "undone">("open");
@@ -50,7 +50,7 @@ export function AppointmentActions({ decisionId, onChange }: { decisionId: numbe
   );
 }
 
-// ติดตาม · ไม่ติดตาม for a Classroom course (B3). The folder can be changed before following.
+// Follow / Don't follow for a Classroom course (B3). The folder can be changed before following.
 export function CourseActions({ decisionId, folder: proposed, exists }: { decisionId: number; folder: string; exists: boolean }) {
   const { refresh } = useStatus();
   const [folder, setFolder] = useState(proposed);

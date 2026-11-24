@@ -4,8 +4,8 @@ Two calendars are used:
 
 - **primary**: your own calendar. Appointments the secretary found in email go here (B2),
   and everything on it counts as busy time when work blocks are placed.
-- **"เลขา"** (BLOCKS_NAME): a separate calendar the secretary creates for its work blocks
-  (B3, the user's choice: "แยกชื่อเลขาออกมา"). You can hide it or delete it as a whole in
+- **"Secretary"** (BLOCKS_NAME): a separate calendar the secretary creates for its work blocks
+  (B3, the user's choice: "split the secretary out under its own name"). You can hide it or delete it as a whole in
   Google Calendar without touching your real appointments. Its id is saved in the
   settings ("state.calendar"); if you delete it, the next write creates it again.
 
@@ -84,9 +84,9 @@ def _missing(exc: HttpError) -> bool:
     return exc.resp.status in (404, 410)
 
 
-# ------------------------------------------------------------------ the "เลขา" calendar
+# ------------------------------------------------------------------ the "secretary" calendar
 def blocks_calendar(*, create: bool = True) -> str | None:
-    """The id of the "เลขา" calendar, created if needed (unless create=False)."""
+    """The id of the "Secretary" calendar, created if needed (unless create=False)."""
     svc = _service()
     saved = (settings.get(STATE_KEY) or {}).get("blocks")
     if saved:
@@ -97,7 +97,7 @@ def blocks_calendar(*, create: bool = True) -> str | None:
         except HttpError as exc:
             if not _missing(exc):
                 raise
-    # Not saved (or deleted): reuse a "เลขา" calendar you own before making another one, so
+    # Not saved (or deleted): reuse a "secretary" calendar you own before making another one, so
     # losing the saved id (a fresh database, a test run) never leaves duplicates behind.
     token = None
     while True:
@@ -139,7 +139,7 @@ def insert(title: str, start: datetime, end: datetime, *, all_day: bool = False,
             "extendedProperties": {"private": {MARK: mark}},
             "source": {"title": "เลขา", "url": "http://localhost:8000/schedule"}}
     if mark == "block":
-        body["reminders"] = {"useDefault": False, "overrides": []}  # the secretary reminds in #ด่วน instead
+        body["reminders"] = {"useDefault": False, "overrides": []}  # the secretary reminds in #urgent instead
     ev = _service().events().insert(calendarId=calendar, body=body).execute()
     return ev["id"], ev.get("htmlLink", "")
 

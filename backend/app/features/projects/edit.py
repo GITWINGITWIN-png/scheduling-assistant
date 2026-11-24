@@ -1,7 +1,7 @@
-"""Change what a project's row says: status, potential, urgency, hidden, ให้เลขาทำต่อได้.
+"""Change what a project's row says: status, potential, urgency, hidden, let the secretary keep going.
 
 Used by the projects page (W3) and, without the last two, by orders in the chat (B9).
-Every change is recorded in สิ่งที่เลขาทำ and can be undone.
+Every change is recorded in What the secretary did and can be undone.
 """
 
 from __future__ import annotations

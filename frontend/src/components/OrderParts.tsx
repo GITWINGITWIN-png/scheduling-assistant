@@ -1,5 +1,5 @@
-// What an order in the chat did, and what waits for ทำเลย (B9): the same list and buttons as under
-// the answer in #คุยกับเลขา. ย้อนกลับ undoes one thing, and the others stay; ทำเลย carries out what
+// What an order in the chat did, and what waits for Do it now (B9): the same list and buttons as under
+// the answer in #talk-to-secretary. Revert undoes one thing, and the others stay; Do it now carries out what
 // can't be undone, once. A button answered elsewhere (Discord, the bell) says what happened when
 // pressed, instead of an error next to buttons that look as if they still work.
 import { useState } from "react";
@@ -59,7 +59,7 @@ function ConfirmLine({ item }: { item: ConfirmItem }) {
   );
 }
 
-/** ทำเลย · ไม่เอา for one order (also the bell's row for it). Once pressed, it says what happened. */
+/** Do it now / No thanks for one order (also the bell's row for it). Once pressed, it says what happened. */
 export function ConfirmButtons({ id, onDone }: { id: number; onDone?: () => void }) {
   const { refresh } = useStatus();
   const [said, setSaid] = useState("");

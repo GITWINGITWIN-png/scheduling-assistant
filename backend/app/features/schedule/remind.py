@@ -1,4 +1,4 @@
-"""เตือนก่อนถึงกำหนด (P5): "tomorrow" and "in an hour" messages in #ด่วน. The round "remind", every 5 minutes.
+"""Reminders before the due time (P5): "tomorrow" and "in an hour" messages in #urgent. The round "remind", every 5 minutes.
 
 What gets reminded:
 - appointments on your primary calendar (copied in by sync.py), and the ones the
@@ -9,7 +9,7 @@ What gets reminded:
 When: the smallest lead that already applies, from LEADS ("1d" when it is a day or less
 away, "1h" when it is an hour or less away), each sent once per time (a moved
 appointment is reminded again for its new time). The day-before reminder is skipped
-for something that arrived from email less than an hour ago: its #ด่วน card just told you.
+for something that arrived from email less than an hour ago: its #urgent card just told you.
 
 No model, no tokens. If Discord isn't connected nothing is sent or recorded, so the
 reminder still goes out once the bot is back (if it's still in time).
@@ -160,7 +160,7 @@ async def _send_task(t: Task, lead: str) -> int:
 
 
 async def run() -> str | None:
-    """The "remind" round. -> "เตือน 2 เรื่อง", or None when nothing was due."""
+    """The "remind" round. -> "Reminded about 2 things", or None when nothing was due."""
     if not _ready():
         return None
     at, active = now(), leads()

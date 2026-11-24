@@ -1,4 +1,4 @@
-"""Classroom in Discord: "ติดตามวิชานี้ไหม" in #อนุมัติ, with ติดตาม / ไม่ติดตาม buttons.
+"""Classroom in Discord: "Follow this course?" in #approvals, with Follow / Don't follow buttons.
 
 The same question is in the web bell; answering in either place answers both.
 """

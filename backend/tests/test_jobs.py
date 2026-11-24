@@ -120,7 +120,7 @@ def test_the_secretary_never_queues_work_on_itself(projects):
     with pytest.raises(ValueError):
         queue.add(projects["jobs-self"])
     with pytest.raises(ValueError):
-        queue.add(projects["jobs-off"], "ทำเถอะ")  # the switch is the gate, for ทำต่อ too
+        queue.add(projects["jobs-off"], "ทำเถอะ")  # the switch is the gate, for continue too
 
 
 def test_tamtor_needs_a_step_or_a_note_and_one_job_at_a_time(projects):
@@ -282,7 +282,7 @@ def test_rejecting_takes_the_job_out(projects):
     plan.answer(job.decision_id, approve=False)
     assert job_of("jobs-beta").status == "rejected"
     assert queue.refresh() == [] and job_of("jobs-beta").status == "rejected"  # the same step doesn't come back each night
-    job_id, _ = queue.add(job.project_id, "ลองใหม่ แบบไม่ลงแพ็กเกจ")  # ทำต่อ always can
+    job_id, _ = queue.add(job.project_id, "ลองใหม่ แบบไม่ลงแพ็กเกจ")  # continue always can
     assert job_of("jobs-beta").id == job_id and job_of("jobs-beta").status == "queued"
     queue.drop(job_id)
     assert queue.refresh() == []  # taken out: not back by itself either
@@ -350,7 +350,7 @@ def test_the_planner_reads_the_secretarys_unmerged_work_and_is_told_so(projects,
     subprocess.run(["git", "-C", str(wt), "add", "-A"], check=True)
     subprocess.run(["git", "-C", str(wt), "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "graph"], check=True)
     subprocess.run(["git", "-C", str(root), "worktree", "remove", str(wt)], check=True)
-    assert base.next_step(root, "jobs-alpha")[0] == "ทำรายงาน"  # main still says ทำกราฟ; the branch has it done
+    assert base.next_step(root, "jobs-alpha")[0] == "ทำรายงาน"  # main still says make the graph; the branch has it done
     seen = []
     fake_planner(monkeypatch, PLAN, seen)
     set_week(monkeypatch, 50.0)

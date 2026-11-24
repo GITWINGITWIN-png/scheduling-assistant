@@ -9,7 +9,7 @@ from app.core.db import Base, UTCDateTime, now
 
 STATES = {  # what the secretary does with a course, in your words
     "ended": "จบแล้ว",  # it was there at the first sync (the user: every course then had finished)
-    "asking": "รอคุณตอบ",  # new, or busy again: waiting in #อนุมัติ "ติดตามวิชานี้ไหม"
+    "asking": "รอคุณตอบ",  # new, or busy again: waiting in #approvals "follow this course?"
     "followed": "ติดตาม",  # deadlines become tasks, materials are downloaded
     "ignored": "ไม่ติดตาม",
 }
@@ -23,14 +23,14 @@ class Course(Base):
     section: Mapped[str] = mapped_column(Text, default="")
     link: Mapped[str] = mapped_column(Text, default="")
     state: Mapped[str] = mapped_column(String(10), default="asking")  # a STATES key
-    folder: Mapped[str] = mapped_column(Text, default="")  # where its materials go, e.g. ~/Projects/datacom/สื่อ
+    folder: Mapped[str] = mapped_column(Text, default="")  # where its materials go, e.g. ~/Projects/datacom/media
     # The newest coursework or material time seen; something newer wakes an ended course up.
     last_activity: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
 
 
 class CourseItem(Base):
-    """course_items · งานและสื่อจาก Classroom: one piece of coursework, material or announcement."""
+    """course_items (coursework and materials from Classroom): one piece of coursework, material or announcement."""
 
     __tablename__ = "course_items"
 

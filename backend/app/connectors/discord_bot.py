@@ -4,14 +4,14 @@ How it reaches Discord: the bot opens an *outgoing* connection to Discord's
 gateway and keeps it open. Nothing on this machine is exposed to the internet:
 no public URL, no open port.
 
-What it sets up: in your private server it makes sure a category "เลขา" with
+What it sets up: in your private server it makes sure a category "เลขา" (secretary) with
 five channels exists, and creates whatever is missing:
 
-    #คุยกับเลขา (chat) · #ด่วน (urgent) · #สรุป (summary) · #อนุมัติ (approve) · #ไอเดีย (ideas)
+    #คุยกับเลขา (chat), #ด่วน (urgent), #สรุป (summary), #อนุมัติ (approve), #ไอเดีย (ideas)
 
 Everything happens in the server, so one place holds the whole history (your
 choice, 2026-11-05). A DM to the bot, or a message in a channel nothing reads
-(like #general), gets a pointer to #คุยกับเลขา instead of silence.
+(like #general), gets a pointer to #คุยกับเลขา (chat) instead of silence.
 
 Who it listens to: only you (SECRETARY_DISCORD_OWNER_ID). Messages from anyone
 else are ignored, so nobody else can ask your secretary anything.
@@ -45,7 +45,7 @@ log = logging.getLogger(__name__)
 CATEGORY = "เลขา"
 CHANNELS = {"chat": "คุยกับเลขา", "urgent": "ด่วน", "summary": "สรุป", "approve": "อนุมัติ", "ideas": "ไอเดีย"}
 # What the bot needs in your server: see and post in channels, post cards, read history,
-# create (and order) its channels the first time, and mark an idea in #ไอเดีย as kept (✅, B6).
+# create (and order) its channels the first time, and mark an idea in #ideas as kept (✅, B6).
 PERMISSIONS = discord.Permissions(view_channel=True, send_messages=True, embed_links=True,
                                   read_message_history=True, manage_channels=True, add_reactions=True)
 
@@ -86,7 +86,7 @@ def buttons(*items: discord.ui.Item) -> discord.ui.View:
 class SecretaryBot(discord.Client):
     def __init__(self) -> None:
         intents = discord.Intents.default()
-        intents.message_content = True  # to read #ไอเดีย (B6); DMs to the bot are readable anyway
+        intents.message_content = True  # to read #ideas (B6); DMs to the bot are readable anyway
         super().__init__(intents=intents)
         self.channels: dict[str, discord.TextChannel] = {}
         self.on_channel_message: dict[str, MessageHandler] = {}
@@ -95,7 +95,7 @@ class SecretaryBot(discord.Client):
         self.dynamic_items: list[type[discord.ui.DynamicItem]] = []
         self.ready_event = asyncio.Event()
         self.problem = ""  # why it isn't working, in your words (shown on the settings page)
-        self._pointed: set[int] = set()  # channels/DMs where we already said "talk to me in #คุยกับเลขา"
+        self._pointed: set[int] = set()  # channels/DMs where we already said "talk to me in #talk-to-secretary"
 
     async def setup_hook(self) -> None:
         self.add_dynamic_items(*self.dynamic_items)
@@ -167,7 +167,7 @@ class SecretaryBot(discord.Client):
             log.exception("handling a deleted Discord message failed")
 
     async def _point_to_chat(self, message: discord.Message) -> None:
-        """You wrote somewhere nothing listens (a DM, #general, #ด่วน...). Say where the chat is
+        """You wrote somewhere nothing listens (a DM, #general, #ด่วน (urgent)...). Say where the chat is
         instead of staying silent, which looks like the bot is broken. Once per channel per
         run, so a channel you also use for other things doesn't fill up with the same hint."""
         if message.channel.id in self._pointed:

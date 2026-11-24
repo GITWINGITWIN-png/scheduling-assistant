@@ -1,4 +1,4 @@
-"""B10 · เชื่อมโปรเจคกับเลขา: the `secretary-news` command writes what docs/CONNECT.md asks for and
+"""B10, connecting projects to the secretary: the `secretary-news` command writes what docs/CONNECT.md asks for and
 the inbox reads it as news; the note in each project goes in where Claude Code reads it, git never
 sees it, and undo takes back exactly what was changed (your own lines stay)."""
 

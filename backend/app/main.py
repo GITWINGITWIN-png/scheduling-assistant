@@ -84,23 +84,23 @@ async def start_background() -> None:
     mail_rounds.setup()  # B2: the 00:00 and 12:00 reading rounds (also off until then)
     mail_extract.setup()  # appointments and tasks from what the rounds read
     mail_followups.setup()  # who owes a reply, and the reminders
-    mail_cards.setup()  # #ด่วน · #อนุมัติ · #สรุป cards (after extract, so they can say what was done)
+    mail_cards.setup()  # #urgent, #approvals, #summary cards (after extract, so they can say what was done)
     schedule_sync.setup()  # B3: plan blocks and sync with Google Calendar every 15 min (off until B3's check)
-    schedule_remind.setup()  # B3: "tomorrow" / "in an hour" in #ด่วน every 5 min (off until the check)
+    schedule_remind.setup()  # B3: "tomorrow" / "in an hour" in #urgent every 5 min (off until the check)
     classroom_sync.setup()  # B3: Classroom deadlines and materials every 2 h (off until the check)
-    classroom_cards.setup()  # "ติดตามวิชานี้ไหม" in #อนุมัติ
+    classroom_cards.setup()  # "follow this subject?" in #approvals
     classroom_materials.setup()  # new materials into the course folder, inside the Classroom round
-    briefs_morning.setup()  # B4: สรุปเช้า 07:00 in #สรุป (off until B4's check)
-    briefs_evening.setup()  # B4: ทบทวนเย็น 21:00 in #สรุป (off until B4's check)
+    briefs_morning.setup()  # B4: morning summary 07:00 in #summary (off until B4's check)
+    briefs_evening.setup()  # B4: evening review 21:00 in #summary (off until B4's check)
     projects_scan.setup()  # B5: the project registry, rescanned 06:30 (off until B5's check)
-    projects_cards.setup()  # "ตั้งระดับโปรเจคใหม่" in #อนุมัติ, urgent project news in #ด่วน
+    projects_cards.setup()  # "set a new project level" in #approvals, urgent project news in #urgent
     projects_inbox.setup()  # B5: news from ~/.secretary/inbox every 5 min (off until the check)
     jobs_runner.setup()  # B5: background work 01:00–06:00 (off until the check); a job cut off by a stop is kept
-    jobs_cards.setup()  # B5: "แผนงานเบื้องหลัง · ต้องถามคุณ" in #อนุมัติ (D5)
-    ideas_cards.setup()  # B6: every message in #ไอเดีย is an idea (✅ once kept), and the rounds' cards
+    jobs_cards.setup()  # B5: "background plans: must ask you" in #approvals (D5)
+    ideas_cards.setup()  # B6: every message in #ideas is an idea (✅ once kept), and the rounds' cards
     ideas_groups.setup()  # B6: group the ideas at 00:05 and 12:05 (off until B6's check)
     time_pull.setup()  # B6: read ActivityWatch every 15 minutes (off until you switch recording on)
-    weekly_review.setup()  # B7: ทบทวนรายสัปดาห์ Sunday 19:00 in #สรุป (off until B7's check)
+    weekly_review.setup()  # B7: weekly review Sunday 19:00 in #summary (off until B7's check)
     weekly_cards.setup()  # its cards and buttons
     if time_recorder.installed():  # awatcher's config always follows the blocklist (its first line of filtering)
         time_privacy.write_awatcher_config()
@@ -108,7 +108,7 @@ async def start_background() -> None:
         log.info("took in %s ideas from the popup's outbox", n)
     await clock.start()  # schedules the rounds and runs any missed while the machine was off
     ask_discord.setup()  # your DMs go to the ask feature; its buttons are registered
-    actions_discord.setup()  # the ย้อนกลับ button
+    actions_discord.setup()  # the undo button
     await discord_bot.start()  # connects in the background; the web page works without it
 
 

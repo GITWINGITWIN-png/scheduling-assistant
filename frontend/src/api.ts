@@ -3,7 +3,7 @@
 export type Status = {
   pending: number; tokens_week: number; discord: boolean; theme: string;
   stale?: boolean; // the backend code on disk is newer than the running one: restart (older backends don't send it)
-  counts?: { people?: number; decisions?: number; jobs?: number; projects?: number }; // the side menu's numbers (people: today's เรื่องสำคัญ; decisions: what waits for you; jobs: plans waiting for you; projects: on the go)
+  counts?: { people?: number; decisions?: number; jobs?: number; projects?: number }; // the side menu's numbers (people: today's important matters; decisions: what waits for you; jobs: plans waiting for you; projects: on the go)
   quota?: { week_left: number; at: string; line: number; auto?: boolean } | null; // B5: what's left of your Claude week (null: not read yet); line and auto: the rule book's rule
 };
 
@@ -20,7 +20,7 @@ export type Settings = {
   discord: { configured: boolean; connected: boolean; user: string; channels: string[]; problem: string };
   google: { id: string; label: string; does: string; connected: boolean; problem: string; address: string }[];
   services: { icon: string; name: string; detail: string; phase: string; state?: string; tone?: "ok" | "warn" | "muted" }[]; // B6: state is live
-  jobs_rule: { auto: boolean; line: number; approval_days: number }; // B5: อนุมัติเอง (set in the rule book)
+  jobs_rule: { auto: boolean; line: number; approval_days: number }; // B5: auto-approve (set in the rule book)
 };
 
 export type LogItem = {
@@ -44,21 +44,21 @@ export type Decision = {
 export type Answer = {
   kind: "answer" | "plan" | "done"; text: string; model: string; effort: string; seconds: number; tokens: number;
   sources: string[]; decision_id: number | null; title: string; footer: string;
-  done: DoneItem[]; confirms: ConfirmItem[]; // B9: what an order did, and what waits for ทำเลย
+  done: DoneItem[]; confirms: ConfirmItem[]; // B9: what an order did, and what waits for "do it now"
 };
-// B9 สั่งงานผ่านแชท: one thing an order did (ย้อนกลับ when can_undo), one that waits for ทำเลย
+// B9 chat orders: one thing an order did (undo when can_undo), one that waits for "do it now"
 export type DoneItem = { id: number; summary: string; target: string; can_undo: boolean };
 export type ConfirmItem = { id: number; title: string };
 // how carrying out an approved plan is going
 export type PlanRun = { status: "none" | "running" | "done" | "failed"; text?: string; done?: DoneItem[]; confirms?: ConfirmItem[] };
 
-// W5 ตาราง (B3)
+// W5 schedule (B3)
 export type CalItem = {
   id: number; title: string; start: string; end: string; all_day: boolean; location: string;
-  description: string; // รายละเอียด: what you typed, or its description in Google Calendar
+  description: string; // details: what you typed, or its description in Google Calendar
   source: string; source_name: string; recurring: boolean; link: string; mail: string; // link: Google Calendar · mail: the email it came from
-  status: "placed" | "proposed"; decision_id: number | null; from: string; // proposed: waiting for you to รับ (who asked)
-  color: string; // its own colour in Google Calendar (#rrggbb), "" = drawn in the red of นัด
+  status: "placed" | "proposed"; decision_id: number | null; from: string; // proposed: waiting for you to accept (who asked)
+  color: string; // its own colour in Google Calendar (#rrggbb), "" = drawn in the red of appointments
 };
 export type BlockItem = {
   id: number; task_id: number; title: string; start: string; end: string; pinned: boolean; past: boolean;
@@ -71,8 +71,8 @@ export type PlanMode = "early" | "late";
 export type TaskRow = {
   id: number; title: string; due: string | null; status: "open" | "done" | "dropped"; source: string;
   est_minutes: number | null; est_default: number; plan_mode: PlanMode; done_minutes: number; booked_minutes: number; link: string;
-  block_minutes: number | null; daily_minutes: number | null; // null: the rules' (กติกาตาราง)
-  details: string; // รายละเอียดงาน: what, where, where to hand it in (links allowed)
+  block_minutes: number | null; daily_minutes: number | null; // null: the rules' (schedule rules)
+  details: string; // task details: what, where, where to hand it in (links allowed)
 };
 export type NewTask = {
   title: string; due: string | null; est_minutes: number | null; plan_mode: PlanMode;
@@ -90,7 +90,7 @@ export type CourseRow = {
   decision_id: number | null; files: { name: string; path: string }[]; file_count: number;
 };
 
-// W1 วันนี้ (B4)
+// W1 today (B4)
 export type DayItem = { start: string; end: string; title: string; kind: "meet" | "block" | "dead" | "allday"; sub: string;
   color?: string }; // an appointment's own colour in Google Calendar
 export type RoundMark = { at: string; title: string; done: boolean; line: string };
@@ -98,7 +98,7 @@ export type BriefView = { made_at: string; title: string; headline: string; fiel
 export type TodayPage = {
   greeting: string; brief: BriefView | null; headline: string; morning_on: boolean;
   plan: DayItem[]; secretary: RoundMark[]; hours: [number, number];
-  actual?: { start: string; end: string; what: string; category: string; project: string }[]; recording?: boolean; // B6: ทำจริง
+  actual?: { start: string; end: string; what: string; category: string; project: string }[]; recording?: boolean; // B6: do it for real
   important: { id: string; who: string; summary: string; at: string; done: string[]; link: string }[];
   news: { id: number; project: string; title: string; body: string; at: string; potential: string; urgent: boolean; failed: boolean; needs_you: boolean; link: string }[];
   jobs: {
@@ -109,7 +109,7 @@ export type TodayPage = {
   };
 };
 
-// W8 สมุดกติกา (B5)
+// W8 rule book (B5)
 export type Part = "planner" | "mail" | "jobs" | "ask" | "clock" | "all";
 /** A rule that lives in your settings, shown in the rule book (its value is set where `edit` points). */
 export type SystemRule = {
@@ -131,7 +131,7 @@ export type Proposal = {
   effect: Record<string, unknown> | null; change: Record<string, unknown> | null;
 };
 
-// W4 งานเบื้องหลัง · W3 โปรเจค (B5)
+// W4 background jobs, W3 projects (B5)
 export type JobStatus = "queued" | "asking" | "ready" | "running" | "done" | "stopped" | "failed" | "rejected" | "dropped" | "paused";
 export type JobRow = {
   id: number; project_id: number; project: string; potential: string; source: "progress" | "you"; stuck_at: string; note: string; status: JobStatus;
@@ -167,7 +167,7 @@ export class ApiError extends Error {
   constructor(message: string, readonly status = 0) { super(message); }
 }
 
-/** For the buttons under a chat answer (ใช้แผนนี้, ทำเลย, ย้อนกลับ): 409 means it was answered or
+/** For the buttons under a chat answer (use this plan, do it now, undo): 409 means it was answered or
  *  undone already, somewhere else or on another copy of the same buttons. The message says what
  *  happened, and the page shows it in place of the buttons, since nothing is left to press. */
 export const answeredAlready = (e: unknown): e is ApiError => e instanceof ApiError && e.status === 409;
@@ -186,7 +186,7 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
   return res.json();
 }
 
-// W2 คนและอีเมล (B2)
+// W2 people and email (B2)
 export type Level = "important" | "interested" | "ignored";
 export type Person = {
   id: number; name: string; level: Level; level_name: string; source: string; until: string | null;
@@ -201,7 +201,7 @@ export type MailSettings = {
   accounts: { id: string; label: string; connected: boolean; problem: string; address: string }[];
 };
 
-// W6 ไอเดีย (B6)
+// W6 ideas (B6)
 export type IdeaRow = {
   id: number; text: string; source: "key" | "discord" | "web"; source_name: string; tags: string[];
   tagged: "" | "you" | "rules"; group_id: number | null; group: string; at: string;
@@ -216,21 +216,21 @@ export type IdeaGroupRow = {
 export type IdeasPage = { recent: IdeaRow[]; total: number; ungrouped: number; groups: IdeaGroupRow[]; grown: number; round_on: boolean };
 export type SavedIdea = { id: number; tags: string[]; group: GroupPreview };
 
-// W2 ข้อเสนอปรับระดับรายสัปดาห์ (B7): from the weekly review while it waits, else as things stand now
+// W2 weekly level-change proposal (B7): from the weekly review while it waits, else as things stand now
 export type ProposalItem = {
   person_id: number; name: string; level: Level; to: Level; choice: string; choices: [string, string][];
   why: string; note: string; until: string | null;
 };
 export type Proposals = { decision_id: number | null; items: ProposalItem[] };
 
-// W5 ⑤ ⑥ ทำตามแผนได้ · ข้อสังเกต (B6)
+// W5 ⑤ ⑥ can follow the plan, observations (B6)
 export type Followed = {
   label: string; percent: number | null; checked: number; target: number; recording: boolean;
   days: { label: string; done: number; missed: number }[];
   notes: { title: string; sub: string; weekday: number; part: string; weeks: number; avoided: boolean }[];
 };
 
-// W7 การใช้เวลา (B6)
+// W7 time use (B6)
 export type PrivacyRuleRow = { id: number; kind: "app" | "title" | "word"; kind_name: string; value: string; note: string };
 export type Recorder = {
   installed: boolean; running: boolean; enabled: boolean; extension: "on" | "after_login" | "missing"; round_on: boolean;
@@ -252,14 +252,14 @@ export type TimePage = {
 };
 
 export const api = {
-  // D4 ทบทวนรายสัปดาห์ (B7)
+  // D4 weekly review (B7)
   weeklyNow: () => call<{ title: string }>("POST", "/api/weekly/run"),
   answerWeekly: (decisionId: number, act: string) => call<{ text: string }>("POST", `/api/weekly/decisions/${decisionId}`, { act }),
-  // W2 ข้อเสนอปรับระดับรายสัปดาห์ (B7)
+  // W2 weekly level-change proposal (B7)
   proposals: () => call<Proposals>("GET", "/api/proposals/people"),
   answerProposals: (items: { person_id: number; choice: string }[], decision_id: number | null) =>
     call<{ action_ids: number[] }>("POST", "/api/proposals/people", { items, decision_id }),
-  // W7 การใช้เวลา (B6)
+  // W7 time use (B6)
   time: (range: TimeRange = "week") => call<TimePage>("GET", `/api/time?range=${range}`),
   sortTime: (field: "app" | "title", match: string, category: string, project = "") =>
     call<{ action_id: number }>("POST", "/api/time/categories", { field, match, category, project }),
@@ -268,7 +268,7 @@ export const api = {
   resumeRecording: () => call<PrivacyCard & { action_id: number }>("POST", "/api/time/resume"),
   addPrivacyRule: (kind: string, value: string, note = "") => call<PrivacyCard & { action_id: number }>("POST", "/api/time/privacy", { kind, value, note }),
   removePrivacyRule: (id: number) => call<PrivacyCard & { action_id: number }>("DELETE", `/api/time/privacy/${id}`),
-  // W6 ไอเดีย (B6)
+  // W6 ideas (B6)
   ideas: () => call<IdeasPage>("GET", "/api/ideas"),
   addIdea: (text: string, tags: string[] | null) => call<SavedIdea>("POST", "/api/ideas", { text, tags, source: "web" }),
   suggestTags: (text: string) => call<{ tags: string[]; group: GroupPreview }>("GET", `/api/ideas/suggest?text=${encodeURIComponent(text)}`),
@@ -280,9 +280,9 @@ export const api = {
   groupLater: (id: number) => call<{ action_id: number }>("POST", `/api/ideas/groups/${id}/later`),
   renameGroup: (id: number, name: string) => call<{ action_id: number }>("PUT", `/api/ideas/groups/${id}/name`, { name }),
   ideasRound: () => call<{ line: string }>("POST", "/api/ideas/round"),
-  // W1 วันนี้ (B4)
+  // W1 today (B4)
   today: () => call<TodayPage>("GET", "/api/today"),
-  // W5 ตาราง (B3)
+  // W5 schedule (B3)
   followed: () => call<Followed>("GET", "/api/schedule/followed"),
   setFollowTarget: (target: number) => call<{ target: number; action_id: number }>("PUT", "/api/schedule/followed/target", { target }),
   blockDone: (id: number) => call<{ action_id: number }>("POST", `/api/blocks/${id}/done`),
@@ -327,7 +327,7 @@ export const api = {
   revise: (id: number, change: string) => call<Answer>("POST", `/api/decisions/${id}/revise`, { change }),
   confirmOrder: (id: number, yes: boolean) => call<{ text: string }>("POST", `/api/orders/${id}`, { yes }),
   planRun: (id: number) => call<PlanRun>("GET", `/api/plans/${id}/run`),
-  // W8 สมุดกติกา (B5)
+  // W8 rule book (B5)
   ruleBook: () => call<RulesPage>("GET", "/api/rules"),
   parseRule: (text: string) => call<Proposal>("POST", "/api/rules/parse", { text }),
   addRule: (r: { kind: string; text: string; used_by?: Part[]; effect?: Record<string, unknown> | null; change?: Record<string, unknown> | null }) =>
@@ -337,10 +337,10 @@ export const api = {
   deleteRule: (id: number) => call<{ action_id: number }>("DELETE", `/api/rules/${id}`),
   answerLearned: (id: number, accept: boolean) => call<RuleRow & { action_id: number }>("POST", `/api/rules/${id}/answer`, { accept }),
   setJobsRule: (r: { auto?: boolean; line?: number }) => call<{ auto: boolean; line: number; action_id: number }>("PUT", "/api/rules/jobs", r),
-  // W4 งานเบื้องหลัง (B5)
+  // W4 background jobs (B5)
   jobs: () => call<JobsPage>("GET", "/api/jobs"),
   readQuota: () => call<{ quota: JobsPage["quota"] | null }>("POST", "/api/quota/read"),
-  // ทำต่อ: queued and planned at once (go: may start · false: waits for you in #อนุมัติ · null: the plan failed)
+  // continue: queued and planned at once (go: may start, false: waits for you in #approvals, null: the plan failed)
   addJob: (projectId: number, note: string) =>
     call<{ id: number; action_id: number; go: boolean | null; why: string }>("POST", "/api/jobs", { project_id: projectId, note }),
   planJob: (id: number) => call<{ go: boolean; why: string }>("POST", `/api/jobs/${id}/plan`),
@@ -352,7 +352,7 @@ export const api = {
   dropJob: (id: number) => call<{ action_id: number }>("DELETE", `/api/jobs/${id}`),
   runJob: (id: number) => call<{ line: string }>("POST", `/api/jobs/${id}/run`),
   stopJob: (id: number) => call<{ ok: boolean }>("POST", `/api/jobs/${id}/stop`),
-  // W3 โปรเจค (B5)
+  // W3 projects (B5)
   projects: () => call<ProjectsPage>("GET", "/api/projects"),
   editProject: (id: number, change: Partial<Pick<ProjectRow, "status" | "potential" | "urgency" | "hidden" | "allow_jobs">>) =>
     call<{ action_id: number }>("PATCH", `/api/projects/${id}`, change),
@@ -374,7 +374,7 @@ export type AskEvents = {
 };
 
 /** Ask the secretary and receive the answer as it is written (the backend streams NDJSON lines). */
-/** One earlier message in the ask box, sent along so a follow-up ("ทำต่อ") makes sense. */
+/** One earlier message in the ask box, sent along so a follow-up ("continue") makes sense. */
 export type Said = { who: "คุณ" | "เลขา"; text: string };
 
 export async function askStream(text: string, deep: boolean, on: AskEvents, history: Said[] = [],

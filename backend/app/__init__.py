@@ -9,5 +9,5 @@ and each layer can change without touching the ones above it:
     core/         shared kernel (store, Claude, clock, action log) -> imports none of the above
 
 main.py wires them together. The full map is in docs/plan-v2/PLAN.md
-("ขั้น 3 · โครงสร้างโค้ด").
+("Step 3: code structure").
 """

@@ -1,6 +1,6 @@
-"""Your tasks: add, change, mark done. Every change is recorded and can be undone (สิ่งที่เลขาทำ).
+"""Your tasks: add, change, mark done. Every change is recorded and can be undone (What the secretary did).
 
-Used by the schedule page (W5) and the "ทำเสร็จแล้ว" button on deadline reminders.
+Used by the schedule page (W5) and the "Done" button on deadline reminders.
 Tasks also arrive from email (features/mail/extract.py, kind "task.add") and Classroom
 (features/classroom/sync.py). The planner picks any change up on its next run.
 """
@@ -18,7 +18,7 @@ EDITABLE = ("title", "due_at", "est_minutes", "plan_mode", "block_minutes", "dai
 MODES = {"early": "เริ่มเร็ว", "late": "ชิดเดดไลน์"}
 SOURCE_NAMES = {"email": "อีเมล", "classroom": "Classroom", "you": "คุณเพิ่ม", "project": "โปรเจค", "calendar": "ปฏิทิน",
                 "idea": "กลุ่มไอเดีย"}  # B6: a grown idea group you made a task
-DETAILS_MAX = 5000  # characters of รายละเอียดงาน
+DETAILS_MAX = 5000  # characters of task details
 
 # The minutes a task may ask for (None always means "the default"). The upper ends only
 # catch typing mistakes: 200 hours of work, an 8-hour block, 16 hours in one day.

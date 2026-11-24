@@ -1,12 +1,12 @@
-"""#ไอเดีย on Discord (D6): every message you write there is one idea, marked ✅ once it's kept,
+"""#ideas on Discord (D6): every message you write there is one idea, marked ✅ once it's kept,
 and the noon and midnight rounds' cards.
 
 - The ✅ is the only answer: no message back, so the channel stays a list of your ideas (D6 ②).
-  If the bot may not add reactions in your server, it replies "✓ จดแล้ว" instead. Editing a
+  If the bot may not add reactions in your server, it replies "✓ Noted" instead. Editing a
   message changes its idea, and deleting the message deletes the idea.
-- After a round with something new: "จัดกลุ่มไอเดีย · รอบเที่ยง" lists where the new ideas
-  went (D6 ③). Each group that has grown gets its own card with เปิดโปรเจค · ทำเป็นงาน ·
-  ยังก่อน (D6 ④). เปิดโปรเจค first asks for the folder's name, filled in from the tag.
+- After a round with something new: "Ideas grouped, noon round" lists where the new ideas
+  went (D6 ③). Each group that has grown gets its own card with Open project / Make it a task /
+  Not yet (D6 ④). Open project first asks for the folder's name, filled in from the tag.
   The bell, the today page and the ideas page ask the same question, and an answer in one
   place settles the others.
 """
@@ -171,7 +171,7 @@ class ProjectModal(discord.ui.Modal, title="เปิดเป็นโปรเ
 
 
 async def _reopened(a: Action) -> tuple[str, discord.ui.View | None]:
-    """After undoing ทำเป็นงาน or ยังก่อน: the question waits for you again, with its buttons."""
+    """After undoing Make it a task or Not yet: the question waits for you again, with its buttons."""
     group_id = (a.undo or {}).get("group_id")
     with session() as s:
         g = s.get(IdeaGroup, group_id)

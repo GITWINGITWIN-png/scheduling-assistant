@@ -1,14 +1,14 @@
 """The today page (W1): everything of today on one page, from what the other features know.
 
-- hello: the morning brief's numbers ("เช้านี้: …", W1 ②), the same line as in #สรุป, with the
-  brief in full behind "ดูสรุปเช้าฉบับเต็ม"; before today's brief exists, the same numbers
+- hello: the morning brief's numbers ("เช้านี้ (this morning): …", W1 ②), the same line as in #สรุป (summary), with the
+  brief in full behind "ดูสรุปเช้าฉบับเต็ม" (view full morning brief); before today's brief exists, the same numbers
   counted now.
-- the day as rows (W1 ③): แผน (appointments, work blocks, due dates) and เลขา (the daily rounds
-  that ran today, and the ones still to come), and ทำจริง (B6): what ActivityWatch saw, by project
+- the day as rows (W1 ③): แผน (plan) (appointments, work blocks, due dates) and เลขา (secretary) (the daily rounds
+  that ran today, and the ones still to come), and ทำจริง (actual work) (B6): what ActivityWatch saw, by project
   or category, through the privacy filter.
-- เรื่องสำคัญ (W1 ⑤): today's mail from important people or matching a keyword, with what
+- เรื่องสำคัญ (important matters) (W1 ⑤): today's mail from important people or matching a keyword, with what
   the secretary did; the same count as the side menu's number.
-- งานเบื้องหลัง and ข่าวโปรเจค (W1 ⑥ ⑦, B5): what runs and waits, today's runs on the เลขา row,
+- งานเบื้องหลัง (background work) and ข่าวโปรเจค (project news) (W1 ⑥ ⑦, B5): what runs and waits, today's runs on the เลขา (secretary) row,
   and the projects' news.
 What waits for you comes from /api/decisions (the bell's rows).
 """
@@ -30,7 +30,7 @@ from app.features.time import insights
 
 router = APIRouter(prefix="/api")
 
-# The rounds the เลขา row shows: the ones that run once or twice a day. The frequent ones (every
+# The rounds the secretary row shows: the ones that run once or twice a day. The frequent ones (every
 # few minutes) would only be noise on a day's row.
 DAILY = ("mail_big", "morning", "mail_small", "evening", "backup", "projects", "weekly")
 
@@ -58,7 +58,7 @@ def _brief(d: str) -> dict | None:
 
 
 def _secretary(at: datetime) -> list[dict]:
-    """The เลขา row: daily rounds that ran today (from the log), then the ones still to come today."""
+    """The Secretary row: daily rounds that ran today (from the log), then the ones still to come today."""
     start = day.day_start(day.today(at))
     with session() as s:
         ran = s.scalars(select(Action).where(Action.kind.in_([f"round.{r}" for r in DAILY]), Action.at >= start,
@@ -77,7 +77,7 @@ def _secretary(at: datetime) -> list[dict]:
 
 
 def _news(at: datetime) -> list[dict]:
-    """ข่าวโปรเจค (W1 ⑦): the last two days', the projects that matter most first."""
+    """Project news (W1 ⑦): the last two days', the projects that matter most first."""
     from app.features.projects.tables import Project, ProjectNews
 
     with session() as s:
@@ -91,7 +91,7 @@ def _news(at: datetime) -> list[dict]:
 
 
 def _jobs(at: datetime) -> dict:
-    """งานเบื้องหลัง (W1 ⑥): what's running with its budget, the queue, and what ran today (B5)."""
+    """Background work (W1 ⑥): what's running with its budget, the queue, and what ran today (B5)."""
     from app.features.jobs import queue
     from app.features.jobs.tables import Job
 
@@ -124,7 +124,7 @@ def today_page() -> dict:
         "plan": [{"start": _iso(i.start), "end": _iso(i.end), "title": i.title, "kind": i.kind, "sub": i.sub,
                   "color": i.color} for i in items],
         "secretary": _secretary(at),
-        "actual": insights.today_actual(d),  # B6: the ทำจริง row
+        "actual": insights.today_actual(d),  # B6: the actually-do row
         "recording": clock.enabled("activity"),
         "important": [{"id": m.id, "who": m.who, "summary": m.summary, "at": _iso(m.sent_at), "done": m.done, "link": m.link}
                       for m in day.important_mail(day.day_start(d), at)],

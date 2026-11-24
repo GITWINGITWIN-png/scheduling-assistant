@@ -1,12 +1,12 @@
 #!/usr/bin/python3
-"""จดไอเดีย (K1, B6): the small window Super+I opens over whatever you're doing.
+"""Idea capture (K1, B6): the small window Super+I opens over whatever you're doing.
 
 Type, press Enter, and the idea goes to the secretary on this computer (POST /api/ideas on
 localhost). The window then says which group it joins and closes itself. Shift+Enter starts a
 new line, Esc closes without saving.
 
 As you type, the secretary's rules suggest tags (no model). They are picked already, and a click
-drops one; "+ แท็ก" adds your own. If the secretary isn't running, the idea is kept in
+drops one; "+ tag" adds your own. If the secretary isn't running, the idea is kept in
 ~/.secretary/ideas-outbox.jsonl and goes into the store the next time the secretary starts.
 
 It runs on the system Python, because GTK 4 (PyGObject) comes with Ubuntu and not with the

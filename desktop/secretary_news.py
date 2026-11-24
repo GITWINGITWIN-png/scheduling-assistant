@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""ส่งข่าวให้เลขา (B10): one line from any project puts a news file in the secretary's inbox.
+"""Send news to the secretary (B10): one line from any project puts a news file in the secretary's inbox.
 
     secretary-news report "เสร็จ: ตัวแยกคำภาษาไทย" --body "ขั้นต่อไป: เทสต์กับข้อมูลจริง"
     secretary-news report "รอคุณเลือกว่าจะใช้ model ไหน" --needs-you
@@ -11,8 +11,8 @@
 
 It is docs/CONNECT.md as a command: the project is the folder under ~/Projects you run it from
 (or --project), and the file is written whole and then renamed into place, so the secretary never
-reads half a file. The secretary reads its inbox every 5 minutes while the round "อ่านข่าวจาก
-โปรเจค" is on. The projects are told to use it by the note "เชื่อมกับเลขา" writes into each one
+reads half a file. The secretary reads its inbox every 5 minutes while the round "อ่านข่าวจากโปรเจค"
+(read news from projects) is on. The projects are told to use it by the note "เชื่อมกับเลขา" (connect with the secretary) writes into each one
 (backend/app/features/projects/connect.py).
 
 Standard library only, so it runs from any project and any Python, without the secretary's venv.
@@ -125,7 +125,7 @@ def send(news: dict, project: str, inbox: Path, at: datetime | None = None) -> P
 
 
 def round_on(data: Path) -> bool | None:
-    """Whether the secretary reads its inbox now (the round "อ่านข่าวจากโปรเจค"), or None if unknown."""
+    """Whether the secretary reads its inbox now (the round "read news from projects"), or None if unknown."""
     try:
         db = sqlite3.connect(f"file:{data / 'secretary.db'}?mode=ro", uri=True)
         try:

@@ -1,9 +1,9 @@
-// W4 งานเบื้องหลัง (B5), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w4_body): the quota
-// and the 70% line, three numbers, what's running with its budget and หยุด, the queue in order
+// W4 Background work (B5), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w4_body): the quota
+// and the 70% line, three numbers, what's running with its budget and Stop, the queue in order
 // (where each project is stuck, the model and effort, budget, risk, the rule check), and on the
 // right the plan you picked: its steps, why it asks, the model and effort to change before you
-// approve (the budget follows), อนุมัติ 3 วัน · แก้แผน · ไม่เอา. Below, what was done and on which
-// branch. Every change shows a toast with เลิกทำ.
+// approve (the budget follows), Approve for 3 days / Edit plan / No thanks. Below, what was done and on which
+// branch. Every change shows a toast with Undo.
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, type JobRow, type JobsPage } from "../api";

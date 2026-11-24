@@ -1,13 +1,13 @@
-"""ปรับทะเบียนคนรายสัปดาห์ (1.4, B7): what the weekly review proposes for the people registry, by rules.
+"""Weekly people-registry adjustment (1.4, B7): what the weekly review proposes for the people registry, by rules.
 
-Two kinds, as agreed at the B7 plan ("1.ก ... ยกเว้นเลื่อนสนใจ -> ไม่สนใจ ให้ทำการจัดการด้วยมือเท่านั้น"):
+Two kinds, as agreed at the B7 plan ("1.A ... except interested -> ignored, which is handled manually only"):
 
 - An important person whose end date is within SOON (or has passed): let it end, so they become
-  สนใจ (the default), or renew for 1 month, 3 months or with no end. Your note on why they're
-  important is shown with it. Whatever you decide, the old note goes ("ตัดสินแล้วลบ"); you can
+  interested (the default), or renew for 1 month, 3 months or with no end. Your note on why they're
+  important is shown with it. Whatever you decide, the old note goes ("decided, so delete"); you can
   write a new one on the people page.
-- An ignored sender whose subjects matched one of your interests ("เรื่องที่สนใจช่วงนี้" on the
-  people page) at least RAISE_HITS times in WINDOW: raise them to สนใจ. With no interests set,
+- An ignored sender whose subjects matched one of your interests ("topics of interest right now" on the
+  people page) at least RAISE_HITS times in WINDOW: raise them to interested. With no interests set,
   there's nothing to match, so nobody is proposed.
 
 Interested people are never proposed for ignored: you do that by hand.
@@ -83,7 +83,7 @@ def proposals(at: datetime | None = None) -> list[dict]:
 
 
 def words(item: dict) -> str:
-    """One line per person, for the review card: "อ.ธนา (สำคัญ) หมดอายุ 20 พ.ย. → ปล่อยหมดอายุ → สนใจ"."""
+    """One line per person, for the review card: "Ajarn Thana (important) expires 20 Nov -> let expire -> interested"."""
     label = dict(item["choices"]).get(item["choice"], item["choice"])
     return f"{item['name']} ({LEVELS[item['level']]}): {item['why']} → {label}"
 

@@ -1,14 +1,13 @@
-"""What the secretary learns from your answers (P8, W8 ③): patterns in what you approved and
-turned down, offered as rules. None is used until you press "ใช้เป็นกติกา"; "ไม่ใช่" keeps it
+"""What the secretary learns from your answers (P8, W8 item 3): patterns in what you approved and
+turned down, offered as rules. None is used until you press "Use as a rule"; "Not this" keeps it
 from being offered again. No model: counting only.
 
 The patterns (later phases add more):
 
-- appointment days: you turned down appointments on one weekday at least 3 times in 4 weeks
-  and accepted none on that day -> "คุณมักไม่รับนัดวันเสาร์". Once you accept it, such requests
+- appointment days: you turned down appointments on one weekday at least 3 times in 4 weeks and accepted none on that day -> "You usually don't take Saturday appointments". Once you accept it, such requests
   say so on their card; they still wait for your answer.
-- background plans: every plan for one project approved, at least 5 in 4 weeks -> "คุณอนุมัติ
-  แผนงานเบื้องหลังของ finance ทุกครั้ง"; once you accept it, that project's low-risk plans may
+- background plans: every plan for one project approved, at least 5 in 4 weeks -> "You approve
+  every background plan for finance, every time"; once you accept it, that project's low-risk plans may
   start without asking (a standing rule; high-risk work still asks).
 """
 
@@ -26,7 +25,7 @@ from app.core.tables import Decision, Event, Rule
 from app.core.timefmt import DAYS, local
 
 WINDOW = timedelta(days=28)
-TIMES = 3  # "ปฏิเสธ 3 ครั้งใน 4 สัปดาห์"
+TIMES = 3  # "rejected 3 times in 4 weeks"
 
 
 @dataclass(frozen=True)
@@ -51,7 +50,7 @@ def appointment_days(s, at: datetime) -> list[Found]:
             for day, n in sorted(no.items()) if n >= TIMES and not yes[day]]
 
 
-JOB_TIMES = 5  # "อนุมัติ 5 จาก 5"
+JOB_TIMES = 5  # "approved 5 of 5"
 
 
 def job_approvals(s, at: datetime) -> list[Found]:

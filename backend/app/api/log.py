@@ -1,4 +1,4 @@
-"""The log page (W9 สิ่งที่เลขาทำ): what the secretary did, and undo."""
+"""The log page (W9 What the secretary did): what the secretary did, and undo."""
 
 from fastapi import APIRouter, HTTPException, Query
 

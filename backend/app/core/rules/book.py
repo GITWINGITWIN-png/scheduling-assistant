@@ -1,16 +1,15 @@
-"""The rule book (P8, B5 · W8): your rules, what the secretary learned from your answers, and the
+"""The rule book (P8, B5, W8): your rules, what the secretary learned from your answers, and the
 high-risk work it always asks about first.
 
 The rows of `rules` come in three kinds:
 
 - yours: a rule you added, usually typed as a sentence (parse.py turns it into a rule you check
-  before it's saved). Most are notes: the parts that use a model (ถามเลขา, the background
+  before it's saved). Most are notes: the parts that use a model (Ask the Secretary, the background
   planner) read them with every call (`prompt_block`). A few the code follows itself, through
-  their `effect`: "ไม่รับนัดวันเสาร์" marks Saturday appointment requests (`appointment_note`),
-  "งานของ finance ทำเองได้" lets that project's low-risk plans start without asking
-  (`standing_for`), and B7's schedule rules keep blocks out of hours you keep missing
+  their `effect`: "Don't accept Saturday appointments" marks Saturday appointment requests (`appointment_note`),
+  "Finance work can be done without asking" lets that project's low-risk plans start by themselves (`standing_for`), and B7's schedule rules keep blocks out of hours you keep missing
   (`block_avoid`) or fill your focus hours first (`focus_window`).
-- learned: a pattern in your answers (learn.py), used only after you press "ใช้เป็นกติกา".
+- learned: a pattern in your answers (learn.py), used only after you press "Use as a rule".
 - high_risk: work that always asks you first, however much quota is left: the 7 kinds agreed
   at the plan (RISKS: fixed, they can't be removed) and any you add. `flags()` spots the 7 in a
   plan's text, a second net under the planner's own flags (B5.6).
@@ -33,7 +32,7 @@ from app.core.db import session
 from app.core.tables import Rule
 from app.core.timefmt import local
 
-PARTS = {  # who reads a rule ("ใช้โดย")
+PARTS = {  # who reads a rule ("used by")
     "planner": "ตัววางตาราง",
     "mail": "ตัวอ่านอีเมล",
     "jobs": "ตัวคุมงานเบื้องหลัง",
@@ -97,8 +96,8 @@ RISKS: tuple[Risk, ...] = (
 )
 RISK_KEYS = {r.key: r for r in RISKS}
 _WORDS = {r.key: [re.compile(w) for w in r.words] for r in RISKS}
-# A mention right after a no doesn't count: "ห้าม push", "ไม่ต้องติดตั้งแพ็กเกจ", "without installing".
-# (Found at B5's check: a plain slugify plan said "ห้ามติดตั้งแพ็กเกจเพิ่ม" and "ห้าม push" and was
+# A mention right after a no doesn't count: "do not push", "no need to install packages", "without installing".
+# (Found at B5's check: a plain slugify plan said "do not install extra packages" and "do not push" and was
 # flagged as a download and a push.) Thai runs words together, so up to 12 letters may sit between.
 _NEGATED = re.compile(r"(?:ไม่|ห้าม|อย่า|ยกเว้น|\bno\b|\bnot\b|\bnever\b|\bwithout\b|\bdon'?t\b|\bavoid\b)"
                       r"[\s:\-]*(?:\S+\s+){0,2}\S{0,12}$")
@@ -138,7 +137,7 @@ def _said(pattern: re.Pattern, text: str) -> bool:
 def flags(text: str) -> list[str]:
     """Which of the 7 agreed kinds a plan's text mentions (in RISKS order). Words, no model: a
     second net under the planner's own flags, so a kind it left out still asks; what the plan
-    says it won't do ("ห้าม push") doesn't count."""
+    says it won't do ("must not push") doesn't count."""
     low = text.lower()
     return [key for key, words in _WORDS.items() if any(_said(w, low) for w in words)]
 
@@ -169,7 +168,7 @@ def _effects(kind: str) -> list[Rule]:
 
 
 def appointment_note(starts_at: datetime | None) -> str:
-    """A rule this appointment request goes against ("คุณมักไม่รับนัดวันเสาร์"), or "". The
+    """A rule this appointment request goes against ("You usually don't take Saturday appointments"), or "". The
     request still waits for you: the rule only says so on its card."""
     if starts_at is None:
         return ""
@@ -275,7 +274,7 @@ def delete(rule_id: int, *, via: Via = WEB) -> int:
 
 
 def answer_learned(rule_id: int, accept: bool, *, via: Via = WEB) -> dict:
-    """ใช้เป็นกติกา (accept: it's used from now on) or ไม่ใช่ (never suggested again)."""
+    """Use as a rule (accept: it's used from now on) or Not this (never suggested again)."""
     with session() as s:
         r = s.get(Rule, rule_id)
         if r is None or r.kind != "learned":
@@ -291,7 +290,7 @@ def answer_learned(rule_id: int, accept: bool, *, via: Via = WEB) -> dict:
 
 
 def set_jobs(*, auto_on: bool | None = None, line_pct: float | None = None, via: Via = WEB) -> int:
-    """The rule "งานเบื้องหลังทำเองได้เมื่อโควตาเหลือเกิน 70%": its switch and its line. -> the action id."""
+    """The rule "Background work can run by itself when more than 70% of the quota is left": its switch and its line. -> the action id."""
     if line_pct is not None and not 10 <= line_pct <= 100:
         raise ValueError("เส้นโควตาต้องอยู่ระหว่าง 10–100%")
     old = {AUTO_KEY: settings.get(AUTO_KEY), LINE_KEY: settings.get(LINE_KEY)}

@@ -116,7 +116,7 @@ async def _settled(group_id: int) -> None:
     with session() as s:
         d = s.get(IdeaGroup, group_id).decision_id
     if d:
-        await decisions.settle_card(d)  # its #ไอเดีย card says so too
+        await decisions.settle_card(d)  # its #ideas card says so too
 
 
 @router.get("/ideas/groups/{group_id}/folder")
@@ -168,7 +168,7 @@ def rename(group_id: int, body: NameIn) -> dict:
 
 @router.post("/ideas/round")
 async def round_now() -> dict:
-    """จัดกลุ่มเลย: the same work as the 12:00 and 00:00 round, now (also when the round is off)."""
+    """Group now: the same work as the 12:00 and 00:00 round, now (also when the round is off)."""
     line = await groups.run()
     if line:
         actions.record("round.ideas", "จัดกลุ่มไอเดีย (กดจัดกลุ่มเลย)", line, source_label="หน้าเว็บ")

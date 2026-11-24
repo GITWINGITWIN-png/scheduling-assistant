@@ -1,4 +1,4 @@
-"""B7's ถามเลขาได้ทุกส่วน: the chat's read-only tools find the right rows, with links, and nothing
+"""B7's "ask the secretary about every part": the chat's read-only tools find the right rows, with links, and nothing
 they shouldn't (called directly: no model here)."""
 
 import asyncio

@@ -1,4 +1,4 @@
-// W6 ไอเดีย (B6), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w6): the box to jot an
+// W6 Ideas (B6), laid out as the plan's mockup (docs/plan-v2/stage2/web.py w6): the box to jot an
 // idea down (①), the groups (②, the noon and midnight rounds make them), the ones grown enough to
 // become a project or a task (③), and what you jotted down lately, where from and which group (④).
 // Until OmniRoute is connected there's no model: a group is one tag (the user's choice at the plan).
@@ -142,14 +142,14 @@ export function Ideas() {
   const [toast, setToast] = useState<ToastMsg | null>(null);
   const [grouping, setGrouping] = useState(false);
   const [params] = useSearchParams();
-  const focus = Number(params.get("group")) || null; // from the bell's ดูกลุ่ม
+  const focus = Number(params.get("group")) || null; // from the bell's View group
 
   const load = useCallback(() => {
     api.ideas().then((p) => { setPage(p); setError(""); }, (e) => setError((e as Error).message));
   }, []);
   useEffect(() => {
     load();
-    const t = setInterval(load, 20_000); // ideas from #ไอเดีย and the popup appear by themselves
+    const t = setInterval(load, 20_000); // ideas from #ideas and the popup appear by themselves
     return () => clearInterval(t);
   }, [load]);
 

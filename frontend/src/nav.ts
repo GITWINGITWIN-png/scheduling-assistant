@@ -1,5 +1,5 @@
 // The left menu (stage 2's NAV), with the phase each page arrives in.
-// `ready` pages exist now; the others open a "มาในช่วง Bx" page that says what they'll hold.
+// `ready` pages exist now; the others open a "Coming in Bx" page that says what they'll hold.
 import type { IconName } from "./icons";
 
 export type NavItem = {

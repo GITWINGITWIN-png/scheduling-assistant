@@ -1,11 +1,11 @@
-"""ทบทวนเย็น (D3): 21:00 in #สรุป: how much of today's plan you followed, the blocks you missed
+"""Evening review (D3): 21:00 in #summary: how much of today's plan you followed, the blocks you missed
 and what you did instead, where your time really went, the tasks you closed, tomorrow, work that
 doesn't fit before its due date, and what the secretary does tonight.
 
 With ActivityWatch (B6; the user's choice at the B4 plan was to wait for it): the title says
-"ทำตามตารางได้ 4 จาก 5 บล็อก (80%)", and a missed block says what took its place and where the
-planner put its time. A missed task booked again for tonight gets "ย้าย … ไปพรุ่งนี้" (D3 ⑤);
-"โอเค" just takes the buttons away. Without recorded time (recording off), it's B4's review.
+"Followed the schedule for 4 of 5 blocks (80%)", and a missed block says what took its place and where the
+planner put its time. A missed task booked again for tonight gets "Moved … to tomorrow" (D3 ⑤);
+"OK" just takes the buttons away. Without recorded time (recording off), it's B4's review.
 
 Like the morning brief: templates only, one per day, and when the machine was off at 21:00
 the clock's catch-up still sends it until midnight (after that the morning brief takes over).
@@ -39,7 +39,7 @@ def open_now(at: datetime) -> bool:
 
 
 def closed_today(at: datetime) -> list[str]:
-    """Tasks you marked done today (ทำเสร็จแล้ว, on the page or in #ด่วน), not undone."""
+    """Tasks you marked done today (Done already, on the page or in #urgent), not undone."""
     with session() as s:
         rows = s.scalars(select(Action).where(Action.kind == "task.done", Action.at >= day.day_start(day.today(at)),
                                               Action.at < at, Action.undone_at.is_(None)).order_by(Action.at)).all()
@@ -57,7 +57,7 @@ def short_of_time() -> list[str]:
 
 
 def tonight(at: datetime) -> str:
-    """คืนนี้เลขาจะทำ: the rounds you switched on that run between now and 07:00 tomorrow, and the
+    """What the secretary will do tonight: the rounds you switched on that run between now and 07:00 tomorrow, and the
     background work waiting in the queue (B5)."""
     from app.core import clock
 
@@ -92,7 +92,7 @@ def next_block(task_id: int, after: datetime) -> datetime | None:
 
 
 def missed_words(b: Block, t: Task, at: datetime) -> str:
-    """"finance review 16:00 · คุณทำ my_secretary ต่อแทน · เลขาหาเวลาใหม่: พรุ่งนี้ 09:00"."""
+    """"finance review 16:00; you take over my_secretary instead; the secretary finds a new time: tomorrow 09:00"."""
     from app.features.time.categorize import CATEGORIES
 
     parts = [f"{t.title} {local(b.starts_at):%H:%M}"]
@@ -111,7 +111,7 @@ def missed_words(b: Block, t: Task, at: datetime) -> str:
 
 
 def actual_today(at: datetime) -> str:
-    """เวลาจริงวันนี้: "โค้ด 5.5 ชม. · เรียน 1 · ประชุม 1 · เว็บ 1.2" (by category, the biggest first)."""
+    """Actual time today: "code 5.5 h, study 1, meeting 1, web 1.2" (by category, the biggest first)."""
     from app.features.time import insights
     from app.features.time.categorize import CATEGORIES
 
@@ -129,7 +129,7 @@ def actual_today(at: datetime) -> str:
 
 
 def to_move(at: datetime) -> list[tuple[int, str]]:
-    """Missed tasks whose time the planner put back tonight: offered "ย้ายไปพรุ่งนี้". -> [(task id, title)]."""
+    """Missed tasks whose time the planner put back tonight: offered "Move to tomorrow". -> [(task id, title)]."""
     from app.features.time import followed
 
     lo = day.day_start(day.today(at))
@@ -194,7 +194,7 @@ def card(b: Brief) -> tuple[discord.Embed, discord.ui.View]:
 
 
 class MoveButton(discord.ui.DynamicItem[discord.ui.Button], template=r"tomorrow:(?P<id>\d+)"):
-    """ย้าย … ไปพรุ่งนี้ (D3 ⑤): the task's time is booked from tomorrow on, and the plan changes at once."""
+    """Move … to tomorrow (D3 ⑤): the task's time is booked from tomorrow on, and the plan changes at once."""
 
     def __init__(self, task_id: int, title: str = "") -> None:
         self.task_id = task_id
@@ -228,7 +228,7 @@ class MoveButton(discord.ui.DynamicItem[discord.ui.Button], template=r"tomorrow:
 
 
 class OkButton(discord.ui.DynamicItem[discord.ui.Button], template=r"evening:ok"):
-    """โอเค: nothing to change; the buttons go."""
+    """OK: nothing to change; the buttons go."""
 
     def __init__(self) -> None:
         super().__init__(discord.ui.Button(label="โอเค", style=discord.ButtonStyle.secondary, custom_id="evening:ok"))

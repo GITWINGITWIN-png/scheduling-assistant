@@ -1,4 +1,4 @@
-// W9 สิ่งที่เลขาทำ: everything the secretary did, where it came from, and ย้อนกลับ where possible.
+// W9 What the secretary did: everything the secretary did, where it came from, and Revert where possible.
 import { useCallback, useEffect, useState } from "react";
 import { api, type LogItem } from "../api";
 import { tokens } from "../format";

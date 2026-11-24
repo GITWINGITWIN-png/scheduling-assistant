@@ -1,4 +1,4 @@
-// W11 เลือกธีมสี: the palette button in the top bar of every page.
+// W11 Pick a colour theme: the palette button in the top bar of every page.
 // Hover a theme to preview it; click to keep it. The choice is saved in the secretary's settings,
 // so every device and the Discord bot's message colour follow it.
 import { useCallback, useRef, useState } from "react";

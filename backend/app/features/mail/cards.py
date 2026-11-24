@@ -1,12 +1,12 @@
-"""B2 in Discord: #ด่วน alerts (D1), appointment requests in #อนุมัติ, the round summary in #สรุป.
+"""B2 in Discord: #urgent alerts (D1), appointment requests in #approvals, the round summary in #summary.
 
-- #ด่วน: an email that can't wait (someone important, a keyword, a reply you were
-  waiting for). The card has the 1–2 sentence summary, what the secretary already did
-  ("เลขาทำให้แล้ว": the appointment it put in your calendar, the task it added), why it
-  alerted, and the buttons เปิดอีเมล · ย้อนกลับที่ทำ (undoes all of it at once).
-- #อนุมัติ: an appointment from someone who isn't important: รับนัด puts it in the
-  calendar (with ย้อนกลับ afterwards), ไม่ไป declines it.
-- #สรุป: after each 00:00 / 12:00 round, one card: per person, what they wrote about;
+- #urgent: an email that can't wait (someone important, a keyword, a reply you were
+  waiting for). The card has the 1-2 sentence summary, what the secretary already did
+  ("Secretary did it": the appointment it put in your calendar, the task it added), why it
+  alerted, and the buttons Open email, Undo what was done (undoes all of it at once).
+- #approvals: an appointment from someone who isn't important: Accept puts it in the
+  calendar (with Undo afterwards), Decline declines it.
+- #summary: after each 00:00 / 12:00 round, one card: per person, what they wrote about;
   subjects worth a look among ignored senders; tokens used.
 
 If the bot isn't connected, nothing is posted (the web page still shows everything).
@@ -42,7 +42,7 @@ def _open_email(e: Email) -> discord.ui.Button:
 
 
 class UndoAllButton(discord.ui.DynamicItem[discord.ui.Button], template=r"undos:(?P<ids>\d+(?:,\d+)*)"):
-    """ย้อนกลับที่ทำ: undoes every action listed on the card (an appointment and a task, say)."""
+    """Undo what was done: undoes every action listed on the card (an appointment and a task, say)."""
 
     def __init__(self, action_ids: list[int]) -> None:
         self.action_ids = action_ids
@@ -68,13 +68,13 @@ class UndoAllButton(discord.ui.DynamicItem[discord.ui.Button], template=r"undos:
         if failed:
             note += ("\n" if note else "") + "ย้อนไม่ได้: " + " · ".join(failed)
         keep = [i for i in (interaction.message.components[0].children if interaction.message and interaction.message.components else [])
-                if getattr(i, "url", None)]  # keep เปิดอีเมล
+                if getattr(i, "url", None)]  # keep open email
         view = dc.buttons(*(discord.ui.Button(label=b.label, style=discord.ButtonStyle.link, url=b.url) for b in keep)) if keep else None
         await interaction.edit_original_response(content=note, view=view)
 
 
 async def alert(r: watch.ReadEmail) -> None:
-    """AFTER_READ hook (runs after extract.on_read): the #ด่วน card for an email that can't wait."""
+    """AFTER_READ hook (runs after extract.on_read): the #urgent card for an email that can't wait."""
     e = r.email
     done = extract.DONE.pop(e.id, [])
     asked = extract.ASKED.pop(e.id, "")
@@ -86,7 +86,7 @@ async def alert(r: watch.ReadEmail) -> None:
     fields = [("เลขาทำให้แล้ว", "\n".join(f"• {text}" for text, _ in done), False)] if done else []
     if r.reading.needs_reply:
         fields.append(("ต้องตอบ", "เรื่องนี้รอคำตอบจากคุณ", True))
-    if asked:  # appointments waiting in #อนุมัติ (not important, or the calendar couldn't be reached)
+    if asked:  # appointments waiting in #approvals (not important, or the calendar couldn't be reached)
         fields.append(("รอคุณรับ", asked, True))
     card = dc.embed(e.subject or "(ไม่มีหัวข้อ)", r.reading.summary, tone="bad" if e.flagged in ("important", "awaiting") else "warn",
                     fields=fields, author=heading, footer=f"{watch.flag_label(e.flagged)} · ส่งเมื่อ {local(e.sent_at):%H:%M}")
@@ -127,7 +127,7 @@ class AppointmentButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ap
 
 
 async def ask_appointment(event_id: int, decision_id: int, e: Email) -> None:
-    """PROPOSED hook: an appointment from someone not important, waiting for you in #อนุมัติ."""
+    """PROPOSED hook: an appointment from someone not important, waiting for you in #approvals."""
     if not _ready():
         return
     with session() as s:
@@ -147,7 +147,8 @@ async def ask_appointment(event_id: int, decision_id: int, e: Email) -> None:
 
 
 async def round_summary(r: rounds.RoundResult) -> None:
-    """ROUND_DONE hook: the #สรุป card ("สรุปรายคนรายวัน") for the 12:00 round. The 00:00 round
+    """ROUND_DONE hook: the #summary card ("daily summary per person") for the 12:00 round. The 00:00
+    round
     has none since B4: the morning brief carries the night (the user's choice, 2026-11-06)."""
     if r.big or not _ready() or not (r.people or r.noteworthy or r.important):
         return
@@ -172,7 +173,7 @@ async def round_summary(r: rounds.RoundResult) -> None:
 
 
 class FollowupButton(discord.ui.DynamicItem[discord.ui.Button], template=r"fu:(?P<id>\d+):(?P<act>done|later)"):
-    """ตอบแล้ว (close it) · เตือนพรุ่งนี้ (remind again in a day)."""
+    """Replied (close it), Remind tomorrow (remind again in a day)."""
 
     def __init__(self, followup_id: int, act: str) -> None:
         self.followup_id, self.act = followup_id, act
@@ -188,7 +189,7 @@ class FollowupButton(discord.ui.DynamicItem[discord.ui.Button], template=r"fu:(?
             await interaction.response.send_message("ปุ่มนี้สำหรับเจ้าของเลขาเท่านั้น", ephemeral=True)
             return
         if self.act == "done":
-            try:  # recorded: ย้อนกลับ (here, or in สิ่งที่เลขาทำ) opens it again
+            try:  # recorded: undo (here, or in what the secretary did) opens it again
                 action_id = followups.done(self.followup_id, via=("#ด่วน", interaction.message.jump_url if interaction.message else ""))
             except ValueError as exc:
                 await interaction.response.edit_message(content=f"✅ {exc}", view=None)
@@ -200,7 +201,7 @@ class FollowupButton(discord.ui.DynamicItem[discord.ui.Button], template=r"fu:(?
 
 
 async def remind_card(f: Followup, name: str, waited: int) -> None:
-    """followups.REMIND hook: the เรื่องค้าง card in #ด่วน (D1)."""
+    """followups.REMIND hook: the "pending matters" card in #urgent (D1)."""
     if not _ready():
         return
     title = f"ยังไม่ได้ตอบ {name} {waited} วันแล้ว" if f.waiting_on == "you" else f"รอ {name} ตอบ {waited} วันแล้ว"

@@ -1,4 +1,4 @@
-"""The shell's status: the side menu's count next to คนและอีเมล."""
+"""The shell's status: the side menu's count next to People and email."""
 
 import itertools
 from datetime import timedelta

@@ -39,10 +39,10 @@ export function Phase({ phase }: { phase: string }) {
 
 const BTN = {
   p: "bg-accent text-accent-ink hover:bg-accent-strong border-transparent",
-  ok: "bg-ok text-white hover:brightness-95 border-transparent", // รับ (the plan's .btn-ok)
+  ok: "bg-ok text-white hover:brightness-95 border-transparent", // Accept (the plan's .btn-ok)
   q: "bg-panel text-ink border-line-2 hover:bg-panel-2",
   ghost: "bg-transparent text-ink-2 border-transparent hover:bg-panel-2",
-  bad: "bg-bad-soft text-bad border-transparent hover:brightness-95", // หยุด (the plan's .btn-d)
+  bad: "bg-bad-soft text-bad border-transparent hover:brightness-95", // Stop (the plan's .btn-d)
 } as const;
 
 export function Button({ children, kind = "q", icon, sm = false, disabled = false, onClick, title, type = "button" }: {

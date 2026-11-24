@@ -1,7 +1,7 @@
 // The week on the schedule page, drawn as in the plan's W5 mockup (docs/plan-v2/stage2/web.py w5,
 // look.css .wk and .ev): no grid lines, hour labels every two hours, each day's short name over its
 // date with today in an accent pill, and every item a soft card with a coloured left edge, its
-// title, and one line saying what it is (เลขาจอง · คุณย้ายมา · ทำแล้ว · เดดไลน์ · รอคุณรับ …).
+// title, and one line saying what it is (secretary booked, you moved it, done, deadline, waiting for you to accept …).
 // FullCalendar does the layout, the clicking and the dragging; index.css (.schedule-cal) does the look.
 import type {
   DateSelectArg, DatesSetArg, DayHeaderContentArg, EventClickArg, EventContentArg, EventInput, EventSourceFuncArg,
@@ -36,7 +36,7 @@ const LEGEND: [string, string][] = [["bg-bad", "นัด"], ["bg-google", "น�
 function meetItem(e: CalItem): EventInput {
   const waiting = e.status === "proposed";
   const sub = waiting ? "รอคุณรับ" : [e.location, e.source === "email" ? "จากอีเมล" : ""].filter(Boolean).join(" · ");
-  // an appointment with its own colour in Google Calendar keeps the นัด look, in that colour (.tinted, --ev)
+  // an appointment with its own colour in Google Calendar keeps the appointment look, in that colour (.tinted, --ev)
   const tinted = !waiting && !!e.color;
   return { id: `e${e.id}`, title: waiting ? `${e.title}?` : e.title, start: e.start, end: e.end, allDay: e.all_day,
            classNames: ["ev", waiting ? "miss" : "meet", tinted ? "tinted" : ""].filter(Boolean),
@@ -56,7 +56,7 @@ function blockItem(b: BlockItem): EventInput {
 }
 
 /** Where a due date sits on the calendar: a half-hour card starting at the due time, as the plan
- *  draws "ส่งร่างบทที่ 3" (due 12:00, drawn from 12:00). Near midnight (Classroom's 23:59) it moves
+ *  draws "Submit chapter 3 draft" (due 12:00, drawn from 12:00). Near midnight (Classroom's 23:59) it moves
  *  up so it stays on its own day. */
 export function dueSpan(due: Date): [Date, Date] {
   const end = new Date(due.getTime() + 30 * 60_000);
@@ -85,7 +85,7 @@ function hoursFor(items: { start: Date; end: Date; allDay?: boolean }[]): [numbe
   return [lo - (lo % 2), Math.min(24, hi + (hi % 2))];
 }
 
-/** "2–8 พ.ย." and "สัปดาห์นี้", for the card's title. */
+/** "2-8 Nov" and "This week", for the card's title. */
 function heading(view: View, start: Date, end: Date): { title: string; sub: string } {
   const today = new Date(new Date().toDateString()).getTime();
   const last = new Date(end.getTime() - DAY);
@@ -139,7 +139,7 @@ export function Week({ reloadKey, ghost, onPlanned, onCreate, onPick }: {
 
   useEffect(() => { cal.current?.getApi().refetchEvents(); }, [reloadKey]);
   // While a card for something new is open, its draft sits on the calendar and follows what you
-  // type (Google Calendar's "(ไม่มีชื่อ)"). It is added by hand, so refetching leaves it be.
+  // type (Google Calendar's "(No title)"). It is added by hand, so refetching leaves it be.
   useEffect(() => {
     const c = cal.current?.getApi();
     if (!c) return;

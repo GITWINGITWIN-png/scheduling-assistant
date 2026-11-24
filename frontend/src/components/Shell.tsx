@@ -41,7 +41,7 @@ function Side() {
               {!n.ready && <span className="text-[11px] text-muted" title={`มาในช่วง ${n.phase}`}>{n.phase}</span>}
               {n.ready && n.count && !!status?.counts?.[n.count] && (
                 // the plan's .cnt: a red number for what needs a look
-                // (projects: grey, it only counts what's on the go, as the plan's "โปรเจค 6")
+                // (projects: grey, it only counts what's on the go, as the plan's "Project 6")
                 <span title={`${COUNT_TITLE[n.count]} ${status.counts[n.count]} ${n.count === "people" ? "ฉบับ" : n.count === "projects" ? "โปรเจค" : "เรื่อง"}`}
                   className={`min-w-[18px] rounded-full px-[5px] text-center font-mono text-[11px] font-semibold leading-[18px]
                     ${n.count === "projects" ? "bg-panel-2 text-ink-2" : "bg-bad text-white"}`}>
@@ -97,7 +97,7 @@ function Top() {
   );
 }
 
-/** The top bar's จดไอเดีย (W1–W10): the same box as the Super+I popup, over any page. */
+/** The top bar's "Jot down an idea" (W1-W10): the same box as the Super+I popup, over any page. */
 function JotButton() {
   const [open, setOpen] = useState(false);
   useEffect(() => {

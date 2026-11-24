@@ -1,10 +1,10 @@
-"""A rule typed as a sentence ("ไม่ต้องวางงานวันอาทิตย์"): what it becomes, and saving it.
+"""A rule typed as a sentence ("Don't schedule work on Sundays"): what it becomes, and saving it.
 
 The rule book page (W8) shows what the sentence would become and saves it when you press
-ใช้กติกานี้; an order in the chat (B9) does both at once. Either way the result is the same:
+Use this rule; an order in the chat (B9) does both at once. Either way the result is the same:
 - a rule in the book (core/rules/book.py),
 - or, for the planner's hours and the mail watch's keywords, a change to that setting.
-Both are recorded in สิ่งที่เลขาทำ and can be undone.
+Both are recorded in What the secretary did and can be undone.
 """
 
 from __future__ import annotations
