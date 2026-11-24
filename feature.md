@@ -1,86 +1,84 @@
-# Secretary Feature Plan
-
-> ถอดจากรายการที่เขียนด้วยลายมือ ผู้เขียนตรวจและแก้แล้ว 2026-11-04 (ภาพต้นฉบับเก็บไว้เป็นส่วนตัว)
+> Transcribed from a handwritten list. The owner reviewed and edited it on 2026-11-04. The original image is kept private.
 >
-> - เลขข้อ (1, 2.3, 3.1 …) ผมเติมเองเพื่อใช้อ้างอิงตอนออกแบบ ในรูปข้อย่อยบางส่วนเป็นจุด (·)
-> - การออกแบบทำบน Plan Board ซึ่งเก็บไว้เป็นส่วนตัว
+> - I added the item numbers (1, 2.3, 3.1 ...) myself so the design can refer to them. Some sub-items use dot bullets in the original.
+> - The design is done on the Plan Board, which is kept private.
 
 ---
 
-## 1. อ่านข้อความ / รายวัน
+## 1. Reading messages / daily
 
 - Gmail
 
-อ่านแล้วสรุปเป็น
+After reading, summarize into
 
-1. **เรื่องสำคัญ / ที่ควรรู้**
-2. **ใครส่งอะไรมา**
-   - ถ้าเป็นคนที่เคยส่งมาก่อน จะแบ่งเป็น สำคัญ / ไม่สำคัญ
-   - ถ้าเป็นคนใหม่ นับเป็นสำคัญเสมอ แล้วค่อยจัด
-3. **แปลงกำหนดการต่างๆ ให้เข้าไปในปฏิทิน**
-   - เฉพาะกำหนดการที่มาจากคนสำคัญก่อน
-   - คนไม่สำคัญ ใช้การถามก่อน อนุมัติให้ยกระดับคนสำคัญ
-4. **ทำการปรับโครงสร้างคนสำคัญรายสัปดาห์**
-   - เช่น ตอนแรก A เป็นคนสำคัญ แต่ถ้าจบงานกับ A ไปแล้ว ก็ให้แผนมาว่าจะลดขั้นใครบ้าง
+1. **Important matters / things to know**
+2. **Who sent what**
+   - If the sender has written before, sort into important / not important
+   - If the sender is new, always count them as important, then sort
+3. **Turn the schedules in messages into calendar events**
+   - Only for schedules from important people first
+   - For people who are not important, ask first. If I approve, promote the sender to important.
+4. **Restructure the important people list every week**
+   - For example, A was important at first. Once the work with A is finished, the plan should suggest whose tier to lower.
 
-## 2. การจัดการแผนโปรเจคที่ฉันทำ
+## 2. Managing my project plans
 
-1. **ทำรายการโปรเจคทั้งหมด**
-   - ชื่อ, สถานะ, เป้าหมาย, ความสำคัญ
-2. **ทำการจัดเวลาทำต่องานของแต่ละโปรเจค เมื่อ Token ถึง limit**
-3. **รายงานผลของแต่ละโปรเจค**
-   - เช่น หลายโปรเจคจะมีบางโปรเจคที่อัตโนมัติเป็นประจำ ก็ให้ส่งข้อความบอกว่าผลที่เกิด
-   - เช่น research-lab ที่ feed รายวันมา
-     - ก็แค่บอกว่า วันนี้มี feed แล้ว หัวข้อ ... สั้นๆ
-     - finance ค้นพบ Algo ใหม่ ทดลองแล้ว ได้ผลว่า....
-   - สรุปคือ แค่แจ้งผลลัพธ์ว่ามีอะไรใหม่จากแต่ละโปรเจค
-4. **เก็บแผนการพัฒนาของแต่ละโปรเจคไว้**
-   - เพื่อให้คำแนะนำเรื่องการจัดการโปรเจค
-5. **ทำแผนการเชื่อมต่อพื้นฐานให้โปรเจคอื่นอ่าน**
-   - แล้วเข้าใจว่าจะเชื่อมต่อกับโปรเจคนี้ยังไง
+1. **List all projects**
+   - Name, status, goal, importance
+2. **Schedule the next work for each project when tokens hit the limit**
+3. **Report the results of each project**
+   - For example, several projects run automatically on a regular basis. Send a message saying what happened.
+   - For example, research-lab sends a daily feed.
+     - Just say briefly that today's feed is in, with the topics ...
+     - finance found a new algorithm, tested it, and the result was ...
+   - In short, just report what is new from each project.
+4. **Keep each project's development plan on file**
+   - So it can give advice on managing projects
+5. **Write a basic integration plan that other projects can read**
+   - So they understand how to connect with this project
 
-## 3. การจัดตาราง
+## 3. Scheduling
 
-### 3.1 การจัดตารางเวลาฉันเอง
+### 3.1 Scheduling my own time
 
-1. รับกำหนดการจาก Gmail, โปรเจคอื่น, ฉันเอง
-2. วางแผนตารางเวลาตามกำหนดการ
-3. ตรวจสอบว่าตารางที่กำหนด ฉันสามารถทำได้จริงแค่ไหน แล้วเอาไปปรับปรุงเป็นวิธีการทำตารางเวลาที่เหมาะสมขึ้น
+1. Receive appointments and deadlines from Gmail, other projects, and me
+2. Plan the timetable around those deadlines
+3. Check how much of the planned schedule I can actually do, then use that to improve the schedule into a more suitable way of working
 
-### 3.2 การจัดการเวลาเบื้องหลัง
+### 3.2 Background time management
 
-ในกรณีที่โปรเจคหยุดทำงาน (โดน interrupt, หมด token)
-ตัวเลขาที่มีแผนอยู่ และระดับความสำคัญโครงการอยู่ แล้วตัดสินใจว่าจะทำต่อโดยอัตโนมัติยังไง
-โดยรวมการตัดสินใจมาเป็นแผนตารางเวลางานเบื้องหลัง
-เสนอให้ฉันปรับปรุงหรืออนุมัติ เพื่อจัดการเองต่อ
+When a project stops (interrupted, or out of tokens),
+the secretary, which holds the plan and each project's priority level, decides how to continue automatically.
+It then combines these decisions into a background work schedule.
+Propose it to me for revision or approval, so it can keep managing on its own.
 
-## 4. จดบันทึก
+## 4. Logging
 
-1. จดบันทึกตารางกิจกรรมของฉันจาก (log ใน computer) แล้วดูว่าฉันใช้เวลาไปกับอะไร มีพฤติกรรมยังไง
-2. มีคีย์ลัดให้เข้าถึง เพื่อให้ฉันจด Idea ที่นึกขึ้นได้แบบทันที แล้วนำไปวิเคราะห์ จัดกลุ่มกับ Idea อื่นๆ
+1. Record my activity timeline from the computer logs, then see what I spend my time on and what my habits are.
+2. Provide a keyboard shortcut so I can jot down an idea the moment it comes to mind, then analyze it and group it with other ideas.
 
 ---
 
-## ความหมายที่ตกลงกันแล้ว
+## Agreed meanings
 
-| ข้อ | ความหมาย |
+| Item | Meaning |
 |---|---|
-| 1.2 | "ใครส่งอะไรมา" คือแยกสรุปตามผู้ส่ง คนที่เคยส่งมาแล้วจัดตามระดับในทะเบียน คนใหม่นับเป็นคนสำคัญไว้ก่อน |
-| 1.3 | กำหนดการจากคนไม่สำคัญ เลขาถามก่อน ถ้าอนุมัติ ลงปฏิทินและยกผู้ส่งขึ้นเป็นคนสำคัญ |
-| 1.4 | ทุกสัปดาห์เลขา **เสนอ** ว่าควรลดขั้นใคร (เช่น งานกับ A จบแล้ว) คุณเป็นคนตัดสิน |
-| 2.3 | โปรเจคที่รันอัตโนมัติ ให้ส่งข่าวสั้นว่ามีอะไรใหม่ เช่น "วันนี้ feed มาแล้ว หัวข้อ …" |
-| 2.2, 3.2 | "token" คือโควตาการใช้ Claude ของคุณ · "โดน interrupt" คืองานถูกขัดจังหวะหรือหยุดกลางทาง |
-| 3.2 | ตัวเลขาเอง (ซึ่งรู้แผนและความสำคัญของแต่ละโปรเจค) ตัดสินใจวิธีทำต่อ แล้วเสนอแผนให้อนุมัติ |
+| 1.2 | "Who sent what" means summarizing by sender. People who have written before are sorted by their tier in the register. New people are counted as important by default. |
+| 1.3 | For schedules from non-important people, the secretary asks first. If approved, the event goes on the calendar and the sender is promoted to important. |
+| 1.4 | Every week the secretary **proposes** whose tier should be lowered (for example, when work with A is finished). You make the decision. |
+| 2.3 | Projects that run automatically send a short note on what is new, for example "today's feed is in, topics ..." |
+| 2.2, 3.2 | "Token" means your Claude usage quota. "Interrupted" means the work was stopped or cut off partway through. |
+| 3.2 | The secretary, which knows each project's plan and importance, decides how to continue and proposes the plan for your approval. |
 
 ---
 
-## โน้ตเดิมในไฟล์นี้ (ก่อนถอดจากรูป เก็บไว้ไม่ให้หาย)
+## Original notes in this file (from before transcribing the image, kept so they are not lost)
 
 ```
 feature plan
-- จัดการการแจ้งเตือนทั้งหมดของฉัน
+- manage all my notifications
  - gmail  - line  - discord
- - อ่านแล้ว
+ - Read
 ```
 
-> เรื่อง LINE / Discord อยู่ในข้อเสนอ P1 บน Plan Board
+> The LINE / Discord matters are in proposal P1 on the Plan Board.

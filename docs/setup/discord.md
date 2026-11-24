@@ -1,83 +1,83 @@
-# ตั้งค่าบอท Discord ของเลขา
+# Setting up the Discord bot for เลขา (Secretary)
 
-ทำครั้งเดียว ใช้เวลาประมาณ 10 นาที เมื่อเสร็จ เลขาจะสร้างห้อง 5 ห้องให้เอง และคุยกับคุณในห้อง #คุยกับเลขา ทุกอย่างอยู่ในเซิร์ฟเวอร์เดียว
+Do this once. It takes about 10 minutes. When it's done, เลขา creates 5 channels for you and talks with you in the #คุยกับเลขา (Chat with Secretary) channel. Everything lives in one server.
 
-บอทเชื่อมต่อ**ขาออก**ไปหา Discord ไม่ต้องเปิดพอร์ตหรือ URL สาธารณะบนเครื่องนี้ และบอทตอบเฉพาะคุณคนเดียว (ตาม user id ที่ใส่ในขั้นที่ 5)
+The bot makes **outbound** connections to Discord, so you don't need to open a port or a public URL on this machine. The bot only replies to you (based on the user id you enter in step 5).
 
-## 1. สร้างเซิร์ฟเวอร์ส่วนตัว
+## 1. Create a private server
 
-ในแอป Discord กด **+** (Add a Server) แล้วเลือก **Create My Own** แล้วเลือก **For me and my friends** ตั้งชื่อตามใจ เช่น "เลขา"
+In the Discord app, click **+** (Add a Server), choose **Create My Own**, then choose **For me and my friends**. Name it anything you like, for example "เลขา".
 
-ห้องไม่ต้องสร้างเอง บอทสร้างให้ในขั้นที่ 6
+You don't need to create the channels yourself. The bot creates them in step 6.
 
-## 2. สร้างบอทใน Developer Portal
+## 2. Create the bot in the Developer Portal
 
-1. เปิด https://discord.com/developers/applications แล้วกด **New Application** ตั้งชื่อ "เลขา"
-2. ที่หน้า **General Information** คัดลอก **Application ID** เก็บไว้ ใช้ในขั้นที่ 3
-3. ที่แท็บ **Bot**:
-   - กด **Reset Token** แล้วคัดลอก token ทันที หน้านี้แสดงให้ดูครั้งเดียว
-   - เปิด **Message Content Intent** เพื่อให้บอทอ่านข้อความในห้อง #ไอเดีย ได้ (ใช้ใน B6)
-   - ปิด **Public Bot** เพื่อให้คุณคนเดียวเชิญบอทเข้าเซิร์ฟเวอร์ได้
+1. Open https://discord.com/developers/applications, click **New Application**, and name it "เลขา".
+2. On the **General Information** page, copy the **Application ID** and keep it. You'll use it in step 3.
+3. On the **Bot** tab:
+   - Click **Reset Token** and copy the token immediately. This page only shows it once.
+   - Turn on **Message Content Intent** so the bot can read messages in the #ไอเดีย (Ideas) channel (used in B6).
+   - Turn off **Public Bot** so that only you can invite the bot to the server.
 
-## 3. เชิญบอทเข้าเซิร์ฟเวอร์
+## 3. Invite the bot to the server
 
-เปิดลิงก์นี้ แต่เปลี่ยน `APP_ID` เป็น Application ID จากขั้นที่ 2:
+Open this link, but replace `APP_ID` with the Application ID from step 2:
 
 ```
 https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot&permissions=85008
 ```
 
-เลือกเซิร์ฟเวอร์จากขั้นที่ 1 แล้วกด Authorize
+Choose the server from step 1, then click Authorize.
 
-ตัวเลข `85008` คือชุดสิทธิ์ที่บอทใช้: ดูห้อง · ส่งข้อความ · ส่งการ์ด (embed) · อ่านข้อความเก่า · สร้างห้อง (ใช้ตอนเริ่มครั้งแรก)
+The number `85008` is the set of permissions the bot uses: view channels; send messages; send cards (embeds); read message history; create channels (used during first setup).
 
-## 4. เปิด Developer Mode เพื่อคัดลอก id
+## 4. Turn on Developer Mode to copy IDs
 
-ใน Discord ไปที่ User Settings → Advanced แล้วเปิด **Developer Mode** จากนั้น:
+In Discord, go to User Settings → Advanced and turn on **Developer Mode**. Then:
 
-- คลิกขวาที่ไอคอนเซิร์ฟเวอร์ แล้วเลือก **Copy Server ID**
-- คลิกขวาที่ชื่อตัวเอง แล้วเลือก **Copy User ID**
+- Right-click the server icon and choose **Copy Server ID**.
+- Right-click your own name and choose **Copy User ID**.
 
-## 5. ใส่ค่าใน `backend/.env`
+## 5. Add the values to `backend/.env`
 
-เพิ่ม 3 บรรทัดนี้ ไฟล์ `.env` อยู่ใน .gitignore จึงไม่หลุดเข้า git:
+Add these 3 lines. The `.env` file is listed in .gitignore, so it won't leak into git:
 
 ```
-SECRETARY_DISCORD_TOKEN=token-จากขั้นที่-2
-SECRETARY_DISCORD_GUILD_ID=server-id-จากขั้นที่-4
-SECRETARY_DISCORD_OWNER_ID=user-id-ของคุณจากขั้นที่-4
+SECRETARY_DISCORD_TOKEN=token-from-step-2
+SECRETARY_DISCORD_GUILD_ID=server-id-from-step-4
+SECRETARY_DISCORD_OWNER_ID=your-user-id-from-step-4
 ```
 
-token มีค่าเท่ากับรหัสผ่านของบอท ถ้าหลุดไปที่ไหน ให้กด Reset Token ในขั้นที่ 2 แล้วใส่ค่าใหม่
+The token is the bot's password. If it leaks anywhere, click Reset Token in step 2 and enter the new value.
 
-## 6. รีสตาร์ทเลขา แล้วลอง
+## 6. Restart เลขา and test
 
 ```
 cd backend && uv run uvicorn app.main:app --port 8000
 ```
 
-ถ้าติดตั้ง service แล้ว (ขั้นที่ 10) ให้ใช้ `systemctl --user restart my-secretary` แทน
+If you've set up the service (step 10), use `systemctl --user restart my-secretary` instead.
 
-สิ่งที่ควรเห็น:
+What you should see:
 
-- ใน log มีบรรทัด `discord ready as เลขา#…`
-- ในเซิร์ฟเวอร์มีหมวด **เลขา** พร้อมห้อง #คุยกับเลขา #ด่วน #สรุป #อนุมัติ #ไอเดีย
-- หน้าตั้งค่า (http://localhost:8000/settings) ช่อง Discord ขึ้นว่า "เชื่อมแล้ว"
+- The log has a line `discord ready as เลขา#…`
+- The server has a category **เลขา** with the channels #คุยกับเลขา, #ด่วน (Urgent), #สรุป (Summary), #อนุมัติ (Approve), and #ไอเดีย.
+- On the หน้าตั้งค่า (Settings page) at http://localhost:8000/settings, the Discord field shows "เชื่อมแล้ว" (Connected).
 
-**คุยกับเลขา:** พิมพ์คำถามในห้อง **#คุยกับเลขา** เช่น "วันนี้เลขาทำอะไรไปบ้าง" เลขาจะตอบเป็นข้อความตอบกลับ (reply)
+**Chat with เลขา:** type your question in the **#คุยกับเลขา** channel, for example "วันนี้เลขาทำอะไรไปบ้าง" (What did เลขา do today?). เลขา will answer with a reply message (reply).
 
-ห้อง #general ที่ Discord สร้างให้ตอนสร้างเซิร์ฟเวอร์ เลขาไม่ได้ใช้ ลบได้ (คลิกขวาที่ห้อง → Delete Channel)
+The #general channel that Discord creates when you make the server isn't used by เลขา. You can delete it (right-click the channel → Delete Channel).
 
-## ถ้าไม่ขึ้น
+## If it doesn't connect
 
-หน้าตั้งค่าและ log บอกสาเหตุเป็นคำพูดตรงๆ:
+The settings page and the log state the cause in plain words:
 
-| ข้อความ | ทำอะไร |
+| Message | What to do |
 |---|---|
-| ยังไม่ได้ตั้งค่า Discord | ยังไม่มีค่าใน `.env` ครบ 3 บรรทัด หรือยังไม่ได้รีสตาร์ท |
-| token ของบอทไม่ถูกต้อง | คัดลอก token ใหม่ (Reset Token) |
-| ยังไม่ได้เปิด Message Content Intent | เปิดในแท็บ Bot (ขั้นที่ 2) |
-| บอทยังไม่อยู่ในเซิร์ฟเวอร์ … | เปิดลิงก์เชิญที่ขึ้นในข้อความ หรือลิงก์ในขั้นที่ 3 · เช็กว่า Server ID ถูก |
-| บอทไม่มีสิทธิ์สร้างห้อง | เชิญใหม่ด้วยลิงก์ในขั้นที่ 3 (มี permissions=85008) |
-| บอทไม่ตอบใน #คุยกับเลขา | เช็กว่า `SECRETARY_DISCORD_OWNER_ID` เป็น id **ของคุณ** ไม่ใช่ id ของบอท |
-| พิมพ์ที่อื่น (DM, #general, #ด่วน…) แล้วบอทแค่บอกให้ไป #คุยกับเลขา | เลขาตอบคำถามในห้อง #คุยกับเลขา เท่านั้น ห้องอื่นในหมวดเลขาเป็นที่ที่เลขาส่งเรื่องมาหาคุณ ส่วน #ไอเดีย จะอ่านข้อความของคุณตั้งแต่ B6 |
+| ยังไม่ได้ตั้งค่า Discord (Discord is not set up yet) | The `.env` file doesn't have all 3 lines yet, or you haven't restarted. |
+| token ของบอทไม่ถูกต้อง (The bot's token is invalid) | Copy a new token (Reset Token) |
+| ยังไม่ได้เปิด Message Content Intent (Message Content Intent isn't turned on yet) | Turn it on in the Bot tab (step 2) |
+| บอทยังไม่อยู่ในเซิร์ฟเวอร์ … (The bot isn't in the server yet …) | Open the invite link shown in the message, or the link in step 3. Check that the Server ID is correct. |
+| บอทไม่มีสิทธิ์สร้างห้อง (The bot doesn't have permission to create channels) | Invite it again with the link in step 3 (it includes permissions=85008) |
+| บอทไม่ตอบใน #คุยกับเลขา (The bot doesn't reply in #คุยกับเลขา) | Check that `SECRETARY_DISCORD_OWNER_ID` is **your** ID, not the bot's ID |
+| Typing somewhere else (DM, #general, #ด่วน…) and the bot only tells you to go to #คุยกับเลขา | เลขา answers questions only in #คุยกับเลขา. The other channels in the category are where เลขา sends things to you. #ไอเดีย reads your messages starting from B6. |

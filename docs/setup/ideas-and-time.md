@@ -1,57 +1,57 @@
-# จดไอเดียและบันทึกการใช้เวลา (B6)
+# Noting ideas and logging time use (B6)
 
-ของสองอย่างนี้รันบนหน้าจอของคุณ ไม่ได้อยู่ใน service ของเลขา:
+These two run on your screen, not in the secretary's service:
 
-- **คีย์ลัด Super+I** เปิดหน้าต่างจดไอเดีย
-- **ActivityWatch** บันทึกว่าคุณใช้แอปและหน้าต่างอะไร
+- **The Super+I shortcut** opens the idea-note window.
+- **ActivityWatch** records which apps and windows you use.
 
-ทั้งสองอย่างคุยกับเลขาผ่าน `localhost` เท่านั้น
+Both talk to the secretary only through `localhost`.
 
-## Super+I · จดไอเดีย
+## Super+I: จดไอเดีย (note an idea)
 
-กด Super+I จากหน้าจอไหนก็ได้ จะมีหน้าต่างเล็ก (K1) ขึ้นมา:
+Press Super+I from any screen. A small window (K1) opens:
 
-- พิมพ์ไอเดียแล้วกด **Enter** เพื่อบันทึก
-- **Shift+Enter** ขึ้นบรรทัดใหม่
-- **Esc** ปิดโดยไม่บันทึก
+- Type the idea and press **Enter** to save it.
+- **Shift+Enter** starts a new line.
+- **Esc** closes without saving.
 
-ระหว่างพิมพ์ เลขาจะแนะนำแท็กด้วยกติกา (ไม่ใช้โมเดล) แท็กมาจาก 3 แหล่ง:
+While you type, the secretary suggests tags using rules (no model is used). Tags come from 3 sources:
 
-1. #แท็กที่คุณพิมพ์เอง
-2. ชื่อโปรเจคที่เอ่ยถึง
-3. แท็กที่คุณเคยใช้
+1. Hashtags you type yourself
+2. Names of projects you mention
+3. Tags you have used before
 
-แท็กที่แนะนำถูกเลือกไว้แล้ว คลิกเพื่อเอาออก หรือกด **+ แท็ก** เพื่อเพิ่มเอง
+Suggested tags are already selected. Click one to remove it, or press **+ แท็ก (+ tag)** to add your own.
 
-บันทึกแล้วหน้าต่างบอกว่าไอเดียจะเข้ากลุ่มไหน แล้วปิดเอง ไอเดียไปอยู่ที่เดียวกับที่พิมพ์ใน #ไอเดีย บน Discord และช่องจดในหน้าไอเดีย
+After saving, the window says which group the idea will go into, then closes by itself. The idea ends up in the same place as what you type in #ไอเดีย (#ideas channel) on Discord and in the note box (ช่องจด) on the หน้าไอเดีย (Ideas page).
 
-ถ้าเลขาไม่ได้รันอยู่ (หรือยังเป็นรุ่นก่อน B6) ไอเดียจะไม่หาย:
+If the secretary is not running (or is still a version before B6), ideas are not lost:
 
-- หน้าต่างเก็บไว้ใน `~/.secretary/ideas-outbox.jsonl`
-- เลขาเอาเข้าคลังตอนเปิดครั้งถัดไป
+- The window saves them in `~/.secretary/ideas-outbox.jsonl`.
+- The secretary imports them into the store the next time it starts.
 
-| อยากทำ | คำสั่ง |
+| Want to | Command |
 |---|---|
-| ผูก Super+I (ผมผูกให้แล้วตอน B6) | `/usr/bin/python3 desktop/idea_key.py on` |
-| เอาออก | `/usr/bin/python3 desktop/idea_key.py off` |
-| ดูว่าผูกอะไรอยู่ | `/usr/bin/python3 desktop/idea_key.py` |
-| ลองเปิดหน้าต่างเอง | `/usr/bin/python3 desktop/idea_popup.py` |
+| Bind Super+I (I already bound it for you during B6) | `/usr/bin/python3 desktop/idea_key.py on` |
+| Remove it | `/usr/bin/python3 desktop/idea_key.py off` |
+| See what is bound | `/usr/bin/python3 desktop/idea_key.py` |
+| Try opening the window yourself | `/usr/bin/python3 desktop/idea_popup.py` |
 
-- คีย์ลัดนี้เป็น "Custom Shortcut" ตัวหนึ่งของ GNOME เห็นและแก้ได้ใน **Settings → Keyboard → Custom Shortcuts** ชื่อ "จดไอเดีย (เลขา)"
-- `off` ลบเฉพาะตัวนี้ คีย์ลัดอื่นของคุณไม่โดน
-- `on` ไม่ยอมทำถ้า Super+I ถูกใช้ทำอย่างอื่นอยู่แล้ว
-- หน้าต่างใช้ Python ของระบบ (`/usr/bin/python3`) เพราะ GTK 4 มากับ Ubuntu ไม่ได้อยู่ใน venv ของ backend
-- ถ้าย้ายโฟลเดอร์ repo ต้องรัน `on` ใหม่
+- This shortcut is one of GNOME's "Custom Shortcut" entries. You can see and edit it under **Settings → Keyboard → Custom Shortcuts**, named "จดไอเดีย (เลขา)".
+- `off` removes only this one. Your other shortcuts are not touched.
+- `on` refuses to run if Super+I is already used for something else.
+- The window uses the system Python (`/usr/bin/python3`) because GTK 4 comes with Ubuntu and is not in the backend's venv.
+- If you move the repo folder, run `on` again.
 
-## ActivityWatch · บันทึกการใช้เวลา
+## ActivityWatch: บันทึกการใช้เวลา (log time use)
 
-ใช้ awatcher v0.4.0 แบบ "bundle" ไฟล์เดียวมีทั้ง server หน้าเว็บของ ActivityWatch (http://localhost:5600) และตัวบันทึกหน้าต่าง:
+It uses awatcher v0.4.0 as a single "bundle" file that contains both the ActivityWatch server and web page (http://localhost:5600) and the window recorder:
 
-- **ทำไมใช้ awatcher:** บน GNOME + Wayland ตัวบันทึกหน้าต่างของ ActivityWatch เองมองไม่เห็นหน้าต่าง
-- **ทำไมต้องมีส่วนเสริม:** GNOME ไม่บอกโปรแกรมอื่นว่าหน้าต่างไหนอยู่ข้างหน้า awatcher จึงต้องใช้ส่วนเสริม GNOME **Focused Window D-Bus** ส่วนเสริมนี้ทำอย่างเดียวคือตอบชื่อหน้าต่างนั้นผ่าน D-Bus (อ่านโค้ดแล้วก่อนติดตั้ง)
-- **ไม่ใช้ AppImage หรือ Flatpak:** สองแบบนั้นมองไม่เห็นหน้าต่างบน Wayland
+- **Why awatcher:** on GNOME + Wayland, ActivityWatch's own window watcher cannot see windows.
+- **Why an extension is needed:** GNOME does not tell other programs which window is in front, so awatcher needs the GNOME **Focused Window D-Bus** extension. This extension does only one thing: it answers with the window's name over D-Bus (I read its code before installing it).
+- **Not AppImage or Flatpak:** those two cannot see windows on Wayland.
 
-### ติดตั้ง (ผมติดตั้งให้แล้วตอน B6 ไม่ใช้ sudo)
+### Installation (I installed it for you during B6, without sudo)
 
 ```bash
 /usr/bin/python3 desktop/activitywatch.py install    # ดาวน์โหลด ตรวจ SHA-256 แล้วติดตั้ง
@@ -59,73 +59,73 @@
 /usr/bin/python3 desktop/activitywatch.py uninstall  # เอาออกทั้งหมด
 ```
 
-| ติดตั้งอะไร | ที่ไหน |
+| What is installed | Where |
 |---|---|
 | awatcher | `~/.local/bin/awatcher` |
-| ส่วนเสริม GNOME | `~/.local/share/gnome-shell/extensions/focused-window-dbus@flexagoon.com` (เปิดให้ตอนล็อกอินครั้งถัดไป) |
-| systemd user unit | `~/.config/systemd/user/awatcher.service` (**ไม่ได้เปิด**) |
-| ค่าตั้งของ awatcher | `~/.config/awatcher/config.toml` (เลขาเขียนจากรายชื่อห้ามบันทึก ไม่ต้องแก้เอง) |
-| ที่ ActivityWatch เก็บข้อมูล | `~/.local/share/activitywatch/` (อยู่ในเครื่องนี้เท่านั้น ถอนการติดตั้งแล้วยังอยู่ ลบเองได้) |
+| GNOME extension | `~/.local/share/gnome-shell/extensions/focused-window-dbus@flexagoon.com` (enabled at your next login) |
+| systemd user unit | `~/.config/systemd/user/awatcher.service` (**not enabled**) |
+| awatcher settings | `~/.config/awatcher/config.toml` (the secretary writes this from your do-not-record list, so you don't need to edit it yourself) |
+| Where ActivityWatch stores data | `~/.local/share/activitywatch/` (stays on this machine only; it remains after uninstalling, and you can delete it yourself) |
 
-หลังติดตั้งต้อง**ล็อกเอาต์แล้วล็อกอินใหม่ 1 ครั้ง** เพราะ GNOME บน Wayland โหลดส่วนเสริมใหม่ได้ตอนล็อกอินเท่านั้น
+After installing, you must **log out and log back in once**, because GNOME on Wayland can only load extensions at login.
 
-### เปิดและปิด
+### Turning it on and off
 
-ทุกอย่างอยู่ที่**หน้าการใช้เวลา** การ์ด "ความเป็นส่วนตัว":
+Everything is on the **หน้าการใช้เวลา (Time usage page)**, in the "ความเป็นส่วนตัว" (Privacy) card:
 
-- **สวิตช์ "บันทึกกิจกรรม"**
-  - เปิด: เลขาเขียนค่าตั้งของ awatcher จากรายชื่อห้ามก่อน แล้วสั่ง `systemctl --user enable --now awatcher` และเปิดรอบอ่านทุก 15 นาที
-  - ปิด: ทั้งสองอย่างหยุด และไม่เปิดเองตอนล็อกอิน
-- **"หยุดบันทึก 1 ชั่วโมง"** (หรือ 15 นาที หรือ 3 ชม.)
-  - หยุดตัวบันทึกจริงทันที แล้วตัวตั้งเวลาครั้งเดียวของ systemd จะเปิดให้เองเมื่อครบเวลา แม้เลขาจะไม่ได้รันอยู่
-  - ช่วงที่หยุดถูกจดไว้ด้วย อะไรที่ถูกบันทึกในช่วงนั้นเลขาจะไม่เก็บ
-  - "บันทึกต่อเลย" เลิกหยุดก่อนครบเวลาได้
-- **"ห้ามบันทึก … แก้"** มี 3 ชนิด:
-  - **แอป:** ไม่บันทึกเลย
-  - **เว็บและชื่อหน้าต่าง:** ไม่บันทึกเลย
-  - **คำในชื่อหน้าต่าง:** เก็บเวลาไว้ แต่ซ่อนชื่อหน้าต่าง
+- **The "บันทึกกิจกรรม" (Record activity) switch**
+  - On: the secretary first writes awatcher's settings from the do-not-record list, then runs `systemctl --user enable --now awatcher`, and turns on the read cycle every 15 minutes.
+  - Off: both stop, and nothing starts automatically at login.
+- **"หยุดบันทึก 1 ชั่วโมง" (Pause recording for 1 hour)** (or 15 minutes or 3 hours)
+  - It stops the recorder immediately, then systemd's one-time timer turns it back on automatically when the time is up, even if the secretary is not running.
+  - The paused period is also logged. Anything recorded during that period, the secretary will not keep.
+  - "บันทึกต่อเลย" (Resume now) ends the pause before the time is up.
+- **"ห้ามบันทึก … แก้" (Do not record … Edit)** has 3 types:
+  - **แอป (Apps):** never recorded
+  - **เว็บและชื่อหน้าต่าง (Websites and window titles):** never recorded
+  - **คำในชื่อหน้าต่าง (Words in window titles):** the time is kept, but the window title is hidden
 
-  เพิ่มกติกาแล้ว เลขาลบของเดิมที่ตรงกติกาออกจาก log ด้วย แล้วรีสตาร์ท awatcher ให้ใช้กติกาใหม่
+  After you add a rule, the secretary also deletes existing matching entries from the log, then restarts awatcher so it uses the new rule.
 
-ตัวกรองทำงาน 2 ชั้น:
+The filter works in 2 layers:
 
-1. **ใน awatcher:** หน้าต่างที่ห้ามไม่ถูกส่งเข้า ActivityWatch เลย
-2. **ตอนเลขาอ่าน:** กรองซ้ำอีกครั้งก่อนเก็บ
+1. **In awatcher:** blocked windows are never sent to ActivityWatch.
+2. **When the secretary reads:** it filters again before storing.
 
-| อยากรู้ | คำสั่ง |
+| Want to know | Command |
 |---|---|
-| ตัวบันทึกทำงานอยู่ไหม | `systemctl --user status awatcher` |
-| log ของตัวบันทึก | `journalctl --user -u awatcher -n 50` |
-| ส่วนเสริม GNOME ทำงานไหม | `gnome-extensions info focused-window-dbus@flexagoon.com` ต้องเห็น `State: ACTIVE` |
+| Is the recorder running | `systemctl --user status awatcher` |
+| The recorder's log | `journalctl --user -u awatcher -n 50` |
+| Is the GNOME extension working | `gnome-extensions info focused-window-dbus@flexagoon.com` should show `State: ACTIVE` |
 
-## เทียบแผนกับที่ทำจริง
+## Comparing the plan with what was actually done
 
-ทุกครั้งที่เลขาอ่าน ActivityWatch (ทุก 15 นาที) บล็อกงานในตารางที่จบแล้วจะได้ผลหนึ่งอย่าง:
+Each time the secretary reads ActivityWatch (every 15 minutes), a finished work block in the schedule gets one of these results:
 
-| ผล | เมื่อไร | ตารางทำอะไรต่อ |
+| Result | When | What the schedule does next |
 |---|---|---|
-| ทำแล้ว | ทำงานของบล็อกนั้นอย่างน้อยครึ่งบล็อก | นับว่าทำแล้ว (สีเขียว พร้อมเวลาที่ทำจริง) |
-| หลุดแผน | อยู่หน้าคอมอย่างน้อยครึ่งบล็อก แต่ทำอย่างอื่น | นับเฉพาะนาทีที่ทำงานนั้นจริง ที่เหลือกลับไปที่งาน ตัววางตารางหาเวลาใหม่ให้ |
-| ไม่ได้ใช้คอม | ไม่ได้อยู่หน้าคอมเกินครึ่งบล็อก | นับว่าทำแล้ว (อาจทำนอกคอม เช่น อ่านหนังสือ) |
-| ไม่มีข้อมูล | ตัวบันทึกไม่ได้ทำงานเกินครึ่งบล็อก (ปิดอยู่ หรือหยุดพัก) | นับว่าทำแล้ว ไม่ตัดสิน |
+| ทำแล้ว (Done) | You worked on that block for at least half of it | Counted as done (green, with the actual time spent) |
+| หลุดแผน (Off plan) | You were at the computer for at least half the block, but doing something else | Only the minutes you actually spent on that work are counted. The rest goes back to the task, and the scheduler (ตัววางตาราง) finds a new time for it |
+| ไม่ได้ใช้คอม (Not using the computer) | You were not at the computer for more than half the block | Counted as done (you may have worked away from the computer, such as reading a book) |
+| ไม่มีข้อมูล (No data) | The recorder was not running for more than half the block (off, or paused) | Counted as done, no judgment made |
 
-อะไรนับว่า "ทำงานของบล็อกนั้น" ตัดสินด้วยกติกา:
+What counts as "working on that block" is decided by these rules:
 
-- งานของโปรเจค (จองเวลา ไอเดียที่ทำเป็นงาน ข่าวจากโปรเจค): เวลาที่อยู่กับโปรเจคนั้น
-- งานจาก Classroom: เวลาที่จัดเป็น "เรียน"
-- งานจากอีเมล: เวลาที่อยู่กับอีเมล
-- งานทุกชนิด: หน้าต่างที่ชื่อมีคำในชื่องาน (คำภาษาอังกฤษ 3 ตัวขึ้นไปที่แยกเป็นคำ คำภาษาไทย 3 ตัวขึ้นไป)
+- Project work (time bookings, ideas turned into tasks, project news): the time spent in that project
+- Work from Classroom: the time you labeled "เรียน" (Study)
+- Work from email: the time spent in email
+- All kinds of work: windows whose title contains a word from the task name (English words of 3 or more letters that stand as separate words, Thai words of 3 or more characters)
 
-ถ้าเลขาบอกว่าหลุด แต่คุณทำนอกคอมจริง ให้คลิกบล็อกในหน้าตาราง แล้วกด **"นับว่าทำแล้ว (ทำนอกคอม)"**
+If the secretary says you went off plan, but you actually worked away from the computer, click the block on the schedule page, then press **"นับว่าทำแล้ว (ทำนอกคอม)" (Count as done (off computer))**.
 
-เห็นผลได้ที่:
+You can see the results at:
 
-- **หน้าตาราง:**
-  - สีของบล็อก
-  - การ์ด "ทำตามแผนได้ X%" เทียบกับเป้า (คลิกที่เป้าเพื่อแก้ ค่าเริ่ม 80%)
-  - "ข้อสังเกต" เมื่อช่วงเดียวกันของสัปดาห์หลุดซ้ำ 2 สัปดาห์ขึ้นไป
-- **หน้าวันนี้:** แถว "ทำจริง"
-- **ทบทวนเย็น 21:00:**
-  - "ทำตามตารางได้ X จาก Y บล็อก"
-  - บล็อกที่หลุด ทำอะไรแทน และเลขาย้ายเวลาไปไว้ไหน
-  - ปุ่ม "ย้าย … ไปพรุ่งนี้" เมื่อเวลาใหม่อยู่คืนนี้
+- **The หน้าตาราง (Schedule page):**
+  - the block colors
+  - the card "ทำตามแผนได้ X%" (Followed the plan X%), compared with the target (click the target to change it, default 80%)
+  - an "ข้อสังเกต" (Observations) note when the same time slot slips off plan 2 or more weeks in a row
+- **หน้าวันนี้ (Today page):** the "ทำจริง" (Actual) row
+- **ทบทวนเย็น 21:00 (Evening review at 21:00):**
+  - "ทำตามตารางได้ X จาก Y บล็อก" (Followed the schedule for X of Y blocks)
+  - Blocks that slipped, what you did instead, and where the secretary moved the time to
+  - the "ย้าย … ไปพรุ่งนี้" (Move … to tomorrow) button, when the new time is tonight

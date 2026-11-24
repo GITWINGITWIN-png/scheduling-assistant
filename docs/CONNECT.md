@@ -1,10 +1,10 @@
-# CONNECT.md · ส่งข่าวให้เลขา
+# CONNECT.md: send news to the secretary
 
-โปรเจคอื่นบอกเลขาได้ว่ามีอะไรใหม่ ด้วยการวางไฟล์ JSON ลงโฟลเดอร์กลาง เลขาอ่านทางเดียว (ไม่ตอบกลับ ไม่แก้ไฟล์ในโปรเจค) และไม่ใช้โมเดล
+Other projects can tell the secretary what's new by dropping JSON files into a shared folder. The secretary reads this one way only: it does not reply or edit files in the project, and it does not use a model.
 
-## ทางง่าย: คำสั่ง `secretary-news`
+## The easy way: the `secretary-news` command
 
-รันจากในโฟลเดอร์ของโปรเจค (หรือโฟลเดอร์ย่อย) คำสั่งรู้เองว่าเป็นโปรเจคไหน และเขียนไฟล์ให้ถูกแบบตามข้างล่าง:
+Run it from inside the project folder (or a subfolder). The command knows which project it belongs to and writes the file in the correct format, as shown below:
 
 ```bash
 secretary-news report "เสร็จ: feed วันนี้มาแล้ว" --body "12 paper ใหม่" --link https://example.com/feed
@@ -13,57 +13,59 @@ secretary-news schedule "ตรวจผล backtest รอบใหม่" --du
 secretary-news status "backtest รอบที่ 14" --state failed --body "หน่วยความจำไม่พอที่ขั้น 3"
 ```
 
-- อยู่นอกโฟลเดอร์โปรเจค: ใส่ `--project <ชื่อโฟลเดอร์>`
-- ติดตั้งคำสั่ง (ครั้งเดียว ในโฟลเดอร์ของเลขา): `/usr/bin/python3 desktop/secretary_news.py install`
-- โปรเจคที่ "เชื่อมกับเลขา" แล้ว (หน้าโปรเจค) มีโน้ตใน `CLAUDE.local.md` บอก Claude ที่ทำงานในนั้นให้ใช้คำสั่งนี้เอง
-- เลขาอ่านกล่องทุก 5 นาที เมื่อเปิดรอบ "อ่านข่าวจากโปรเจค" ที่หน้าตั้งค่า
+- Outside the project folder: add `--project <project folder name>`
+- Install the command (once, from the secretary's folder): `/usr/bin/python3 desktop/secretary_news.py install`
+- Projects that are connected to the secretary (เชื่อมกับเลขา, connected to the secretary) on the project page (หน้าโปรเจค, project page) have a note in `CLAUDE.local.md` telling Claude, when working in that project, to use this command itself.
+- The secretary reads the inbox every 5 minutes, once the round อ่านข่าวจากโปรเจค (read news from projects) is turned on in the หน้าตั้งค่า (settings page).
 
-## วางไฟล์เอง: ที่ไหน
+## Placing the file yourself: where
 
 ```
 ~/.secretary/inbox/<ชื่อโฟลเดอร์โปรเจคใน ~/Projects>/<ชื่ออะไรก็ได้>.json
 ```
 
-ชื่อโฟลเดอร์ต้องตรงกับโฟลเดอร์ของโปรเจคใน `~/Projects` (เช่น `research_labs`) เลขาจะผูกข่าวกับโปรเจคนั้น
-หนึ่งไฟล์ = หนึ่งเรื่อง · อ่านแล้วเลขาย้ายไฟล์ไป `read/` ข้างใน · ไฟล์ที่อ่านไม่ได้ย้ายไป `bad/` และบอกในข่าว
+The folder name must match the project's folder in `~/Projects` (for example `research_labs`). The secretary links the news to that project.
 
-เขียนไฟล์ให้เสร็จก่อนแล้วค่อยย้าย (หรือ rename) เข้าโฟลเดอร์ เลขาจะได้ไม่อ่านไฟล์ที่ยังเขียนไม่จบ ไฟล์ที่ชื่อขึ้นต้นด้วย `.` จะถูกข้าม
+One file = one topic. After reading, the secretary moves the file into `read/` inside that folder. Files it cannot read are moved to `bad/`, and it reports this in the news.
 
-## 3 แบบ
+Write the file completely first, then move (or rename) it into the folder. That way the secretary won't read a file that is still being written. Files whose names start with `.` are skipped.
 
-**report** · ข่าวว่ามีอะไรใหม่ (ผลรัน feed สรุปผลทดลอง)
+## Three types
+
+**report**: news that something is new (a feed run's results or an experiment summary)
 
 ```json
 {"kind": "report", "title": "feed วันนี้มาแล้ว: Diffusion for time series", "body": "12 paper ใหม่", "link": "https://example.com/feed/2026-11-06"}
 ```
 
-**schedule** · กำหนดการ: กลายเป็นงานในตารางของเลขา พร้อมกำหนดส่งและเวลาที่ต้องใช้
+**schedule**: a plan that becomes a task on the secretary's schedule, with a due date and the time it needs
 
 ```json
 {"kind": "schedule", "title": "ตรวจผล backtest รอบใหม่", "due": "2026-11-12T17:00:00+07:00", "minutes": 90}
 ```
 
-**status** · สถานะงานของโปรเจคที่รันอัตโนมัติ
+**status**: the status of a project's automatically running job
 
 ```json
 {"kind": "status", "title": "backtest รอบที่ 14", "status": "failed", "body": "หน่วยความจำไม่พอที่ขั้น 3"}
 ```
 
-## ช่องที่ใช้ได้ทุกแบบ
+## Fields that work in every type
 
-| ช่อง | ต้องมีไหม | คืออะไร |
+| Field | Required? | Description |
 |---|---|---|
-| `kind` | ต้อง | `report` · `schedule` · `status` |
-| `title` | ต้อง | หัวข้อสั้น ๆ บรรทัดเดียว |
-| `body` | ไม่ต้อง | รายละเอียด |
-| `link` | ไม่ต้อง | ลิงก์ไปดูเพิ่ม |
-| `at` | ไม่ต้อง | เวลาที่เกิด (ISO 8601) ไม่ใส่ = ตอนที่เลขาอ่าน |
-| `failed` | ไม่ต้อง | `true` ถ้างานล้ม (`status: "failed"` ก็นับ) |
-| `needs_you` | ไม่ต้อง | `true` ถ้าต้องให้เจ้าของตัดสินใจ |
-| `due`, `minutes` | schedule | กำหนดส่ง (ISO 8601) และเวลาที่ต้องใช้ (นาที) |
-| `status` | status | `running` · `done` · `failed` · `paused` |
+| `kind` | Required | `report`, `schedule`, `status` |
+| `title` | Required | Short one-line headline |
+| `body` | Optional | Details |
+| `link` | Optional | Link for more information |
+| `at` | Optional | When it happened (ISO 8601). If left out, it is the time the secretary reads the file |
+| `failed` | Optional | `true` if the job failed (`status: "failed"` also counts) |
+| `needs_you` | Optional | `true` if the owner needs to make a decision |
+| `due`, `minutes` | schedule | Due date (ISO 8601) and time needed (minutes) |
+| `status` | status | `running`, `done`, `failed`, `paused` |
 
-## เมื่อไหร่แจ้งทันที
+## When to alert immediately
 
-ข่าวที่ `failed` หรือ `needs_you` จากโปรเจคที่ potential S–A หรือความเร่งด่วน 4–5 ขึ้น #ด่วน ใน Discord ทันที
-ข่าวอื่นรวมในสรุปเช้า 07:00 และอยู่ในหน้าโปรเจคกับหน้าวันนี้
+News marked `failed` or `needs_you` from a project with potential S to A, or urgency 4 to 5, is posted to #ด่วน (urgent) on Discord right away.
+
+Other news is combined into the morning summary (สรุปเช้า) at 07:00, and appears on the project page and the หน้าวันนี้ (Today page).
